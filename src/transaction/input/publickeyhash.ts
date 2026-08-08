@@ -1,24 +1,29 @@
 'use strict'
 
-const inherits = require('inherits')
+import inherits = require('inherits')
 
 const $ = require('../../util/preconditions')
 
-const Hash = require('../../crypto/hash')
-const Input = require('./input')
-const Output = require('../output')
-const Sighash = require('../sighash')
-const Script = require('../../script')
-const Signature = require('../../crypto/signature')
-const TransactionSignature = require('../signature')
+import Hash = require('../../crypto/hash')
+import Input = require('./input')
+import OutputImpl = require('../output')
+import Sighash = require('../sighash')
+import type { Script, ScriptConstructor } from '../../script/script.types'
+import type { SigningInput, SigningInputConstructor } from '../types'
+import type { Output as OutputType } from '../types'
+
+// script is in this cycle, so it is resolved on demand.
+const scriptClass = (): ScriptConstructor => require('../../script')
+import Signature = require('../../crypto/signature')
+import TransactionSignature = require('../signature')
 
 /**
  * Represents a special kind of input of PayToPublicKeyHash kind.
  * @constructor
  */
-function PublicKeyHashInput () {
-  Input.apply(this, arguments)
-}
+const PublicKeyHashInput = function PublicKeyHashInput (this: SigningInput) {
+  Input.apply(this, arguments as unknown as [])
+} as unknown as SigningInputConstructor
 inherits(PublicKeyHashInput, Input)
 
 /**
@@ -29,8 +34,8 @@ inherits(PublicKeyHashInput, Input)
  * @param {Buffer=} hashData - the precalculated hash of the public key associated with the privateKey provided
  * @return {Array} of objects that can be
  */
-PublicKeyHashInput.prototype.getSignatures = function (transaction, privateKey, index, sigtype, hashData) {
-  $.checkState(this.output instanceof Output)
+PublicKeyHashInput.prototype.getSignatures = function (this: SigningInput, transaction: any, privateKey: any, index: any, sigtype: any, hashData: any): unknown[] {
+  $.checkState(this.output instanceof (OutputImpl as unknown as new () => unknown))
   hashData = hashData || Hash.sha256ripemd160(privateKey.publicKey.toBuffer())
   sigtype = sigtype || (Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID)
 
@@ -38,14 +43,15 @@ PublicKeyHashInput.prototype.getSignatures = function (transaction, privateKey, 
   // trailing data" script here via isPublicKeyHashOutPrefix() — in which
   // case the strict getPublicKeyHash() would throw. Read the 20-byte hash
   // directly from chunks[2] (validated by the prefix check at dispatch).
-  const scriptPkh = this.output.script.chunks[2] && this.output.script.chunks[2].buf
-  if (scriptPkh && hashData.equals(scriptPkh)) {
+  const chunk = (this.output as OutputType).script.chunks[2]
+  const scriptPkh = chunk?.buf
+  if (scriptPkh != null && hashData.equals(scriptPkh)) {
     return [new TransactionSignature({
       publicKey: privateKey.publicKey,
       prevTxId: this.prevTxId,
       outputIndex: this.outputIndex,
       inputIndex: index,
-      signature: Sighash.sign(transaction, privateKey, sigtype, index, this.output.script, this.output.satoshisBN),
+      signature: Sighash.sign(transaction, privateKey, sigtype, index, (this.output as OutputType).script, (this.output as OutputType).satoshisBN),
       sigtype
     })]
   }
@@ -61,10 +67,10 @@ PublicKeyHashInput.prototype.getSignatures = function (transaction, privateKey, 
  * @param {number=} signature.sigtype
  * @return {PublicKeyHashInput} this, for chaining
  */
-PublicKeyHashInput.prototype.addSignature = function (transaction, signature) {
+PublicKeyHashInput.prototype.addSignature = function (this: SigningInput, transaction: any, signature: any): SigningInput {
   $.checkState(this.isValidSignature(transaction, signature), 'Signature is invalid')
 
-  this.setScript(Script.buildPublicKeyHashIn(
+  this.setScript(scriptClass().buildPublicKeyHashIn(
     signature.publicKey,
     signature.signature.toDER(),
     signature.sigtype
@@ -76,8 +82,8 @@ PublicKeyHashInput.prototype.addSignature = function (transaction, signature) {
  * Clear the input's signature
  * @return {PublicKeyHashInput} this, for chaining
  */
-PublicKeyHashInput.prototype.clearSignatures = function () {
-  this.setScript(Script.empty())
+PublicKeyHashInput.prototype.clearSignatures = function (this: SigningInput): SigningInput {
+  this.setScript(scriptClass().empty())
   return this
 }
 
@@ -85,8 +91,8 @@ PublicKeyHashInput.prototype.clearSignatures = function () {
  * Query whether the input is signed
  * @return {boolean}
  */
-PublicKeyHashInput.prototype.isFullySigned = function () {
-  return this.script.isPublicKeyHashIn()
+PublicKeyHashInput.prototype.isFullySigned = function (this: SigningInput): boolean {
+  return (this.script as Script).isPublicKeyHashIn()
 }
 
 // 32   txid
@@ -101,8 +107,8 @@ PublicKeyHashInput.prototype.isFullySigned = function () {
 // 4    sequence number
 PublicKeyHashInput.SCRIPT_MAX_SIZE = 108
 
-PublicKeyHashInput.prototype._estimateSize = function () {
-  return Input.BASE_SIZE + PublicKeyHashInput.SCRIPT_MAX_SIZE
+PublicKeyHashInput.prototype._estimateSize = function (this: SigningInput): number {
+  return Input.BASE_SIZE + (PublicKeyHashInput.SCRIPT_MAX_SIZE as number)
 }
 
-module.exports = PublicKeyHashInput
+export = PublicKeyHashInput

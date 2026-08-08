@@ -28,6 +28,15 @@ export interface Script {
   toAddress: (network?: unknown) => unknown
   equals: (script: Script) => boolean
   inspect: () => string
+
+  // Input-script accessors, used by the transaction/input subclasses.
+  getPublicKey: () => Buffer
+  getPublicKeyHash: () => Buffer
+  isPublicKeyIn: () => boolean
+  isPublicKeyHashIn: () => boolean
+  isMultisigIn: () => boolean
+  isScriptHashIn: () => boolean
+  removeCodeseparators: () => Script
 }
 
 export interface ScriptConstructor {
@@ -43,6 +52,11 @@ export interface ScriptConstructor {
   buildScriptHashOut: (script: Script) => Script
   buildDataOut: (data: unknown, encoding?: string) => Script
   buildSafeDataOut: (data: unknown, encoding?: string) => Script
+  buildPublicKeyIn: (signature: unknown, sigtype?: number) => Script
+  buildPublicKeyHashIn: (publicKey: unknown, signature: unknown, sigtype?: number) => Script
+  buildMultisigOut: (publicKeys: unknown[], threshold: number, opts?: unknown) => Script
+  buildMultisigIn: (pubkeys: unknown[], threshold: number, signatures: unknown[], opts?: unknown) => Script
+  buildP2SHMultisigIn: (pubkeys: unknown[], threshold: number, signatures: unknown[], opts?: unknown) => Script
   /** Attached by script/index, not by script/script itself. */
   Interpreter: unknown
 }

@@ -151,3 +151,26 @@ export interface InputConstructor {
   fromObject: (obj: Record<string, unknown>) => Input
   fromBufferReader: (br: unknown) => Input
 }
+
+/**
+ * An input subclass that knows how to sign itself.
+ *
+ * The four variants (PublicKey, PublicKeyHash, MultiSig, MultiSigScriptHash)
+ * all extend Input via `inherits` and override the same four members. Their
+ * signatures differ in arity — MultiSig-family getSignatures takes no
+ * hashData — so the shared type is deliberately permissive there rather than
+ * inventing a union that no caller uses.
+ */
+export interface SigningInput extends Input {
+  getSignatures: (...args: unknown[]) => unknown[]
+  addSignature: (...args: unknown[]) => SigningInput
+  clearSignatures: () => SigningInput
+  isFullySigned: () => boolean
+  _estimateSize: () => number
+}
+
+export interface SigningInputConstructor {
+  new (params?: Record<string, unknown>): SigningInput
+  (params?: Record<string, unknown>): SigningInput
+  SCRIPT_MAX_SIZE?: number
+}

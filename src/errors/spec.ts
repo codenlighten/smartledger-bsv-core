@@ -1,8 +1,20 @@
 'use strict'
 
+/**
+ * Declarative definitions for the library's error hierarchy.
+ *
+ * `errors/index` walks this tree and builds a constructor per entry, nesting
+ * `errors` children under their parent (so `Transaction.Input.MissingScript`
+ * becomes bsv.errors.Transaction.Input.MissingScript).
+ *
+ * `message` is either a template whose {0}/{1}/{2} placeholders are filled
+ * positionally, or a function receiving the constructor arguments.
+ */
+import type { ErrorSpec } from './types'
+
 const docsURL = 'https://docs.moneybutton.com/'
 
-module.exports = [{
+const spec: ErrorSpec[] = [{
   name: 'InvalidB58Char',
   message: 'Invalid Base58 character: {0} in {1}'
 }, {
@@ -182,3 +194,5 @@ module.exports = [{
     message: 'Invalid argument for creation, must be string, json, buffer, or object'
   }]
 }]
+
+export = spec

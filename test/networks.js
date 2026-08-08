@@ -160,3 +160,31 @@ describe('Networks', function () {
     expect(fn).to.throw(TypeError)
   })
 })
+
+describe('Networks regtest/stn toggles', function () {
+  // Regression: cashAddrPrefixArray's stnEnabled branch called
+  // STN.cashAddrPrefixToArray(), but STN is a plain data object with no such
+  // method, so reading the getter after enableStn() threw. Present and
+  // reproducible in @smartledger/bsv 7.5.5; found by the TypeScript
+  // conversion, not by any existing test.
+  afterEach(function () {
+    bsv.Networks.disableStn()
+    bsv.Networks.disableRegtest()
+  })
+
+  it('cashAddrPrefixArray works with stn enabled', function () {
+    bsv.Networks.enableStn()
+    var arr = bsv.Networks.testnet.cashAddrPrefixArray
+    Array.isArray(arr).should.equal(true)
+    arr.length.should.be.above(0)
+  })
+
+  it('cashAddrPrefixArray works with regtest enabled', function () {
+    bsv.Networks.enableRegtest()
+    Array.isArray(bsv.Networks.testnet.cashAddrPrefixArray).should.equal(true)
+  })
+
+  it('cashAddrPrefixArray works with neither enabled', function () {
+    Array.isArray(bsv.Networks.testnet.cashAddrPrefixArray).should.equal(true)
+  })
+})

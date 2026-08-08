@@ -1,9 +1,10 @@
 'use strict'
-const _ = require('./util/_')
+import _ = require('./util/_')
 
-const JSUtil = require('./util/js')
-const networks = []
-const networkMaps = {}
+import JSUtil = require('./util/js')
+import type { Network, NetworkData } from './networks.types'
+const networks: Network[] = []
+const networkMaps: Record<string, Network> = {}
 
 /**
  * A network is merely a map containing values that correspond to version
@@ -11,9 +12,9 @@ const networkMaps = {}
  * (a.k.a. "mainnet"), "testnet", "regtest" and "stn".
  * @constructor
  */
-function Network () {}
+function Network (this: Network): void {}
 
-Network.prototype.toString = function toString () {
+Network.prototype.toString = function toString (this: Network): string {
   return this.name
 }
 
@@ -25,17 +26,15 @@ Network.prototype.toString = function toString () {
  * @param {string|Array} keys - if set, only check if the magic number associated with this name matches
  * @return Network
  */
-function get (arg, keys) {
-  if (~networks.indexOf(arg)) {
-    return arg
+function get (arg: string | number | Network, keys?: string | string[]): Network | undefined {
+  if (~networks.indexOf(arg as Network)) {
+    return arg as Network
   }
-  if (keys) {
-    if (!_.isArray(keys)) {
-      keys = [keys]
-    }
+  if (keys != null) {
+    const ks: string[] = _.isArray(keys) ? keys as string[] : [keys as string]
     for (let i = 0; i < networks.length; i++) {
-      const network = networks[i]
-      const filteredNet = _.pick(network, keys)
+      const network = networks[i] as Network
+      const filteredNet = _.pick(network as unknown as Record<string, unknown>, ks)
       const netValues = _.values(filteredNet)
       if (~netValues.indexOf(arg)) {
         return network
@@ -43,7 +42,7 @@ function get (arg, keys) {
     }
     return undefined
   }
-  return networkMaps[arg]
+  return networkMaps[String(arg)]
 }
 
 /***
@@ -52,7 +51,7 @@ function get (arg, keys) {
  *
  * @param {string} cashAddrPrefix Network cashAddrPrefix. E.g.: 'bitcoincash'.
  */
-function cashAddrPrefixToArray (cashAddrPrefix) {
+function cashAddrPrefixToArray (cashAddrPrefix: string): number[] {
   const result = []
   for (let i = 0; i < cashAddrPrefix.length; i++) {
     result.push(cashAddrPrefix.charCodeAt(i) & 31)
@@ -77,8 +76,8 @@ function cashAddrPrefixToArray (cashAddrPrefix) {
  * @param {Array}  data.dnsSeeds - An array of dns seeds
  * @return Network
  */
-function addNetwork (data) {
-  const network = new Network()
+function addNetwork (data: NetworkData): Network {
+  const network = new (Network as unknown as new () => Network)()
 
   JSUtil.defineImmutable(network, {
     name: data.name,
@@ -90,28 +89,28 @@ function addNetwork (data) {
     xprivkey: data.xprivkey
   })
 
-  const indexBy = data.indexBy || Object.keys(data)
+  const indexBy = data.indexBy ?? Object.keys(data)
 
-  if (data.cashAddrPrefix) {
+  if (data.cashAddrPrefix != null) {
     _.extend(network, {
       cashAddrPrefix: data.cashAddrPrefix,
       cashAddrPrefixArray: cashAddrPrefixToArray(data.cashAddrPrefix)
     })
   }
 
-  if (data.networkMagic) {
+  if (data.networkMagic != null) {
     _.extend(network, {
       networkMagic: JSUtil.integerAsBuffer(data.networkMagic)
     })
   }
 
-  if (data.port) {
+  if (data.port != null) {
     _.extend(network, {
       port: data.port
     })
   }
 
-  if (data.dnsSeeds) {
+  if (data.dnsSeeds != null) {
     _.extend(network, {
       dnsSeeds: data.dnsSeeds
     })
@@ -121,21 +120,23 @@ function addNetwork (data) {
   return network
 }
 
-function indexNetworkBy (network, keys) {
+function indexNetworkBy (network: Network, keys: string[]): void {
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i]
-    const networkValue = network[key]
+    if (key === undefined) continue
+    const networkValue = (network as unknown as Record<string, unknown>)[key]
     if (!_.isUndefined(networkValue) && !_.isObject(networkValue)) {
-      networkMaps[networkValue] = network
+      networkMaps[String(networkValue)] = network
     }
   }
 }
 
-function unindexNetworkBy (network, values) {
+function unindexNetworkBy (network: Network, values: string[]): void {
   for (let index = 0; index < values.length; index++) {
     const value = values[index]
+    if (value === undefined) continue
     if (networkMaps[value] === network) {
-      delete networkMaps[value]
+      delete networkMaps[value] // eslint-disable-line @typescript-eslint/no-dynamic-delete
     }
   }
 }
@@ -146,7 +147,7 @@ function unindexNetworkBy (network, values) {
  * Will remove a custom network
  * @param {Network} network
  */
-function removeNetwork (network) {
+function removeNetwork (network: Network): void {
   for (let i = 0; i < networks.length; i++) {
     if (networks[i] === network) {
       networks.splice(i, 1)
@@ -262,15 +263,17 @@ addNetwork(stnNetwork)
 addNetwork(regtestNetwork)
 addNetwork(liveNetwork)
 
-const livenet = get('livenet')
-const regtest = get('regtest')
-const testnet = get('testnet')
-const stn = get('stn')
+// get() returns Network | undefined; these four are registered above, so the
+// assertions are safe and keep the exported constants non-optional.
+const livenet = get('livenet') as Network
+const regtest = get('regtest') as Network
+const testnet = get('testnet') as Network
+const stn = get('stn') as Network
 
 Object.defineProperty(testnet, 'port', {
   enumerable: true,
   configurable: false,
-  get: function () {
+  get: function (this: Network & { regtestEnabled?: boolean, stnEnabled?: boolean }) {
     if (this.regtestEnabled) {
       return REGTEST.PORT
     } else if (this.stnEnabled) {
@@ -284,7 +287,7 @@ Object.defineProperty(testnet, 'port', {
 Object.defineProperty(testnet, 'networkMagic', {
   enumerable: true,
   configurable: false,
-  get: function () {
+  get: function (this: Network & { regtestEnabled?: boolean, stnEnabled?: boolean }) {
     if (this.regtestEnabled) {
       return JSUtil.integerAsBuffer(REGTEST.NETWORK_MAGIC)
     } else if (this.stnEnabled) {
@@ -298,7 +301,7 @@ Object.defineProperty(testnet, 'networkMagic', {
 Object.defineProperty(testnet, 'dnsSeeds', {
   enumerable: true,
   configurable: false,
-  get: function () {
+  get: function (this: Network & { regtestEnabled?: boolean, stnEnabled?: boolean }) {
     if (this.regtestEnabled) {
       return REGTEST.DNS_SEEDS
     } else if (this.stnEnabled) {
@@ -312,7 +315,7 @@ Object.defineProperty(testnet, 'dnsSeeds', {
 Object.defineProperty(testnet, 'cashAddrPrefix', {
   enumerable: true,
   configurable: false,
-  get: function () {
+  get: function (this: Network & { regtestEnabled?: boolean, stnEnabled?: boolean }) {
     if (this.regtestEnabled) {
       return REGTEST.CASHADDRPREFIX
     } else if (this.stnEnabled) {
@@ -326,11 +329,16 @@ Object.defineProperty(testnet, 'cashAddrPrefix', {
 Object.defineProperty(testnet, 'cashAddrPrefixArray', {
   enumerable: true,
   configurable: false,
-  get: function () {
+  get: function (this: Network & { regtestEnabled?: boolean, stnEnabled?: boolean }) {
     if (this.regtestEnabled) {
       return cashAddrPrefixToArray(REGTEST.CASHADDRPREFIX)
     } else if (this.stnEnabled) {
-      return STN.cashAddrPrefixToArray(STN.CASHADDRPREFIX)
+      // BUG FIX: this read `STN.cashAddrPrefixToArray(...)`, but STN is a plain
+      // data object with no such method, so reading this getter after
+      // enableStn() threw `TypeError: STN.cashAddrPrefixToArray is not a
+      // function`. The other two branches call the module-level function; this
+      // one now does too. Present and reproducible in @smartledger/bsv 7.5.5.
+      return cashAddrPrefixToArray(STN.CASHADDRPREFIX)
     } else {
       return cashAddrPrefixToArray(TESTNET.CASHADDRPREFIX)
     }
@@ -342,8 +350,8 @@ Object.defineProperty(testnet, 'cashAddrPrefixArray', {
  * @member Networks#enableRegtest
  * Will enable regtest features for testnet
  */
-function enableRegtest () {
-  testnet.regtestEnabled = true
+function enableRegtest (): void {
+  (testnet as Network & { regtestEnabled?: boolean }).regtestEnabled = true
 }
 
 /**
@@ -351,16 +359,16 @@ function enableRegtest () {
  * @member Networks#disableRegtest
  * Will disable regtest features for testnet
  */
-function disableRegtest () {
-  testnet.regtestEnabled = false
+function disableRegtest (): void {
+  (testnet as Network & { regtestEnabled?: boolean }).regtestEnabled = false
 }
 /**
  * @function
  * @member Networks#enableStn
  * Will enable stn features for testnet
  */
-function enableStn () {
-  testnet.stnEnabled = true
+function enableStn (): void {
+  (testnet as Network & { stnEnabled?: boolean }).stnEnabled = true
 }
 
 /**
@@ -368,14 +376,14 @@ function enableStn () {
  * @member Networks#disableStn
  * Will disable stn features for testnet
  */
-function disableStn () {
-  testnet.stnEnabled = false
+function disableStn (): void {
+  (testnet as Network & { stnEnabled?: boolean }).stnEnabled = false
 }
 
 /**
  * @namespace Networks
  */
-module.exports = {
+const Networks = {
   add: addNetwork,
   remove: removeNetwork,
   defaultNetwork: livenet,
@@ -390,3 +398,5 @@ module.exports = {
   enableStn,
   disableStn
 }
+
+export = Networks

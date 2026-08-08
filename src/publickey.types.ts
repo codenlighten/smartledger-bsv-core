@@ -23,6 +23,7 @@ export interface PublicKey {
   toAddress: (network?: unknown) => unknown
   inspect: () => string
   _getID: () => Buffer
+  _classifyArgs: (data: unknown, extra: Record<string, unknown>) => PublicKeyInfo
 }
 
 export interface PublicKeyConstructor {
@@ -37,4 +38,20 @@ export interface PublicKeyConstructor {
   fromX: (odd: boolean, x: BN) => PublicKey
   getValidationError: (data: unknown) => Error | undefined
   isValid: (data: unknown) => boolean
+
+  // Internal transform helpers. Exposed on the constructor by the original
+  // and reached from _classifyArgs, so they are part of the declared shape.
+  _isPrivateKey: (param: unknown) => boolean
+  _isBuffer: (param: unknown) => boolean
+  _transformPrivateKey: (privkey: unknown) => PublicKeyInfo
+  _transformDER: (buf: Buffer, strict?: boolean) => PublicKeyInfo
+  _transformX: (odd: boolean, x: BN) => PublicKeyInfo
+  _transformObject: (json: { x: string, y: string, compressed?: boolean }) => PublicKeyInfo
+}
+
+/** The normalized form produced by the _transform* helpers. */
+export interface PublicKeyInfo {
+  point: Point
+  compressed: boolean
+  network?: unknown
 }

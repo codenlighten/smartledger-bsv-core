@@ -1,9 +1,10 @@
 'use strict'
 
-const hash = require('hash.js')
-const $ = require('../util/preconditions')
+import crypto = require('crypto')
+import $ = require('../util/preconditions')
+import type { HashFunction, HashModule } from './types'
 
-const Hash = module.exports
+const Hash = {} as HashModule
 
 /**
  * A SHA or SHA1 hash, which is always 160 bits or 20 bytes long.
@@ -14,9 +15,9 @@ const Hash = module.exports
  * @param {Buffer} buf Data, a.k.a. pre-image, which can be any size.
  * @returns {Buffer} The hash in the form of a buffer.
  */
-Hash.sha1 = function (buf) {
+Hash.sha1 = function (buf: Buffer): Buffer {
   $.checkArgument(Buffer.isBuffer(buf))
-  return Buffer.from(hash.sha1().update(buf).digest('hex'), 'hex')
+  return crypto.createHash('sha1').update(buf).digest()
 }
 
 Hash.sha1.blocksize = 512
@@ -30,9 +31,9 @@ Hash.sha1.blocksize = 512
  * @param {Buffer} buf Data, a.k.a. pre-image, which can be any size.
  * @returns {Buffer} The hash in the form of a buffer.
  */
-Hash.sha256 = function (buf) {
+Hash.sha256 = function (buf: Buffer): Buffer {
   $.checkArgument(Buffer.isBuffer(buf))
-  return Buffer.from(hash.sha256().update(buf).digest('hex'), 'hex')
+  return crypto.createHash('sha256').update(buf).digest()
 }
 
 Hash.sha256.blocksize = 512
@@ -48,7 +49,7 @@ Hash.sha256.blocksize = 512
  * @param {Buffer} buf Data, a.k.a. pre-image, which can be any size.
  * @returns {Buffer} The hash in the form of a buffer.
  */
-Hash.sha256sha256 = function (buf) {
+Hash.sha256sha256 = function (buf: Buffer): Buffer {
   $.checkArgument(Buffer.isBuffer(buf))
   return Hash.sha256(Hash.sha256(buf))
 }
@@ -62,9 +63,9 @@ Hash.sha256sha256 = function (buf) {
  * @param {Buffer} buf Data, a.k.a. pre-image, which can be any size.
  * @returns {Buffer} The hash in the form of a buffer.
  */
-Hash.ripemd160 = function (buf) {
+Hash.ripemd160 = function (buf: Buffer): Buffer {
   $.checkArgument(Buffer.isBuffer(buf))
-  return Buffer.from(hash.ripemd160().update(buf).digest('hex'), 'hex')
+  return crypto.createHash('ripemd160').update(buf).digest()
 }
 /**
  * A RIPEMD160 hash of a SHA256 hash, which is always 160 bits or 20 bytes long.
@@ -77,7 +78,7 @@ Hash.ripemd160 = function (buf) {
  * @param {Buffer} buf Data, a.k.a. pre-image, which can be any size.
  * @returns {Buffer} The hash in the form of a buffer.
  */
-Hash.sha256ripemd160 = function (buf) {
+Hash.sha256ripemd160 = function (buf: Buffer): Buffer {
   $.checkArgument(Buffer.isBuffer(buf))
   return Hash.ripemd160(Hash.sha256(buf))
 }
@@ -91,9 +92,9 @@ Hash.sha256ripemd160 = function (buf) {
  * @param {Buffer} buf Data, a.k.a. pre-image, which can be any size.
  * @returns {Buffer} The hash in the form of a buffer.
  */
-Hash.sha512 = function (buf) {
+Hash.sha512 = function (buf: Buffer): Buffer {
   $.checkArgument(Buffer.isBuffer(buf))
-  return Buffer.from(hash.sha512().update(buf).digest('hex'), 'hex')
+  return crypto.createHash('sha512').update(buf).digest()
 }
 
 Hash.sha512.blocksize = 1024
@@ -114,22 +115,29 @@ Hash.sha512.blocksize = 1024
  * @param {Buffer} key Key, which can be any size.
  * @returns {Buffer} The HMAC in the form of a buffer.
  */
-Hash.hmac = function (hashf, data, key) {
+Hash.hmac = function (hashf: HashFunction, data: Buffer, key: Buffer): Buffer {
   // http://en.wikipedia.org/wiki/Hash-based_message_authentication_code
   // http://tools.ietf.org/html/rfc4868#section-2
   $.checkArgument(Buffer.isBuffer(data))
   $.checkArgument(Buffer.isBuffer(key))
   $.checkArgument(hashf.blocksize)
 
-  const blocksize = hashf.blocksize / 8
+  const blocksize = (hashf.blocksize as number) / 8
 
-  if (key.length > blocksize) {
-    key = hashf(key)
-  } else if (key < blocksize) {
+  let k = key
+  if (k.length > blocksize) {
+    k = hashf(k)
+  } else if (k.length < blocksize) {
+    // The original read `key < blocksize`, comparing a Buffer to a number,
+    // which is always false — so this zero-padding branch never ran. It was
+    // harmless only by accident: the XOR below indexes past the short key,
+    // and `x ^ undefined` is `x ^ 0`, which is exactly what padding produces.
+    // Written correctly here; the conformance corpus (RFC 4231 vectors)
+    // confirms the output is unchanged.
     const fill = Buffer.alloc(blocksize)
     fill.fill(0)
-    key.copy(fill)
-    key = fill
+    k.copy(fill)
+    k = fill
   }
 
   const oKey = Buffer.alloc(blocksize)
@@ -141,8 +149,8 @@ Hash.hmac = function (hashf, data, key) {
   const oKeyPad = Buffer.alloc(blocksize)
   const iKeyPad = Buffer.alloc(blocksize)
   for (let i = 0; i < blocksize; i++) {
-    oKeyPad[i] = oKey[i] ^ key[i]
-    iKeyPad[i] = iKey[i] ^ key[i]
+    oKeyPad[i] = (oKey[i] as number) ^ (k[i] as number)
+    iKeyPad[i] = (iKey[i] as number) ^ (k[i] as number)
   }
 
   return hashf(Buffer.concat([oKeyPad, hashf(Buffer.concat([iKeyPad, data]))]))
@@ -155,7 +163,7 @@ Hash.hmac = function (hashf, data, key) {
  * @param {Buffer} key Key, which can be any size.
  * @returns {Buffer} The HMAC in the form of a buffer.
  */
-Hash.sha256hmac = function (data, key) {
+Hash.sha256hmac = function (data: Buffer, key: Buffer): Buffer {
   return Hash.hmac(Hash.sha256, data, key)
 }
 
@@ -166,6 +174,8 @@ Hash.sha256hmac = function (data, key) {
  * @param {Buffer} key Key, which can be any size.
  * @returns {Buffer} The HMAC in the form of a buffer.
  */
-Hash.sha512hmac = function (data, key) {
+Hash.sha512hmac = function (data: Buffer, key: Buffer): Buffer {
   return Hash.hmac(Hash.sha512, data, key)
 }
+
+export = Hash

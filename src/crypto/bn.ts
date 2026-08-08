@@ -1,13 +1,24 @@
 'use strict'
 
-const BN = require('bn.js')
-const $ = require('../util/preconditions')
-const _ = require('../util/_')
+import BN = require('bn.js')
+import $ = require('../util/preconditions')
+import _ = require('../util/_')
 
-const reversebuf = function (buf) {
+/**
+ * Bitcoin-specific extensions to bn.js, installed onto the class in place.
+ *
+ * The full shape this library exposes — native subset plus these additions,
+ * and the replaced `toBuffer` — is declared in src/types/bn.js.d.ts. It lives
+ * there rather than as a module augmentation here because bn.js is declared
+ * with `export =`, which TypeScript treats as a non-module entity and refuses
+ * to augment.
+ */
+type BNBufferOpts = BN.BufferOpts
+
+const reversebuf = function (buf: Buffer): Buffer {
   const buf2 = Buffer.alloc(buf.length)
   for (let i = 0; i < buf.length; i++) {
-    buf2[i] = buf[buf.length - 1 - i]
+    buf2[i] = buf[buf.length - 1 - i] as number
   }
   return buf2
 }
@@ -21,7 +32,7 @@ BN.Minus1 = new BN(-1)
  *
  * @param {number} n Any positive or negative integer.
  */
-BN.fromNumber = function (n) {
+BN.fromNumber = function (n: number): BN {
   $.checkArgument(_.isNumber(n))
   return new BN(n)
 }
@@ -32,7 +43,7 @@ BN.fromNumber = function (n) {
  * @param {string} str Any positive or negative integer formatted as a string.
  * @param {number} base The base of the number, defaults to 10.
  */
-BN.fromString = function (str, base) {
+BN.fromString = function (str: string, base?: number): BN {
   $.checkArgument(_.isString(str))
   return new BN(str, base)
 }
@@ -46,7 +57,7 @@ BN.fromString = function (str, base) {
  * @param {Buffer} buf A buffer number, such as a 256 bit hash or key.
  * @param {Object} opts With a property 'endian' that can be either 'big' or 'little'. Defaults big endian (most significant digit first).
  */
-BN.fromBuffer = function (buf, opts) {
+BN.fromBuffer = function (buf: Buffer, opts?: BNBufferOpts): BN {
   if (typeof opts !== 'undefined' && opts.endian === 'little') {
     buf = reversebuf(buf)
   }
@@ -62,22 +73,22 @@ BN.fromBuffer = function (buf, opts) {
  * @param {Buffer} buf A buffer number, such as a 256 bit hash or key.
  * @param {Object} opts With a property 'endian' that can be either 'big' or 'little'. Defaults big endian (most significant digit first).
  */
-BN.fromSM = function (buf, opts) {
+BN.fromSM = function (buf: Buffer, opts?: { endian?: 'big' | 'little' }): BN {
   let ret
   if (buf.length === 0) {
     return BN.fromBuffer(Buffer.from([0]))
   }
 
-  let endian = 'big'
-  if (opts) {
+  let endian: 'big' | 'little' = 'big'
+  if (opts?.endian != null) {
     endian = opts.endian
   }
   if (endian === 'little') {
     buf = reversebuf(buf)
   }
 
-  if (buf[0] & 0x80) {
-    buf[0] = buf[0] & 0x7f
+  if (((buf[0] as number) & 0x80) !== 0) {
+    buf[0] = (buf[0] as number) & 0x7f
     ret = BN.fromBuffer(buf)
     ret.neg().copy(ret)
   } else {
@@ -89,7 +100,7 @@ BN.fromSM = function (buf, opts) {
 /**
  * Convert a big number into a number.
  */
-BN.prototype.toNumber = function () {
+BN.prototype.toNumber = function (this: BN): number {
   return parseInt(this.toString(10), 10)
 }
 
@@ -102,8 +113,9 @@ BN.prototype.toNumber = function () {
  *
  * @param {Object} opts Defaults to { endian: 'big', size: 32 }
  */
-BN.prototype.toBuffer = function (opts) {
-  let buf, hex
+BN.prototype.toBuffer = function (this: BN, opts?: BNBufferOpts): Buffer {
+  let buf: Buffer
+  let hex: string
   if (opts && opts.size) {
     hex = this.toString(16, 2)
     const natlen = hex.length / 2
@@ -133,23 +145,23 @@ BN.prototype.toBuffer = function (opts) {
  * "sign magnitude" format whereby the first bit specifies whether the number is
  * positive or negative.
  */
-BN.prototype.toSMBigEndian = function () {
+BN.prototype.toSMBigEndian = function (this: BN): Buffer {
   let buf
   if (this.cmp(BN.Zero) === -1) {
     buf = this.neg().toBuffer()
-    if (buf[0] & 0x80) {
+    if (((buf[0] as number) & 0x80) !== 0) {
       buf = Buffer.concat([Buffer.from([0x80]), buf])
     } else {
-      buf[0] = buf[0] | 0x80
+      buf[0] = (buf[0] as number) | 0x80
     }
   } else {
     buf = this.toBuffer()
-    if (buf[0] & 0x80) {
+    if (((buf[0] as number) & 0x80) !== 0) {
       buf = Buffer.concat([Buffer.from([0x00]), buf])
     }
   }
 
-  if (buf.length === 1 & buf[0] === 0) {
+  if (buf.length === 1 && buf[0] === 0) {
     buf = Buffer.from([])
   }
   return buf
@@ -162,7 +174,7 @@ BN.prototype.toSMBigEndian = function () {
  *
  * @param {Object} opts Defaults to { endian: 'big' }
  */
-BN.prototype.toSM = function (opts) {
+BN.prototype.toSM = function (this: BN, opts?: { endian?: 'big' | 'little' }): Buffer {
   const endian = opts ? opts.endian : 'big'
   let buf = this.toSMBigEndian()
 
@@ -184,7 +196,7 @@ BN.prototype.toSM = function (opts) {
  * @param {boolean} fRequireMinimal Whether to require minimal size encoding.
  * @param {number} size The maximum size.
  */
-BN.fromScriptNumBuffer = function (buf, fRequireMinimal, size) {
+BN.fromScriptNumBuffer = function (buf: Buffer, fRequireMinimal?: boolean, size?: number): BN {
   const nMaxNumSize = size || 4
   $.checkArgument(buf.length <= nMaxNumSize, new Error('script number overflow'))
   if (fRequireMinimal && buf.length > 0) {
@@ -194,13 +206,13 @@ BN.fromScriptNumBuffer = function (buf, fRequireMinimal, size) {
     // If the most-significant-byte - excluding the sign bit - is zero
     // then we're not minimal. Note how this test also rejects the
     // negative-zero encoding, 0x80.
-    if ((buf[buf.length - 1] & 0x7f) === 0) {
+    if (((buf[buf.length - 1] as number) & 0x7f) === 0) {
       // One exception: if there's more than one byte and the most
       // significant bit of the second-most-significant-byte is set
       // it would conflict with the sign bit. An example of this case
       // is +-255, which encode to 0xff00 and 0xff80 respectively.
       // (big-endian).
-      if (buf.length <= 1 || (buf[buf.length - 2] & 0x80) === 0) {
+      if (buf.length <= 1 || ((buf[buf.length - 2] as number) & 0x80) === 0) {
         throw new Error('non-minimally encoded script number')
       }
     }
@@ -216,7 +228,7 @@ BN.fromScriptNumBuffer = function (buf, fRequireMinimal, size) {
  * performing a numerical operation that results in an overflow to more than 4
  * bytes).
  */
-BN.prototype.toScriptNumBuffer = function () {
+BN.prototype.toScriptNumBuffer = function (this: BN): Buffer {
   return this.toSM({
     endian: 'little'
   })
@@ -228,7 +240,7 @@ BN.prototype.toScriptNumBuffer = function () {
  * @param {Buffer} buf A buffer formatted number.
  * @param {number} natlen The natural length of the number.
  */
-BN.trim = function (buf, natlen) {
+BN.trim = function (buf: Buffer, natlen: number): Buffer {
   return buf.slice(natlen - buf.length, buf.length)
 }
 
@@ -239,10 +251,10 @@ BN.trim = function (buf, natlen) {
  * @param {number} natlen The natural length of the number.
  * @param {number} size How big to pad the number in bytes.
  */
-BN.pad = function (buf, natlen, size) {
+BN.pad = function (buf: Buffer, natlen: number, size: number): Buffer {
   const rbuf = Buffer.alloc(size)
   for (var i = 0; i < buf.length; i++) {
-    rbuf[rbuf.length - 1 - i] = buf[buf.length - 1 - i]
+    rbuf[rbuf.length - 1 - i] = buf[buf.length - 1 - i] as number
   }
   for (i = 0; i < size - natlen; i++) {
     rbuf[i] = 0
@@ -258,7 +270,7 @@ BN.pad = function (buf, natlen, size) {
  *
  * @param {Object} opts Defaults to { endian: 'big', size: 32 }
  */
-BN.prototype.toHex = function (...args) {
+BN.prototype.toHex = function (this: BN, ...args: [BNBufferOpts?]): string {
   return this.toBuffer(...args).toString('hex')
 }
 
@@ -271,8 +283,8 @@ BN.prototype.toHex = function (...args) {
  * @param {Buffer} buf A buffer number, such as a 256 bit hash or key.
  * @param {Object} opts With a property 'endian' that can be either 'big' or 'little'. Defaults big endian (most significant digit first).
  */
-BN.fromHex = function (hex, ...args) {
+BN.fromHex = function (hex: string, ...args: [BNBufferOpts?]): BN {
   return BN.fromBuffer(Buffer.from(hex, 'hex'), ...args)
 }
 
-module.exports = BN
+export = BN

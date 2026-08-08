@@ -24,7 +24,9 @@ const preconditions = {
 
   checkArgument: function (
     condition: unknown,
-    argumentName?: string,
+    // Callers pass an Error here as well as a string (see crypto/bn's
+    // script-number overflow check); the error formatter stringifies it.
+    argumentName?: unknown,
     message?: string,
     docsPath?: string
   ): void {

@@ -1,18 +1,32 @@
 'use strict'
 
-const buffer = require('buffer')
+import Signature = require('../crypto/signature')
+import Output = require('./output')
+import BufferReader = require('../encoding/bufferreader')
+import BufferWriter = require('../encoding/bufferwriter')
+import BN = require('../crypto/bn')
+import Hash = require('../crypto/hash')
+import ECDSA = require('../crypto/ecdsa')
+import $ = require('../util/preconditions')
+import _ = require('../util/_')
+import type { Script } from '../script/script.types'
+import type { PrivateKey } from '../privatekey.types'
+import type { PublicKey } from '../publickey.types'
 
-const Signature = require('../crypto/signature')
-const Script = require('../script')
-const Output = require('./output')
-const BufferReader = require('../encoding/bufferreader')
-const BufferWriter = require('../encoding/bufferwriter')
-const BN = require('../crypto/bn')
-const Hash = require('../crypto/hash')
-const ECDSA = require('../crypto/ecdsa')
-const $ = require('../util/preconditions')
-const Interpreter = require('../script/interpreter')
-const _ = require('../util/_')
+// script/interpreter and ./transaction are both in this cycle, so they are
+// resolved on demand. `Script` above is a TYPE-only import and is erased.
+const interpreter = (): any => require('../script/interpreter')
+const scriptClass = (): any => require('../script')
+
+/**
+ * A transaction, structurally. Deliberately loose until ./transaction is
+ * converted, at which point this becomes the real type. Narrowing it now would
+ * mean inventing a shape that ./transaction might not match.
+ */
+type TransactionLike = any
+
+/** An input, structurally, for the same reason. */
+type InputLike = any
 
 const SIGHASH_SINGLE_BUG = Buffer.from('0000000000000000000000000000000000000000000000000000000000000001', 'hex')
 const BITS_64_ON = 'ffffffffffffffff'
@@ -21,19 +35,19 @@ const BITS_64_ON = 'ffffffffffffffff'
 // Read lazily: Interpreter is part of the script <-> transaction import
 // cycle, so dereferencing it during module evaluation is unsafe under ESM,
 // where the binding may still be in its temporal dead zone.
-const defaultSignFlags = () => Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID
+const defaultSignFlags = (): number => interpreter().SCRIPT_ENABLE_SIGHASH_FORKID
 
-const sighashPreimageForForkId = function (transaction, sighashType, inputNumber, subscript, satoshisBN) {
+const sighashPreimageForForkId = function (transaction: TransactionLike, sighashType: number, inputNumber: number, subscript: Script, satoshisBN: BN): Buffer {
   const input = transaction.inputs[inputNumber]
   $.checkArgument(
     satoshisBN instanceof BN,
     'For ForkId=0 signatures, satoshis or complete input must be provided'
   )
 
-  function GetPrevoutHash (tx) {
+  function GetPrevoutHash (tx: TransactionLike): Buffer {
     const writer = new BufferWriter()
 
-    _.each(tx.inputs, function (input) {
+    _.each(tx.inputs, function (input: InputLike) {
       writer.writeReverse(input.prevTxId)
       writer.writeUInt32LE(input.outputIndex)
     })
@@ -43,10 +57,10 @@ const sighashPreimageForForkId = function (transaction, sighashType, inputNumber
     return ret
   }
 
-  function GetSequenceHash (tx) {
+  function GetSequenceHash (tx: TransactionLike): Buffer {
     const writer = new BufferWriter()
 
-    _.each(tx.inputs, function (input) {
+    _.each(tx.inputs, function (input: InputLike) {
       writer.writeUInt32LE(input.sequenceNumber)
     })
 
@@ -55,11 +69,11 @@ const sighashPreimageForForkId = function (transaction, sighashType, inputNumber
     return ret
   }
 
-  function GetOutputsHash (tx, n) {
+  function GetOutputsHash (tx: TransactionLike, n?: number): Buffer {
     const writer = new BufferWriter()
 
     if (_.isUndefined(n)) {
-      _.each(tx.outputs, function (output) {
+      _.each(tx.outputs, function (output: any) {
         output.toBufferWriter(writer)
       })
     } else {
@@ -71,9 +85,9 @@ const sighashPreimageForForkId = function (transaction, sighashType, inputNumber
     return ret
   }
 
-  let hashPrevouts = Buffer.alloc(32)
-  let hashSequence = Buffer.alloc(32)
-  let hashOutputs = Buffer.alloc(32)
+  let hashPrevouts: Buffer = Buffer.alloc(32)
+  let hashSequence: Buffer = Buffer.alloc(32)
+  let hashOutputs: Buffer = Buffer.alloc(32)
 
   if (!(sighashType & Signature.SIGHASH_ANYONECANPAY)) {
     hashPrevouts = GetPrevoutHash(transaction)
@@ -140,7 +154,9 @@ const sighashPreimageForForkId = function (transaction, sighashType, inputNumber
  * @param {satoshisBN} input's amount (for  ForkId signatures)
  *
  */
-const sighashPreimage = function sighashPreimage (transaction, sighashType, inputNumber, subscript, satoshisBN, flags) {
+const sighashPreimage = function sighashPreimage (transaction: TransactionLike, sighashType: number, inputNumber: number, subscript: Script, satoshisBN?: BN, flags?: number): Buffer {
+  // Reassigned below (a defensive copy), so it is a local rather than the param.
+  // eslint-disable-next-line
   const Transaction = require('./transaction')
   const Input = require('./input')
 
@@ -152,9 +168,9 @@ const sighashPreimage = function sighashPreimage (transaction, sighashType, inpu
   const txcopy = Transaction.shallowCopy(transaction)
 
   // Copy script
-  subscript = new Script(subscript)
+  subscript = new (scriptClass())(subscript)
 
-  if (flags & Interpreter.SCRIPT_ENABLE_REPLAY_PROTECTION) {
+  if (flags & interpreter().SCRIPT_ENABLE_REPLAY_PROTECTION) {
     // Legacy chain's value for fork id must be of the form 0xffxxxx.
     // By xoring with 0xdead, we ensure that the value will be different
     // from the original one, even if it already starts with 0xff.
@@ -163,18 +179,18 @@ const sighashPreimage = function sighashPreimage (transaction, sighashType, inpu
     sighashType = (newForkValue << 8) | (sighashType & 0xff)
   }
 
-  if ((sighashType & Signature.SIGHASH_FORKID) && (flags & Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID)) {
-    return sighashPreimageForForkId(txcopy, sighashType, inputNumber, subscript, satoshisBN)
+  if ((sighashType & Signature.SIGHASH_FORKID) && (flags & interpreter().SCRIPT_ENABLE_SIGHASH_FORKID)) {
+    return sighashPreimageForForkId(txcopy, sighashType, inputNumber, subscript, satoshisBN as BN)
   }
 
   // For no ForkId sighash, separators need to be removed.
-  subscript.removeCodeseparators()
+  ;(subscript as unknown as { removeCodeseparators: () => void }).removeCodeseparators()
 
   let i
 
   for (i = 0; i < txcopy.inputs.length; i++) {
     // Blank signatures for other inputs
-    txcopy.inputs[i] = new Input(txcopy.inputs[i]).setScript(Script.empty())
+    txcopy.inputs[i] = new Input(txcopy.inputs[i]).setScript(scriptClass().empty())
   }
 
   txcopy.inputs[inputNumber] = new Input(txcopy.inputs[inputNumber]).setScript(subscript)
@@ -202,8 +218,8 @@ const sighashPreimage = function sighashPreimage (transaction, sighashType, inpu
 
     for (i = 0; i < inputNumber; i++) {
       txcopy.outputs[i] = new Output({
-        satoshis: BN.fromBuffer(buffer.Buffer.from(BITS_64_ON, 'hex')),
-        script: Script.empty()
+        satoshis: BN.fromBuffer(Buffer.from(BITS_64_ON, 'hex')),
+        script: scriptClass().empty()
       })
     }
   }
@@ -231,7 +247,7 @@ const sighashPreimage = function sighashPreimage (transaction, sighashType, inpu
  * @param {satoshisBN} input's amount (for  ForkId signatures)
  *
  */
-const sighash = function sighash (transaction, sighashType, inputNumber, subscript, satoshisBN, flags) {
+const sighash = function sighash (transaction: TransactionLike, sighashType: number, inputNumber: number, subscript: Script, satoshisBN?: BN, flags?: number): Buffer {
   const preimage = sighashPreimage(transaction, sighashType, inputNumber, subscript, satoshisBN, flags)
   if (preimage.compare(SIGHASH_SINGLE_BUG) === 0) return preimage
   let ret = Hash.sha256sha256(preimage)
@@ -251,7 +267,7 @@ const sighash = function sighash (transaction, sighashType, inputNumber, subscri
  * @param {satoshisBN} input's amount
  * @return {Signature}
  */
-function sign (transaction, privateKey, sighashType, inputIndex, subscript, satoshisBN, flags) {
+function sign (transaction: TransactionLike, privateKey: PrivateKey, sighashType: number, inputIndex: number, subscript: Script, satoshisBN?: BN, flags?: number): Signature {
   const hashbuf = sighash(transaction, sighashType, inputIndex, subscript, satoshisBN, flags)
 
   const sig = ECDSA.sign(hashbuf, privateKey, 'little').set({
@@ -273,19 +289,21 @@ function sign (transaction, privateKey, sighashType, inputIndex, subscript, sato
  * @param {flags} verification flags
  * @return {boolean}
  */
-function verify (transaction, signature, publicKey, inputIndex, subscript, satoshisBN, flags) {
+function verify (transaction: TransactionLike, signature: Signature, publicKey: PublicKey, inputIndex: number, subscript: Script, satoshisBN?: BN, flags?: number): boolean {
   $.checkArgument(!_.isUndefined(transaction))
   $.checkArgument(!_.isUndefined(signature) && !_.isUndefined(signature.nhashtype))
-  const hashbuf = sighash(transaction, signature.nhashtype, inputIndex, subscript, satoshisBN, flags)
+  const hashbuf = sighash(transaction, signature.nhashtype as number, inputIndex, subscript, satoshisBN, flags)
   return ECDSA.verify(hashbuf, signature, publicKey, 'little')
 }
 
 /**
  * @namespace Signing
  */
-module.exports = {
+const Sighash = {
   sighashPreimage,
   sighash,
   sign,
   verify
 }
+
+export = Sighash

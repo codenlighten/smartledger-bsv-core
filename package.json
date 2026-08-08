@@ -27,8 +27,9 @@
     "preconformance": "npm run build",
     "conformance": "node conformance/verify.js",
     "conformance:generate": "npm run build && node conformance/generate.js",
-    "check": "npm run lint && npm test && npm run conformance",
-    "build:types": "tsc -p tsconfig.types.json || true"
+    "check": "npm run lint && npm test && npm run conformance && node scripts/check-cycle-safety.js",
+    "build:types": "tsc -p tsconfig.types.json || true",
+    "cycle-safety": "npm run build && node scripts/check-cycle-safety.js"
   },
   "files": [
     "dist/",

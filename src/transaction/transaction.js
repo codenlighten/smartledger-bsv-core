@@ -16,18 +16,24 @@ const Sighash = require('./sighash')
 const Address = require('../address')
 const UnspentOutput = require('./unspentoutput')
 const Input = require('./input')
-const PublicKeyHashInput = Input.PublicKeyHash
-const PublicKeyInput = Input.PublicKey
-const MultiSigScriptHashInput = Input.MultiSigScriptHash
-const MultiSigInput = Input.MultiSig
+// NOTE: the four Input.* subclasses are deliberately NOT aliased here.
+// Reading them at module-evaluation time is the only place in this library
+// where a circular import is dereferenced during evaluation rather than at
+// call time. Under CommonJS that happens to work; under ESM the binding can
+// still be in its temporal dead zone when this module body runs, which throws.
+// They are read at their use sites instead (see _getInputFrom).
 const Output = require('./output')
 const Script = require('../script')
 const PrivateKey = require('../privatekey')
 const BN = require('../crypto/bn')
 const Interpreter = require('../script/interpreter')
 
-// By default, we sign with sighash_forkid
-const DEFAULT_SIGN_FLAGS = Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID
+// By default, we sign with sighash_forkid.
+//
+// Read lazily for the same reason as the Input.* subclasses above: Interpreter
+// is part of the script <-> transaction import cycle, so dereferencing it
+// during module evaluation is not safe under ESM.
+const defaultSignFlags = () => Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID
 
 /**
  * Represents a transaction, a set of inputs and outputs to change ownership of tokens
@@ -554,9 +560,9 @@ Transaction.prototype._fromNonP2SH = function (utxo) {
   // signing-capable subclass instead of falling through to the abstract
   // base Input. See Script.prototype.isPublicKeyHashOutPrefix.
   if (utxo.script.isPublicKeyHashOutPrefix()) {
-    Clazz = PublicKeyHashInput
+    Clazz = Input.PublicKeyHash
   } else if (utxo.script.isPublicKeyOut()) {
-    Clazz = PublicKeyInput
+    Clazz = Input.PublicKey
   } else {
     Clazz = Input
   }
@@ -577,9 +583,9 @@ Transaction.prototype._fromMultisigUtxo = function (utxo, pubkeys, threshold) {
   let Clazz
   utxo = new UnspentOutput(utxo)
   if (utxo.script.isMultisigOut()) {
-    Clazz = MultiSigInput
+    Clazz = Input.MultiSig
   } else if (utxo.script.isScriptHashOut()) {
-    Clazz = MultiSigScriptHashInput
+    Clazz = Input.MultiSigScriptHash
   } else {
     throw new errors.Transaction.Input.UnsupportedScript(utxo.script.toString())
   }
@@ -1250,7 +1256,7 @@ Transaction.prototype.sighash = function (inputIndex, sighashType, subscript, sa
   }
 
   // Use default flags if not provided
-  flags = flags || DEFAULT_SIGN_FLAGS
+  flags = flags || defaultSignFlags()
 
   return Sighash.sighash(this, sighashType, inputIndex, subscript, satoshisBN, flags)
 }

@@ -18,7 +18,10 @@ const SIGHASH_SINGLE_BUG = Buffer.from('0000000000000000000000000000000000000000
 const BITS_64_ON = 'ffffffffffffffff'
 
 // By default, we sign with sighash_forkid
-const DEFAULT_SIGN_FLAGS = Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID
+// Read lazily: Interpreter is part of the script <-> transaction import
+// cycle, so dereferencing it during module evaluation is unsafe under ESM,
+// where the binding may still be in its temporal dead zone.
+const defaultSignFlags = () => Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID
 
 const sighashPreimageForForkId = function (transaction, sighashType, inputNumber, subscript, satoshisBN) {
   const input = transaction.inputs[inputNumber]
@@ -142,7 +145,7 @@ const sighashPreimage = function sighashPreimage (transaction, sighashType, inpu
   const Input = require('./input')
 
   if (_.isUndefined(flags)) {
-    flags = DEFAULT_SIGN_FLAGS
+    flags = defaultSignFlags()
   }
 
   // Copy transaction

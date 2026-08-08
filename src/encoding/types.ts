@@ -67,3 +67,74 @@ export interface Base58Constructor {
   fromHex: (hex: string) => Base58
   fromString: (str: string) => Base58
 }
+
+export interface BufferReader {
+  buf: Buffer
+  pos: number
+
+  set: (obj: { buf?: Buffer, pos?: number }) => BufferReader
+  eof: () => boolean
+  finished: () => boolean
+  read: (len: number) => Buffer
+  readAll: () => Buffer
+  readUInt8: () => number
+  readUInt16BE: () => number
+  readUInt16LE: () => number
+  readUInt32BE: () => number
+  readUInt32LE: () => number
+  readInt32LE: () => number
+  readUInt64BEBN: () => import('bn.js')
+  readUInt64LEBN: () => import('bn.js')
+  readVarintNum: () => number
+  readVarLengthBuffer: () => Buffer
+  readVarintBuf: () => Buffer
+  readVarintBN: () => import('bn.js')
+  reverse: () => BufferReader
+  readReverse: (len?: number) => Buffer
+}
+
+export interface BufferReaderConstructor {
+  new (buf?: Buffer | string | { buf?: Buffer, pos?: number }): BufferReader
+  (buf?: Buffer | string | { buf?: Buffer, pos?: number }): BufferReader
+}
+
+export interface Varint {
+  buf: Buffer
+  set: (obj: { buf?: Buffer }) => Varint
+  fromString: (str: string) => Varint
+  toString: () => string
+  fromBuffer: (buf: Buffer) => Varint
+  fromBufferReader: (br: BufferReader) => Varint
+  fromBN: (bn: import('bn.js')) => Varint
+  fromNumber: (num: number) => Varint
+  toBuffer: () => Buffer
+  toBN: () => import('bn.js')
+  toNumber: () => number
+}
+
+export interface VarintConstructor {
+  new (buf?: Buffer | number | import('bn.js') | { buf?: Buffer }): Varint
+  (buf?: Buffer | number | import('bn.js') | { buf?: Buffer }): Varint
+}
+
+export interface Base58Check {
+  buf: Buffer | undefined
+  set: (obj: { buf?: Buffer }) => Base58Check
+  fromBuffer: (buf: Buffer) => Base58Check
+  fromString: (str: string) => Base58Check
+  toBuffer: () => Buffer
+  toHex: () => string
+  toString: () => string
+}
+
+export interface Base58CheckConstructor {
+  new (obj?: Buffer | string): Base58Check
+  (obj?: Buffer | string): Base58Check
+  validChecksum: (data: Buffer | string, checksum?: Buffer | string) => boolean
+  decode: (s: string) => Buffer
+  checksum: (buffer: Buffer) => Buffer
+  encode: (buf: Buffer) => string
+  fromBuffer: (buf: Buffer) => Base58Check
+  fromHex: (hex: string) => Base58Check
+  fromString: (str: string) => Base58Check
+}

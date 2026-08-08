@@ -7,9 +7,9 @@
  */
 
 // Import BSV crypto instead of Node.js crypto
-const Hash = require('../crypto/hash')
+import Hash = require('../crypto/hash')
 
-function pbkdf2 (key, salt, iterations, dkLen) {
+function pbkdf2 (key: string | Buffer, salt: string | Buffer, iterations: number, dkLen: number): Buffer {
   const hLen = 64 // SHA512 Mac length
   if (dkLen > (Math.pow(2, 32) - 1) * hLen) {
     throw Error('Requested key length too long')
@@ -32,7 +32,7 @@ function pbkdf2 (key, salt, iterations, dkLen) {
   }
 
   const DK = Buffer.alloc(dkLen)
-  let U = Buffer.alloc(hLen)
+  let U: Buffer = Buffer.alloc(hLen)
   const T = Buffer.alloc(hLen)
   const block1 = Buffer.alloc(salt.length + 4)
 
@@ -54,7 +54,7 @@ function pbkdf2 (key, salt, iterations, dkLen) {
       U = Hash.sha512hmac(U, key)
 
       for (let k = 0; k < hLen; k++) {
-        T[k] ^= U[k]
+        T[k] = (T[k] as number) ^ (U[k] as number)
       }
     }
 
@@ -66,4 +66,4 @@ function pbkdf2 (key, salt, iterations, dkLen) {
   return DK
 }
 
-module.exports = pbkdf2
+export = pbkdf2

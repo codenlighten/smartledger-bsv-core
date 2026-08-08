@@ -57,10 +57,10 @@ Convert bottom-up. A layer may be converted once every layer below it is done.
 | 1 | `mnemonic/words/index`, `util/_` | ✅ done |
 | 2 | `encoding/base58`, `errors/index` | ✅ done |
 | 3 | `ecies/errors`, `mnemonic/errors`, `util/preconditions` | ✅ done |
-| 4 | `crypto/bn`, `crypto/hash.browser`, `crypto/hash.node`, `util/js` | todo |
-| 5 | `crypto/hash`, `crypto/point`, `encoding/bufferreader`, `networks`, `opcode` | todo |
-| 6 | `block/blockheader`, `crypto/shamir`, `crypto/signature`, `encoding/base58check`, `encoding/varint`, `mnemonic/pbkdf2.browser` | todo |
-| 7 | `mnemonic/pbkdf2`, `spv/headerchain`, `spv/merkleproof` | todo |
+| 4 | `crypto/bn`, `crypto/hash.browser`, `crypto/hash.node`, `util/js` | ✅ done |
+| 5 | `crypto/hash` ✅, `encoding/bufferreader` ✅, `opcode` ✅ — `crypto/point`, `networks` remain | partial |
+| 6 | `encoding/base58check` ✅, `encoding/varint` ✅, `mnemonic/pbkdf2.browser` ✅ — `block/blockheader`, `crypto/shamir`, `crypto/signature` remain | partial |
+| 7 | `mnemonic/pbkdf2` ✅ — `spv/headerchain`, `spv/merkleproof` remain | partial |
 | 8 | `spv/index` | todo |
 
 ### The cyclic cluster — the remaining ~39 files
@@ -118,10 +118,29 @@ Worth knowing before continuing, because they recur:
   rather than a fabricated mapped type. Precise per-error types change what
   consumers can reference, so that belongs with the API pass.
 
+## Remaining 8
+
+All acyclic, all mechanical from here — the patterns above cover every case
+they need. Grouped by what they will need:
+
+| File | Lines | Note |
+|---|---|---|
+| `crypto/signature` | 438 | DER parsing; the corpus pins its rejection cases hard |
+| `networks` | 392 | mostly data plus an index/lookup layer |
+| `crypto/shamir` | 380 | wraps `secrets.js-grempe`, which ships no types |
+| `block/blockheader` | 294 | straightforward constructor-function shape |
+| `crypto/point` | 278 | augments the @noble curve point, like crypto/bn augments BN |
+| `spv/{headerchain,merkleproof}` | 185 | plain functions |
+| `spv/index` | 16 | re-export; must come last, after its two deps |
+
+`crypto/point` is the one to do carefully: it is an augmentation of a foreign
+class, so it follows the `crypto/bn` precedent — declare the exposed shape in
+one place rather than trying to augment a `export =` module.
+
 ## Progress
 
 | | Count |
 |---|---|
-| Converted | **18** (layers 0-3, complete) |
-| Acyclic, remaining | 18 (layers 4-8) |
+| Converted | **28** |
+| Acyclic, remaining | 8 |
 | Cyclic cluster | ~39 |

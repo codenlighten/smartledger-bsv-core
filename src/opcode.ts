@@ -1,20 +1,22 @@
 'use strict'
 
-const _ = require('./util/_')
-const $ = require('./util/preconditions')
-const JSUtil = require('./util/js')
+import _ = require('./util/_')
+import $ = require('./util/preconditions')
+import JSUtil = require('./util/js')
 
-function Opcode (num) {
+import type { Opcode, OpcodeConstructor } from './opcode.types'
+
+const Opcode = function Opcode (this: Opcode, num: number | string) {
   if (!(this instanceof Opcode)) {
-    return new Opcode(num)
+    return new (Opcode as OpcodeConstructor)(num)
   }
 
-  let value
+  let value: number | undefined
 
   if (_.isNumber(num)) {
     value = num
   } else if (_.isString(num)) {
-    value = Opcode.map[num]
+    value = (Opcode as OpcodeConstructor).map[num]
   } else {
     throw new TypeError('Unrecognized num type: "' + typeof (num) + '" for Opcode')
   }
@@ -24,19 +26,19 @@ function Opcode (num) {
   })
 
   return this
-}
+} as unknown as OpcodeConstructor
 
-Opcode.fromBuffer = function (buf) {
+Opcode.fromBuffer = function (buf: Buffer): Opcode {
   $.checkArgument(Buffer.isBuffer(buf))
   return new Opcode(Number('0x' + buf.toString('hex')))
 }
 
-Opcode.fromNumber = function (num) {
+Opcode.fromNumber = function (num: number): Opcode {
   $.checkArgument(_.isNumber(num))
   return new Opcode(num)
 }
 
-Opcode.fromString = function (str) {
+Opcode.fromString = function (str: string): Opcode {
   $.checkArgument(_.isString(str))
   const value = Opcode.map[str]
   if (typeof value === 'undefined') {
@@ -45,19 +47,19 @@ Opcode.fromString = function (str) {
   return new Opcode(value)
 }
 
-Opcode.prototype.toHex = function () {
+Opcode.prototype.toHex = function (this: Opcode): string {
   return this.num.toString(16)
 }
 
-Opcode.prototype.toBuffer = function () {
+Opcode.prototype.toBuffer = function (this: Opcode): Buffer {
   return Buffer.from(this.toHex(), 'hex')
 }
 
-Opcode.prototype.toNumber = function () {
+Opcode.prototype.toNumber = function (this: Opcode): number {
   return this.num
 }
 
-Opcode.prototype.toString = function () {
+Opcode.prototype.toString = function (this: Opcode): string {
   const str = Opcode.reverseMap[this.num]
   if (typeof str === 'undefined') {
     throw new Error('Opcode does not have a string representation')
@@ -65,13 +67,13 @@ Opcode.prototype.toString = function () {
   return str
 }
 
-Opcode.smallInt = function (n) {
+Opcode.smallInt = function (n: number): Opcode {
   $.checkArgument(_.isNumber(n), 'Invalid Argument: n should be number')
   $.checkArgument(n >= 0 && n <= 16, 'Invalid Argument: n must be between 0 and 16')
   if (n === 0) {
-    return Opcode('OP_0')
+    return (Opcode as OpcodeConstructor)('OP_0')
   }
-  return new Opcode(Opcode.map.OP_1 + n - 1)
+  return new (Opcode as OpcodeConstructor)((Opcode.map.OP_1 as number) + n - 1)
 }
 
 Opcode.map = {
@@ -226,7 +228,7 @@ Opcode.map = {
 Opcode.reverseMap = []
 
 for (const k in Opcode.map) {
-  Opcode.reverseMap[Opcode.map[k]] = k
+  Opcode.reverseMap[Opcode.map[k] as number] = k
 }
 
 // Easier access to opcodes
@@ -235,12 +237,10 @@ _.extend(Opcode, Opcode.map)
 /**
  * @returns true if opcode is one of OP_0, OP_1, ..., OP_16
  */
-Opcode.isSmallIntOp = function (opcode) {
-  if (opcode instanceof Opcode) {
-    opcode = opcode.toNumber()
-  }
-  return ((opcode === Opcode.map.OP_0) ||
-    ((opcode >= Opcode.map.OP_1) && (opcode <= Opcode.map.OP_16)))
+Opcode.isSmallIntOp = function (opcode: Opcode | number): boolean {
+  const n = typeof opcode === 'number' ? opcode : opcode.toNumber()
+  return ((n === Opcode.map.OP_0) ||
+    ((n >= (Opcode.map.OP_1 as number)) && (n <= (Opcode.map.OP_16 as number))))
 }
 
 /**
@@ -248,8 +248,8 @@ Opcode.isSmallIntOp = function (opcode) {
  *
  * @returns {string} Script opcode
  */
-Opcode.prototype.inspect = function () {
+Opcode.prototype.inspect = function (this: Opcode): string {
   return '<Opcode: ' + this.toString() + ', hex: ' + this.toHex() + ', decimal: ' + this.num + '>'
 }
 
-module.exports = Opcode
+export = Opcode

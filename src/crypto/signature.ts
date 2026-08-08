@@ -1,44 +1,48 @@
 'use strict'
 
-const BN = require('./bn')
-const _ = require('../util/_')
-const $ = require('../util/preconditions')
-const JSUtil = require('../util/js')
+import BN = require('./bn')
+import _ = require('../util/_')
+import $ = require('../util/preconditions')
+import JSUtil = require('../util/js')
+import type { Signature, SignatureConstructor, SignatureObj, ParsedDER } from './signature.types'
+import type { PointConstructor } from './point.types'
 
-const Signature = function Signature (r, s) {
+const Signature = function Signature (this: Signature, r?: BN | SignatureObj, s?: BN) {
   if (!(this instanceof Signature)) {
-    return new Signature(r, s)
+    return new (Signature as SignatureConstructor)(r, s)
   }
   if (r instanceof BN) {
     this.set({
       r,
       s
     })
-  } else if (r) {
-    const obj = r
+  } else if (r != null) {
+    const obj = r as SignatureObj
     this.set(obj)
   }
-}
+} as unknown as SignatureConstructor
 
-Signature.prototype.set = function (obj) {
-  this.r = obj.r || this.r || undefined
-  this.s = obj.s || this.s || undefined
+Signature.prototype.set = function (this: Signature, obj: SignatureObj): Signature {
+  this.r = (obj.r ?? this.r) as BN
+  this.s = (obj.s ?? this.s) as BN
 
   this.i = typeof obj.i !== 'undefined' ? obj.i : this.i // public key recovery parameter in range [0, 3]
   this.compressed = typeof obj.compressed !== 'undefined'
     ? obj.compressed
     : this.compressed // whether the recovered pubkey is compressed
-  this.nhashtype = obj.nhashtype || this.nhashtype || undefined
+  this.nhashtype = obj.nhashtype ?? this.nhashtype
   return this
 }
 
-Signature.fromCompact = function (buf) {
+Signature.fromCompact = function (buf: Buffer): Signature {
   $.checkArgument(Buffer.isBuffer(buf), 'Argument is expected to be a Buffer')
 
   const sig = new Signature()
 
   let compressed = true
-  let i = buf.slice(0, 1)[0] - 27 - 4
+  // A short buffer yields NaN here, which fails the range check below —
+  // preserved deliberately rather than short-circuiting earlier.
+  let i = (buf.slice(0, 1)[0] as number) - 27 - 4
   if (i < 0) {
     compressed = false
     i = i + 4
@@ -59,7 +63,7 @@ Signature.fromCompact = function (buf) {
   return sig
 }
 
-Signature.fromDER = Signature.fromBuffer = function (buf, strict) {
+Signature.fromDER = Signature.fromBuffer = function (buf: Buffer, strict?: boolean): Signature {
   const obj = Signature.parseDER(buf, strict)
   const sig = new Signature()
 
@@ -70,7 +74,7 @@ Signature.fromDER = Signature.fromBuffer = function (buf, strict) {
 }
 
 // The format used in a tx
-Signature.fromTxFormat = function (buf) {
+Signature.fromTxFormat = function (buf: Buffer): Signature {
   const nhashtype = buf.readUInt8(buf.length - 1)
   const derbuf = buf.slice(0, buf.length - 1)
   const sig = Signature.fromDER(derbuf, false)
@@ -78,7 +82,7 @@ Signature.fromTxFormat = function (buf) {
   return sig
 }
 
-Signature.fromString = function (str) {
+Signature.fromString = function (str: string): Signature {
   const buf = Buffer.from(str, 'hex')
   return Signature.fromDER(buf)
 }
@@ -89,10 +93,11 @@ Signature.fromString = function (str) {
  * permitted only to clear the high bit of the byte that follows. Anything else
  * is a second encoding of the same number, i.e. a malleable signature.
  */
-function checkCanonicalInt (name, ibuf) {
+function checkCanonicalInt (name: string, ibuf: Buffer): void {
   $.checkArgument(ibuf.length > 0, new Error('Length of ' + name + ' is zero'))
-  $.checkArgument(!(ibuf[0] & 0x80), new Error('Value of ' + name + ' is negative'))
-  $.checkArgument(!(ibuf.length > 1 && ibuf[0] === 0x00 && !(ibuf[1] & 0x80)),
+  // Guarded by the length check immediately above.
+  $.checkArgument(((ibuf[0] as number) & 0x80) === 0, new Error('Value of ' + name + ' is negative'))
+  $.checkArgument(!(ibuf.length > 1 && ibuf[0] === 0x00 && ((ibuf[1] as number) & 0x80) === 0),
     new Error('Value of ' + name + ' is excessively padded'))
 }
 
@@ -104,34 +109,41 @@ function checkCanonicalInt (name, ibuf) {
  * separately by isTxDER under the interpreter's flags. Strict is the default and
  * is what application-level callers (fromDER/fromString) get.
  */
-Signature.parseDER = function (buf, strict) {
+Signature.parseDER = function (buf: Buffer, strict?: boolean): ParsedDER {
+  // NOTE ON THE `as number` READS BELOW: this parses untrusted input, so a
+  // short buffer genuinely yields undefined. Each read is validated by the
+  // $.checkArgument immediately following it (a header that is undefined is
+  // not 0x02; a length that is undefined makes the subsequent slice empty and
+  // fails the length equality check). The assertions are erased at runtime, so
+  // malformed input still takes exactly the same path and throws exactly the
+  // same errors as before — behavior the conformance corpus pins.
   $.checkArgument(Buffer.isBuffer(buf), new Error('DER formatted signature should be a buffer'))
   if (_.isUndefined(strict)) {
     strict = true
   }
 
-  const header = buf[0]
+  const header = buf[0] as number
   $.checkArgument(header === 0x30, new Error('Header byte should be 0x30'))
 
-  let length = buf[1]
+  let length = buf[1] as number
   const buflength = buf.slice(2).length
   $.checkArgument(!strict || length === buflength, new Error('Length byte should length of what follows'))
 
   length = length < buflength ? length : buflength
 
-  const rheader = buf[2 + 0]
+  const rheader = buf[2 + 0] as number
   $.checkArgument(rheader === 0x02, new Error('Integer byte for r should be 0x02'))
 
-  const rlength = buf[2 + 1]
+  const rlength = buf[2 + 1] as number
   const rbuf = buf.slice(2 + 2, 2 + 2 + rlength)
   const r = BN.fromBuffer(rbuf)
   const rneg = buf[2 + 1 + 1] === 0x00
   $.checkArgument(rlength === rbuf.length, new Error('Length of r incorrect'))
 
-  const sheader = buf[2 + 2 + rlength + 0]
+  const sheader = buf[2 + 2 + rlength + 0] as number
   $.checkArgument(sheader === 0x02, new Error('Integer byte for s should be 0x02'))
 
-  const slength = buf[2 + 2 + rlength + 1]
+  const slength = buf[2 + 2 + rlength + 1] as number
   const sbuf = buf.slice(2 + 2 + rlength + 2, 2 + 2 + rlength + 2 + slength)
   const s = BN.fromBuffer(sbuf)
   const sneg = buf[2 + 2 + rlength + 2] === 0x00
@@ -163,7 +175,7 @@ Signature.parseDER = function (buf, strict) {
   return obj
 }
 
-Signature.prototype.toCompact = function (i, compressed) {
+Signature.prototype.toCompact = function (this: Signature, i?: number, compressed?: boolean): Buffer {
   i = typeof i === 'number' ? i : this.i
   compressed = typeof compressed === 'boolean' ? compressed : this.compressed
 
@@ -185,12 +197,13 @@ Signature.prototype.toCompact = function (i, compressed) {
   return Buffer.concat([b1, b2, b3])
 }
 
-Signature.prototype.toBuffer = Signature.prototype.toDER = function () {
+Signature.prototype.toBuffer = Signature.prototype.toDER = function (this: Signature): Buffer {
   const rnbuf = this.r.toBuffer()
   const snbuf = this.s.toBuffer()
 
-  const rneg = !!(rnbuf[0] & 0x80)
-  const sneg = !!(snbuf[0] & 0x80)
+  // BN.toBuffer never returns an empty buffer for a valid signature scalar.
+  const rneg = ((rnbuf[0] as number) & 0x80) !== 0
+  const sneg = ((snbuf[0] as number) & 0x80) !== 0
 
   const rbuf = rneg ? Buffer.concat([Buffer.from([0x00]), rnbuf]) : rnbuf
   const sbuf = sneg ? Buffer.concat([Buffer.from([0x00]), snbuf]) : snbuf
@@ -206,7 +219,7 @@ Signature.prototype.toBuffer = Signature.prototype.toDER = function () {
   return der
 }
 
-Signature.prototype.toString = function () {
+Signature.prototype.toString = function (this: Signature): string {
   const buf = this.toDER()
   return buf.toString('hex')
 }
@@ -223,7 +236,7 @@ Signature.prototype.toString = function () {
  *
  * See https://bitcointalk.org/index.php?topic=8392.msg127623#msg127623
  */
-Signature.isTxDER = function (buf) {
+Signature.isTxDER = function (buf: Buffer): boolean {
   if (buf.length < 9) {
     //  Non-canonical signature: too short
     return false
@@ -240,12 +253,13 @@ Signature.isTxDER = function (buf) {
     //  Non-canonical signature: wrong length marker
     return false
   }
-  const nLenR = buf[3]
+  // isTxDER has already bounds-checked the header and length markers above.
+  const nLenR = buf[3] as number
   if (5 + nLenR >= buf.length) {
     //  Non-canonical signature: S length misplaced
     return false
   }
-  const nLenS = buf[5 + nLenR]
+  const nLenS = buf[5 + nLenR] as number
   if ((nLenR + nLenS + 7) !== buf.length) {
     //  Non-canonical signature: R+S length mismatch
     return false
@@ -260,11 +274,11 @@ Signature.isTxDER = function (buf) {
     //  Non-canonical signature: R length is zero
     return false
   }
-  if (R[0] & 0x80) {
+  if (((R[0] as number) & 0x80) !== 0) {
     //  Non-canonical signature: R value negative
     return false
   }
-  if (nLenR > 1 && (R[0] === 0x00) && !(R[1] & 0x80)) {
+  if (nLenR > 1 && (R[0] === 0x00) && ((R[1] as number) & 0x80) === 0) {
     //  Non-canonical signature: R value excessively padded
     return false
   }
@@ -278,11 +292,11 @@ Signature.isTxDER = function (buf) {
     //  Non-canonical signature: S length is zero
     return false
   }
-  if (S[0] & 0x80) {
+  if (((S[0] as number) & 0x80) !== 0) {
     //  Non-canonical signature: S value negative
     return false
   }
-  if (nLenS > 1 && (S[0] === 0x00) && !(S[1] & 0x80)) {
+  if (nLenS > 1 && (S[0] === 0x00) && ((S[1] as number) & 0x80) === 0) {
     //  Non-canonical signature: S value excessively padded
     return false
   }
@@ -294,7 +308,7 @@ Signature.isTxDER = function (buf) {
  * See also ECDSA signature algorithm which enforces this.
  * See also BIP 62, "low S values in signatures"
  */
-Signature.prototype.hasLowS = function () {
+Signature.prototype.hasLowS = function (this: Signature): boolean {
   if (this.s.lt(new BN(1)) ||
     this.s.gt(new BN('7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0', 'hex'))) {
     return false
@@ -306,22 +320,22 @@ Signature.prototype.hasLowS = function () {
  * @returns true if the nhashtype is exactly equal to one of the standard options or combinations thereof.
  * Translated from bitcoind's IsDefinedHashtypeSignature
  */
-Signature.prototype.hasDefinedHashtype = function () {
+Signature.prototype.hasDefinedHashtype = function (this: Signature): boolean {
   if (!JSUtil.isNaturalNumber(this.nhashtype)) {
     return false
   }
   // accept with or without Signature.SIGHASH_ANYONECANPAY by ignoring the bit
-  const temp = this.nhashtype & 0x1F
+  const temp = (this.nhashtype as number) & 0x1F
   if (temp < Signature.SIGHASH_ALL || temp > Signature.SIGHASH_SINGLE) {
     return false
   }
   return true
 }
 
-Signature.prototype.toTxFormat = function () {
+Signature.prototype.toTxFormat = function (this: Signature): Buffer {
   const derbuf = this.toDER()
   const buf = Buffer.alloc(1)
-  buf.writeUInt8(this.nhashtype, 0)
+  buf.writeUInt8(this.nhashtype as number, 0)
   return Buffer.concat([derbuf, buf])
 }
 
@@ -336,8 +350,8 @@ Signature.SIGHASH_ANYONECANPAY = 0x80
 /**
  * Check if signature is canonical (s <= n/2) - SmartLedger security feature
  */
-Signature.prototype.isCanonical = function () {
-  const Point = require('./point')
+Signature.prototype.isCanonical = function (this: Signature): boolean {
+  const Point = require('./point') as PointConstructor
   const nh = Point.getN().shrn(1) // n/2
   return this.s.lte(nh)
 }
@@ -345,12 +359,12 @@ Signature.prototype.isCanonical = function () {
 /**
  * Return canonicalized version of signature - SmartLedger security feature
  */
-Signature.prototype.toCanonical = function () {
+Signature.prototype.toCanonical = function (this: Signature): Signature {
   if (this.isCanonical()) {
     return new Signature({ r: this.r, s: this.s, i: this.i, compressed: this.compressed, nhashtype: this.nhashtype })
   }
 
-  const Point = require('./point')
+  const Point = require('./point') as PointConstructor
   const n = Point.getN()
   const canonicalS = n.sub(this.s)
 
@@ -360,7 +374,7 @@ Signature.prototype.toCanonical = function () {
 /**
  * Validate signature parameters - SmartLedger security feature
  */
-Signature.prototype.validate = function () {
+Signature.prototype.validate = function (this: Signature): boolean {
   if (!this.r || !this.s) {
     throw new Error('Signature missing r or s component')
   }
@@ -373,7 +387,7 @@ Signature.prototype.validate = function () {
     throw new Error('Signature s component is zero')
   }
 
-  const Point = require('./point')
+  const Point = require('./point') as PointConstructor
   const n = Point.getN()
 
   if (this.r.gte(n)) {
@@ -398,7 +412,7 @@ Signature.prototype.validate = function () {
 /**
  * Boolean signature validation - SmartLedger security feature
  */
-Signature.prototype.isValid = function () {
+Signature.prototype.isValid = function (this: Signature): boolean {
   try {
     this.validate()
     return true
@@ -417,8 +431,8 @@ Signature.prototype.isValid = function () {
  * is to hide from the caller that they were handed a malleated signature. Use
  * toCanonical() to deliberately normalize one.
  */
-Signature.prototype.applySecurityPatches = function () {
-  const Point = require('./point')
+Signature.prototype.applySecurityPatches = function (this: Signature): Signature {
+  const Point = require('./point') as PointConstructor
   const n = Point.getN()
   const nh = n.shrn(1) // n/2
 
@@ -435,4 +449,4 @@ Signature.prototype.applySecurityPatches = function () {
   return this
 }
 
-module.exports = Signature
+export = Signature

@@ -47,9 +47,10 @@ conversion, which tests written against the same code cannot always do.
 
 Computed, not chosen: a topological sort of the internal `require()` graph.
 
-### The acyclic portion — 36 files, 9 layers
+### The acyclic portion — 36 files, 9 layers — **COMPLETE**
 
-Convert bottom-up. A layer may be converted once every layer below it is done.
+Converted bottom-up; a layer was only started once every layer below it was
+done. All 36 are now TypeScript, `strict` clean, with generated declarations.
 
 | Layer | Files | Status |
 |---|---|---|
@@ -58,8 +59,8 @@ Convert bottom-up. A layer may be converted once every layer below it is done.
 | 2 | `encoding/base58`, `errors/index` | ✅ done |
 | 3 | `ecies/errors`, `mnemonic/errors`, `util/preconditions` | ✅ done |
 | 4 | `crypto/bn`, `crypto/hash.browser`, `crypto/hash.node`, `util/js` | ✅ done |
-| 5 | `crypto/hash`, `encoding/bufferreader`, `networks`, `opcode` — `crypto/point` remains | partial |
-| 6 | `encoding/base58check`, `encoding/varint`, `mnemonic/pbkdf2.browser`, `block/blockheader` — `crypto/shamir`, `crypto/signature` remain | partial |
+| 5 | `crypto/hash`, `crypto/point`, `encoding/bufferreader`, `networks`, `opcode` | ✅ done |
+| 6 | `block/blockheader`, `crypto/shamir`, `crypto/signature`, `encoding/base58check`, `encoding/varint`, `mnemonic/pbkdf2.browser` | ✅ done |
 | 7 | `mnemonic/pbkdf2`, `spv/headerchain`, `spv/merkleproof` | ✅ done |
 | 8 | `spv/index` | ✅ done |
 
@@ -94,8 +95,11 @@ Implications:
   functions. That is an API-design decision and belongs with the API pass, not
   buried inside a mechanical conversion.
 
-Recommendation: convert the 36 acyclic files first, then decide the cluster's
-fate deliberately — convert-as-a-unit, or break the cycles and then convert.
+The 36 acyclic files are done. **The cluster's fate is now the open decision**
+— convert-as-a-unit, or break the cycles first and then convert. Breaking them
+is the better long-term answer and is what unblocks ESM output, but it is API
+design work, so it belongs with the API pass rather than being decided by
+default inside a mechanical conversion.
 
 ## Bugs found by the conversion
 
@@ -132,21 +136,10 @@ Worth knowing before continuing, because they recur:
   rather than a fabricated mapped type. Precise per-error types change what
   consumers can reference, so that belongs with the API pass.
 
-## Remaining 3
-
-All acyclic; the established patterns cover them. Left deliberately rather
-than rushed, because they are the most security-sensitive files in the set.
-
-| File | Lines | Note |
-|---|---|---|
-| `crypto/signature` | 438 | DER parsing and the low-S rules. The corpus pins its rejection cases hard, so a conversion here is well protected — but it deserves unhurried attention. |
-| `crypto/shamir` | 380 | wraps `secrets.js-grempe`, which ships no types; needs a local declaration like `bs58` and `bn.js` got |
-| `crypto/point` | 278 | augments the @noble curve point. Follow the `crypto/bn` precedent: declare the exposed shape in one file rather than trying to augment an `export =` module |
-
 ## Progress
 
 | | Count |
 |---|---|
-| Converted | **33** |
-| Acyclic, remaining | 3 | `spv/index` | ✅ done |
+| Converted | **36 — the entire acyclic set** |
+| Acyclic, remaining | 0 | `spv/index` | ✅ done |
 | Cyclic cluster | ~39 |

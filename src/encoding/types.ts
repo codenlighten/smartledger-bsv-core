@@ -46,3 +46,24 @@ export interface BufferWriterConstructor {
   varintBufNum: (n: number) => Buffer
   varintBufBN: (bn: BNLike) => Buffer
 }
+
+export interface Base58 {
+  buf: Buffer | undefined
+  set: (obj: { buf?: Buffer }) => Base58
+  fromBuffer: (buf: Buffer) => Base58
+  fromString: (str: string) => Base58
+  toBuffer: () => Buffer
+  toHex: () => string
+  toString: () => string
+}
+
+export interface Base58Constructor {
+  new (obj?: Buffer | string): Base58
+  (obj?: Buffer | string): Base58
+  validCharacters: (chars: string | Buffer) => boolean
+  encode: (buf: Buffer) => string
+  decode: (str: string) => Buffer
+  fromBuffer: (buf: Buffer) => Base58
+  fromHex: (hex: string) => Base58
+  fromString: (str: string) => Base58
+}

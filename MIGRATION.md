@@ -51,17 +51,17 @@ Computed, not chosen: a topological sort of the internal `require()` graph.
 
 Convert bottom-up. A layer may be converted once every layer below it is done.
 
-| Layer | Files |
-|---|---|
-| 0 | `crypto/random` ✅, `encoding/bufferwriter`, `errors/spec`, `mnemonic/pbkdf2.node`, `mnemonic/words/{chinese,english,french,italian,japanese,spanish}` |
-| 1 | `mnemonic/words/index`, `util/_` |
-| 2 | `encoding/base58`, `errors/index` |
-| 3 | `ecies/errors`, `mnemonic/errors`, `util/preconditions` |
-| 4 | `crypto/bn`, `crypto/hash.browser`, `crypto/hash.node`, `util/js` |
-| 5 | `crypto/hash`, `crypto/point`, `encoding/bufferreader`, `networks`, `opcode` |
-| 6 | `block/blockheader`, `crypto/shamir`, `crypto/signature`, `encoding/base58check`, `encoding/varint`, `mnemonic/pbkdf2.browser` |
-| 7 | `mnemonic/pbkdf2`, `spv/headerchain`, `spv/merkleproof` |
-| 8 | `spv/index` |
+| Layer | Files | Status |
+|---|---|---|
+| 0 | `crypto/random`, `encoding/bufferwriter`, `errors/spec`, `mnemonic/pbkdf2.node`, `mnemonic/words/{chinese,english,french,italian,japanese,spanish}` | ✅ done |
+| 1 | `mnemonic/words/index`, `util/_` | ✅ done |
+| 2 | `encoding/base58`, `errors/index` | ✅ done |
+| 3 | `ecies/errors`, `mnemonic/errors`, `util/preconditions` | ✅ done |
+| 4 | `crypto/bn`, `crypto/hash.browser`, `crypto/hash.node`, `util/js` | todo |
+| 5 | `crypto/hash`, `crypto/point`, `encoding/bufferreader`, `networks`, `opcode` | todo |
+| 6 | `block/blockheader`, `crypto/shamir`, `crypto/signature`, `encoding/base58check`, `encoding/varint`, `mnemonic/pbkdf2.browser` | todo |
+| 7 | `mnemonic/pbkdf2`, `spv/headerchain`, `spv/merkleproof` | todo |
+| 8 | `spv/index` | todo |
 
 ### The cyclic cluster — the remaining ~39 files
 
@@ -97,10 +97,31 @@ Implications:
 Recommendation: convert the 36 acyclic files first, then decide the cluster's
 fate deliberately — convert-as-a-unit, or break the cycles and then convert.
 
+## Conventions established
+
+Worth knowing before continuing, because they recur:
+
+- **Dual-callable constructors stay constructor functions, not classes.**
+  `BufferWriter`, `Base58` and others are invoked both as `new X()` and bare
+  `X()`. An ES2020 `class` throws when called without `new`, so converting them
+  would be an API break disguised as a refactor.
+- **Shared interfaces live in a per-directory `types.ts`.** Modules keeping
+  their CommonJS `require()` shape use `export =`, and TypeScript forbids an
+  export assignment alongside other exported members.
+- **Untyped dependencies get local declarations** in `src/types/`. `bs58@4`
+  ships none; the declaration there documents that the `=4.0.1` pin is load
+  bearing, since v5 changed to Uint8Array signatures.
+- **`noUncheckedIndexedAccess` stays on.** Byte-level code needs a few
+  assertions where a loop bound provably guarantees the index; that is worth
+  the safety it gives everywhere else.
+- The error tree is built dynamically and is typed with an index signature
+  rather than a fabricated mapped type. Precise per-error types change what
+  consumers can reference, so that belongs with the API pass.
+
 ## Progress
 
 | | Count |
 |---|---|
-| Converted | **1** (`crypto/random`) |
-| Acyclic, remaining | 35 |
+| Converted | **18** (layers 0-3, complete) |
+| Acyclic, remaining | 18 (layers 4-8) |
 | Cyclic cluster | ~39 |

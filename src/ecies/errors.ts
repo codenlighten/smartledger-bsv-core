@@ -1,6 +1,9 @@
 'use strict'
 
-const spec = {
+import errors = require('../errors')
+import type { ErrorSpec } from '../errors/types'
+
+const spec: ErrorSpec = {
   name: 'ECIES',
   message: 'Internal Error on bsv-ecies Module {0}',
   errors: [{
@@ -13,4 +16,4 @@ const spec = {
   }]
 }
 
-module.exports = require('../errors').extend(spec)
+export = errors.extend(spec)

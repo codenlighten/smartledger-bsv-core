@@ -58,10 +58,10 @@ Convert bottom-up. A layer may be converted once every layer below it is done.
 | 2 | `encoding/base58`, `errors/index` | ✅ done |
 | 3 | `ecies/errors`, `mnemonic/errors`, `util/preconditions` | ✅ done |
 | 4 | `crypto/bn`, `crypto/hash.browser`, `crypto/hash.node`, `util/js` | ✅ done |
-| 5 | `crypto/hash` ✅, `encoding/bufferreader` ✅, `opcode` ✅ — `crypto/point`, `networks` remain | partial |
-| 6 | `encoding/base58check` ✅, `encoding/varint` ✅, `mnemonic/pbkdf2.browser` ✅ — `block/blockheader`, `crypto/shamir`, `crypto/signature` remain | partial |
-| 7 | `mnemonic/pbkdf2` ✅ — `spv/headerchain`, `spv/merkleproof` remain | partial |
-| 8 | `spv/index` | todo |
+| 5 | `crypto/hash`, `encoding/bufferreader`, `networks`, `opcode` — `crypto/point` remains | partial |
+| 6 | `encoding/base58check`, `encoding/varint`, `mnemonic/pbkdf2.browser`, `block/blockheader` — `crypto/shamir`, `crypto/signature` remain | partial |
+| 7 | `mnemonic/pbkdf2`, `spv/headerchain`, `spv/merkleproof` | ✅ done |
+| 8 | `spv/index` | ✅ done |
 
 ### The cyclic cluster — the remaining ~39 files
 
@@ -97,6 +97,20 @@ Implications:
 Recommendation: convert the 36 acyclic files first, then decide the cluster's
 fate deliberately — convert-as-a-unit, or break the cycles and then convert.
 
+## Bugs found by the conversion
+
+Strict typing surfaced three defects the 4361-test suite and the 371-case
+corpus both missed. Two were harmless by accident; one was not.
+
+| Where | Defect | Impact |
+|---|---|---|
+| `networks` | `STN.cashAddrPrefixToArray()` — STN is a plain object with no such method | **Live bug.** `enableStn()` then reading `testnet.cashAddrPrefixArray` throws. Reproduced against published 7.5.5, fixed, 3 regression tests added. |
+| `crypto/hash` | `key < blocksize` compares a Buffer to a number, always false | Latent. Short HMAC keys were never zero-padded, but the XOR indexes past the key and `x ^ undefined === x ^ 0`, which is what padding produces. |
+| `crypto/bn` | `buf.length === 1 & buf[0] === 0` — bitwise `&` on booleans | Latent. `===` binds tighter and `true & true` is truthy, so it worked. |
+
+The corpus proved the two latent fixes were behavior-neutral. It could not
+have caught the live one: no case calls `enableStn()`.
+
 ## Conventions established
 
 Worth knowing before continuing, because they recur:
@@ -118,29 +132,21 @@ Worth knowing before continuing, because they recur:
   rather than a fabricated mapped type. Precise per-error types change what
   consumers can reference, so that belongs with the API pass.
 
-## Remaining 8
+## Remaining 3
 
-All acyclic, all mechanical from here — the patterns above cover every case
-they need. Grouped by what they will need:
+All acyclic; the established patterns cover them. Left deliberately rather
+than rushed, because they are the most security-sensitive files in the set.
 
 | File | Lines | Note |
 |---|---|---|
-| `crypto/signature` | 438 | DER parsing; the corpus pins its rejection cases hard |
-| `networks` | 392 | mostly data plus an index/lookup layer |
-| `crypto/shamir` | 380 | wraps `secrets.js-grempe`, which ships no types |
-| `block/blockheader` | 294 | straightforward constructor-function shape |
-| `crypto/point` | 278 | augments the @noble curve point, like crypto/bn augments BN |
-| `spv/{headerchain,merkleproof}` | 185 | plain functions |
-| `spv/index` | 16 | re-export; must come last, after its two deps |
-
-`crypto/point` is the one to do carefully: it is an augmentation of a foreign
-class, so it follows the `crypto/bn` precedent — declare the exposed shape in
-one place rather than trying to augment a `export =` module.
+| `crypto/signature` | 438 | DER parsing and the low-S rules. The corpus pins its rejection cases hard, so a conversion here is well protected — but it deserves unhurried attention. |
+| `crypto/shamir` | 380 | wraps `secrets.js-grempe`, which ships no types; needs a local declaration like `bs58` and `bn.js` got |
+| `crypto/point` | 278 | augments the @noble curve point. Follow the `crypto/bn` precedent: declare the exposed shape in one file rather than trying to augment an `export =` module |
 
 ## Progress
 
 | | Count |
 |---|---|
-| Converted | **28** |
-| Acyclic, remaining | 8 |
+| Converted | **33** |
+| Acyclic, remaining | 3 | `spv/index` | ✅ done |
 | Cyclic cluster | ~39 |

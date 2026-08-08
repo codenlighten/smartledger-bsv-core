@@ -110,6 +110,28 @@ pattern is:
 - cross-cycle RUNTIME -> a lazy accessor called at use time, e.g.
   `const publicKeyCtor = () => require('../publickey')`
 
+**CAVEAT — the lazy accessor is not always sufficient.** `address.js` cannot
+use it for its `instanceof` checks. It relies on a different CommonJS idiom:
+
+```js
+module.exports = Address          // export FIRST
+var Script = require('./script')  // require AFTER, hoisted `var`
+```
+
+Exporting before requiring the partner means that when `script` requires
+`address` back, it gets a COMPLETE Address. Replacing that with a call-time
+`require('./script')` returns a PARTIALLY INITIALIZED module on some load
+paths, so `data instanceof Script` silently evaluates to false. Node warns
+("Accessing non-existent property 'Symbol(Symbol.hasInstance)' of module
+exports inside circular dependency"), and the conformance corpus caught it as
+91 differences.
+
+`export =` cannot express "export, then require", so converting address needs
+a deliberate choice — most likely a memoized accessor primed after export, or
+replacing the `instanceof` checks with structural predicates that do not
+depend on constructor identity. Settle this before converting address,
+script, or transaction, all of which use the same idiom.
+
 The alternative — ambient `any` declarations to bridge the unconverted files —
 is rejected: it reintroduces exactly the `any`-riddled surface this migration
 exists to eliminate, and it would typecheck while being wrong.

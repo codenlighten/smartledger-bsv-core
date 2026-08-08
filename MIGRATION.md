@@ -64,10 +64,71 @@ done. All 36 are now TypeScript, `strict` clean, with generated declarations.
 | 7 | `mnemonic/pbkdf2`, `spv/headerchain`, `spv/merkleproof` | ✅ done |
 | 8 | `spv/index` | ✅ done |
 
-### The cyclic cluster — the remaining ~39 files
+### The remaining work, by structure (computed via Tarjan SCC)
 
-**There is no valid leaf-first order for these.** They form 24 distinct
-circular dependencies:
+The "cyclic cluster" is not one blob. Of the 40 remaining `.js` files:
+
+- **21 are in true cycles** — one SCC of 19 (the core object graph) plus
+  `hdprivatekey ↔ hdpublickey`.
+- **19 are merely downstream** of those, and are orderable exactly like the
+  acyclic set was.
+
+#### SCC-19 — must convert as a single unit (7,612 lines)
+
+```
+address            privatekey         publickey          crypto/ecdsa
+script/{index, script, interpreter}
+transaction/{index, transaction, sighash, output, unspentoutput, signature}
+transaction/input/{index, input, publickey, publickeyhash, multisig, multisigscripthash}
+```
+
+Three files are 57% of it: `script/interpreter` (1932), `transaction/transaction`
+(1264), `script/script` (1172) — the most consensus-critical code in the
+library.
+
+**Why it cannot be done incrementally:** `tsconfig.types.json` sets
+`allowJs: false`, so a `.ts` file cannot import an unconverted `.js` sibling.
+Since these 19 are mutually recursive, converting any one of them breaks
+declaration emit for all of them.
+
+**Consequence to plan around:** during this conversion the type gate goes dark
+— `npm run build` still succeeds (the main config has `allowJs`), and the test
+suite and conformance corpus still run, but NO declarations are emitted until
+the last of the 19 lands. Tests + corpus are the only gate in that window, so
+convert in small commits and lean on them hard.
+
+The alternative — ambient `any` declarations to bridge the unconverted files —
+is rejected: it reintroduces exactly the `any`-riddled surface this migration
+exists to eliminate, and it would typecheck while being wrong.
+
+**One pattern needing a decision, not a rewrite:** the three barrel files
+assign and then mutate their exports:
+
+```js
+module.exports = require('./script')
+module.exports.Interpreter = require('./interpreter')
+```
+
+`export =` does not express "assign then augment". Options are a merged object
+literal, or `Object.assign`, and the choice affects the emitted type surface —
+worth settling deliberately before starting.
+
+#### SCC-2 — `hdprivatekey ↔ hdpublickey`
+
+Depends on SCC-19, so it follows.
+
+#### Downstream 19 — orderable, convert last
+
+```
+block/{index, block, merkleblock}      ecies/{index, bitcore-ecies, electrum-ecies}
+covenant/{index, helpers, pushtx}      message/{index, message}
+mnemonic/{index, mnemonic}             ordinals/{index, inscription, ordlock, bsv20}
+crypto/smartledger_verify              index
+```
+
+### Why the cycles themselves are no longer a blocker
+
+They form 24 distinct circular dependencies:
 
 - `address → publickey → privatekey → address`
 - `hdprivatekey ↔ hdpublickey`
@@ -82,7 +143,12 @@ Removing the *package-root* cycles — the 45 files that reached back through
 `index.js` — did not touch these. That work was still required, and was the
 harder problem, but it was a different one.
 
-Implications:
+**These cycles are now ESM-safe** — see `scripts/check-cycle-safety.js`. The
+hazard was never the cycles themselves but evaluation-time dereference of a
+cyclic import, which was true of only three modules and has been fixed. So the
+cluster is an ordinary (if large) conversion, not an API-design problem.
+
+Historical note on the original framing:
 
 - TypeScript itself is fine with circular imports; types are erased and
   resolved across the cycle. So this cluster **can** be converted, but it must

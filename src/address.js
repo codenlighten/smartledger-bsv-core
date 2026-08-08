@@ -97,7 +97,7 @@ Address.prototype._classifyArguments = function (data, network, type) {
     return Address._transformBuffer(data, network, type)
   } else if (data instanceof PublicKey) {
     return Address._transformPublicKey(data)
-  } else if (data instanceof Script) {
+  } else if (isScript(data)) {
     return Address._transformScript(data, network)
   } else if (typeof (data) === 'string') {
     return Address._transformString(data, network, type)
@@ -237,7 +237,7 @@ Address._transformPublicKey = function (pubkey) {
  * @private
  */
 Address._transformScript = function (script, network) {
-  $.checkArgument(script instanceof Script, 'script must be a Script instance')
+  $.checkArgument(isScript(script), 'script must be a Script instance')
   const info = script.getAddressInfo(network)
   if (!info) {
     throw new errors.Script.CantDeriveAddress(script)
@@ -259,7 +259,7 @@ Address._transformScript = function (script, network) {
  */
 Address.createMultisig = function (publicKeys, threshold, network) {
   network = network || publicKeys[0].network || Networks.defaultNetwork
-  return Address.payingTo(Script.buildMultisigOut(publicKeys, threshold), network)
+  return Address.payingTo(scriptClass().buildMultisigOut(publicKeys, threshold), network)
 }
 
 /**
@@ -352,7 +352,7 @@ Address.fromScriptHash = function (hash, network) {
  */
 Address.payingTo = function (script, network) {
   $.checkArgument(script, 'script is required')
-  $.checkArgument(script instanceof Script, 'script must be instance of Script')
+  $.checkArgument(isScript(script), 'script must be instance of Script')
 
   return Address.fromScriptHash(Hash.sha256ripemd160(script.toBuffer()), network)
 }
@@ -370,7 +370,7 @@ Address.payingTo = function (script, network) {
  * @returns {Address} A new valid and frozen instance of an Address
  */
 Address.fromScript = function (script, network) {
-  $.checkArgument(script instanceof Script, 'script must be a Script instance')
+  $.checkArgument(isScript(script), 'script must be a Script instance')
   const info = Address._transformScript(script, network)
   return new Address(info.hashBuffer, network, info.type)
 }
@@ -523,4 +523,29 @@ Address.prototype.toString = function () {
 
 module.exports = Address
 
-var Script = require('./script')
+// Resolved on demand rather than captured at load time.
+//
+// This used to be `var Script = require('./script')` placed after
+// `module.exports` — the CommonJS idiom for breaking a cycle by exporting
+// before requiring the partner. It only works if address is loaded FIRST.
+// Require lib/script before lib/address and this captured a partially
+// initialized module, making `x instanceof Script` throw
+// "Right-hand side of 'instanceof' is not callable". That is reachable in the
+// wild, since deep imports are public API. Resolving at call time instead
+// always yields the finished module.
+function scriptClass () {
+  return require('./script')
+}
+
+// Structural test for a Script, used instead of `instanceof`.
+//
+// Constructor identity is exactly what is unreliable across a require cycle,
+// and every caller here immediately uses the object as a Script. Testing for
+// the capability being relied upon is both load-order independent and a more
+// honest statement of the requirement.
+function isScript (v) {
+  return v != null &&
+    typeof v.toBuffer === 'function' &&
+    typeof v.getAddressInfo === 'function' &&
+    Array.isArray(v.chunks)
+}

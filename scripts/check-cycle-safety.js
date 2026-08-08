@@ -151,4 +151,44 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
+// --- load-order regression -------------------------------------------------
+//
+// Separate from the static scan above, and deliberately in this script rather
+// than in mocha: it must clear require.cache, which invalidates every module
+// reference held by an in-process test suite.
+//
+// address.js used to capture Script via `var Script = require('./script')`
+// placed after `module.exports` — the CommonJS idiom for breaking a cycle by
+// exporting before requiring the partner. That only works when address is
+// loaded FIRST. Requiring lib/script first captured a partially initialised
+// module and `x instanceof Script` threw. Deep imports are public API, so it
+// was reachable. Present in @smartledger/bsv 7.5.5.
+const DIST = path.join(__dirname, '..', 'dist')
+if (fs.existsSync(DIST)) {
+  for (const k of Object.keys(require.cache)) delete require.cache[k]
+  try {
+    require(path.join(DIST, 'script', 'index.js')) // script FIRST, on purpose
+    const A = require(path.join(DIST, 'address.js'))
+    const S = require(path.join(DIST, 'script', 'index.js'))
+    const addr = '17VZNX1SN5NtKa8UQFxwQbFeFc3iqRYhem'
+    const s = S.buildPublicKeyHashOut(A.fromString(addr))
+    // Both entry points, because they reach the Script check by different
+    // routes: fromScript goes through _transformScript, while the constructor
+    // goes through _classifyArguments. An earlier version of this guard tested
+    // only the first and passed while the second was broken.
+    if (A.fromScript(s).toString() !== addr) {
+      throw new Error('fromScript round-trip mismatch')
+    }
+    if (new A(s).toString() !== addr) {
+      throw new Error('new Address(script) round-trip mismatch')
+    }
+  } catch (err) {
+    console.error('\nFAIL: address is load-order dependent.')
+    console.error('Requiring script before address broke Address.fromScript:')
+    console.error('  ' + err.message)
+    process.exit(1)
+  }
+  console.log('load-order:   OK — address works when script is required first')
+}
+
 console.log(`cycle-safety: OK — no evaluation-time dereference of a circular import (${files.length} modules)`)

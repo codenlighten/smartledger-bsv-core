@@ -90,20 +90,47 @@ async function main () {
     console.log(`  ${suite.name.padEnd(16)} ${String(names.length).padStart(4)} cases  (${throws} reject)`)
   }
 
+  // The manifest is derived from EVERY fixture on disk, not just the suites
+  // this run touched. Regenerating one suite with --suite=X previously
+  // overwrote it with only that suite, so it reported 1 suite / 28 cases when
+  // there were 12 / 399 — the corpus understating its own baseline, which is
+  // exactly the dishonesty it exists to prevent.
+  //
+  // Provenance is per suite, because each fixture records the version it was
+  // generated from. Suites carved from @smartledger/bsv keep that attribution
+  // even as new suites are generated here.
+  const allSuites = fs.readdirSync(FIXTURES_DIR)
+    .filter((f) => f.endsWith('.json') && f !== 'MANIFEST.json')
+    .sort()
+    .map((f) => {
+      const data = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, f), 'utf8'))
+      const names = Object.keys(data.cases)
+      return {
+        suite: data.suite,
+        generatedBy: data.generatedBy,
+        cases: names.length,
+        throws: names.filter((n) => data.cases[n].outcome === 'throws').length
+      }
+    })
+
   fs.writeFileSync(
     path.join(FIXTURES_DIR, 'MANIFEST.json'),
     JSON.stringify({
-      generatedBy: bsv.version || '(unknown)',
+      // Every version any fixture was generated from. More than one entry is
+      // expected and fine — fixtures are only regenerated deliberately.
+      generatedBy: [...new Set(allSuites.map((s) => s.generatedBy))].sort(),
+      lastVerifiedBy: bsv.version || '(unknown)',
       node: process.version,
-      suiteCount: suites.length,
-      caseCount: totalCases,
-      rejectCount: totalThrows,
-      suites: summary
+      suiteCount: allSuites.length,
+      caseCount: allSuites.reduce((n, s) => n + s.cases, 0),
+      rejectCount: allSuites.reduce((n, s) => n + s.throws, 0),
+      suites: allSuites
     }, null, 2) + '\n'
   )
 
   console.log('')
-  console.log(`total: ${totalCases} cases across ${suites.length} suites (${totalThrows} record a rejection)`)
+  console.log(`this run: ${totalCases} cases across ${suites.length} suite(s)`)
+  console.log(`manifest: ${allSuites.reduce((n, s) => n + s.cases, 0)} cases across ${allSuites.length} suites`)
 }
 
 main().catch((err) => {

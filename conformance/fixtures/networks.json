@@ -1,0 +1,287 @@
+{
+  "suite": "networks",
+  "generatedBy": "0.1.0",
+  "caseCount": 28,
+  "cases": {
+    "alias is absent on every built-in network": {
+      "outcome": "ok",
+      "value": [
+        {
+          "alias": "mainnet",
+          "network": "livenet"
+        },
+        {
+          "alias": null,
+          "network": "testnet"
+        },
+        {
+          "alias": null,
+          "network": "regtest"
+        },
+        {
+          "alias": null,
+          "network": "stn"
+        }
+      ]
+    },
+    "defaultNetwork is livenet": {
+      "outcome": "ok",
+      "value": "livenet"
+    },
+    "get by name": {
+      "outcome": "ok",
+      "value": [
+        "livenet",
+        "testnet",
+        "regtest",
+        "stn"
+      ]
+    },
+    "get by pubkeyhash version byte": {
+      "outcome": "ok",
+      "value": "livenet"
+    },
+    "get by scripthash version byte": {
+      "outcome": "ok",
+      "value": "livenet"
+    },
+    "get with an unknown argument": {
+      "outcome": "ok",
+      "value": null
+    },
+    "livenet is unaffected by regtest": {
+      "outcome": "ok",
+      "value": {
+        "cashAddrPrefix": "bitcoincash",
+        "cashAddrPrefixArray": [
+          2,
+          9,
+          20,
+          3,
+          15,
+          9,
+          14,
+          3,
+          1,
+          19,
+          8
+        ],
+        "dnsSeeds": [
+          "seed.bitcoinsv.org",
+          "seed.bitcoinunlimited.info"
+        ],
+        "name": "livenet",
+        "networkMagic": "buf:e3e1f3e8",
+        "port": 8333,
+        "privatekey": 128,
+        "pubkeyhash": 0,
+        "scripthash": 5,
+        "xprivkey": 76066276,
+        "xpubkey": 76067358
+      }
+    },
+    "livenet is unaffected by stn": {
+      "outcome": "ok",
+      "value": {
+        "cashAddrPrefix": "bitcoincash",
+        "cashAddrPrefixArray": [
+          2,
+          9,
+          20,
+          3,
+          15,
+          9,
+          14,
+          3,
+          1,
+          19,
+          8
+        ],
+        "dnsSeeds": [
+          "seed.bitcoinsv.org",
+          "seed.bitcoinunlimited.info"
+        ],
+        "name": "livenet",
+        "networkMagic": "buf:e3e1f3e8",
+        "port": 8333,
+        "privatekey": 128,
+        "pubkeyhash": 0,
+        "scripthash": 5,
+        "xprivkey": 76066276,
+        "xpubkey": 76067358
+      }
+    },
+    "mainnet aliases livenet": {
+      "outcome": "ok",
+      "value": true
+    },
+    "testnet with none enabled": {
+      "outcome": "ok",
+      "value": {
+        "cashAddrPrefix": "bchtest",
+        "cashAddrPrefixArray": [
+          2,
+          3,
+          8,
+          20,
+          5,
+          19,
+          20
+        ],
+        "dnsSeeds": [
+          "seed.bitcoinsv.org",
+          "seed.bitcoinunlimited.info"
+        ],
+        "name": "testnet",
+        "networkMagic": "buf:f4e5f3f4",
+        "port": 18333,
+        "privatekey": 239,
+        "pubkeyhash": 111,
+        "scripthash": 196,
+        "xprivkey": 70615956,
+        "xpubkey": 70617039
+      }
+    },
+    "testnet with regtest enabled": {
+      "outcome": "ok",
+      "value": {
+        "cashAddrPrefix": "bchreg",
+        "cashAddrPrefixArray": [
+          2,
+          3,
+          8,
+          18,
+          5,
+          7
+        ],
+        "dnsSeeds": [],
+        "name": "testnet",
+        "networkMagic": "buf:dab5bffa",
+        "port": 18444,
+        "privatekey": 239,
+        "pubkeyhash": 111,
+        "scripthash": 196,
+        "xprivkey": 70615956,
+        "xpubkey": 70617039
+      }
+    },
+    "testnet with stn enabled": {
+      "outcome": "ok",
+      "value": {
+        "cashAddrPrefix": "bsvstn",
+        "cashAddrPrefixArray": [
+          2,
+          19,
+          22,
+          19,
+          20,
+          14
+        ],
+        "dnsSeeds": [
+          "stn-seed.bitcoinsv.io"
+        ],
+        "name": "testnet",
+        "networkMagic": "buf:fbcec4f9",
+        "port": 9333,
+        "privatekey": 239,
+        "pubkeyhash": 111,
+        "scripthash": 196,
+        "xprivkey": 70615956,
+        "xpubkey": 70617039
+      }
+    },
+    "testnet.cashAddrPrefix with none enabled": {
+      "outcome": "ok",
+      "value": "bchtest"
+    },
+    "testnet.cashAddrPrefix with regtest enabled": {
+      "outcome": "ok",
+      "value": "bchreg"
+    },
+    "testnet.cashAddrPrefix with stn enabled": {
+      "outcome": "ok",
+      "value": "bsvstn"
+    },
+    "testnet.cashAddrPrefixArray with none enabled": {
+      "outcome": "ok",
+      "value": [
+        2,
+        3,
+        8,
+        20,
+        5,
+        19,
+        20
+      ]
+    },
+    "testnet.cashAddrPrefixArray with regtest enabled": {
+      "outcome": "ok",
+      "value": [
+        2,
+        3,
+        8,
+        18,
+        5,
+        7
+      ]
+    },
+    "testnet.cashAddrPrefixArray with stn enabled": {
+      "outcome": "ok",
+      "value": [
+        2,
+        19,
+        22,
+        19,
+        20,
+        14
+      ]
+    },
+    "testnet.dnsSeeds with none enabled": {
+      "outcome": "ok",
+      "value": [
+        "seed.bitcoinsv.org",
+        "seed.bitcoinunlimited.info"
+      ]
+    },
+    "testnet.dnsSeeds with regtest enabled": {
+      "outcome": "ok",
+      "value": []
+    },
+    "testnet.dnsSeeds with stn enabled": {
+      "outcome": "ok",
+      "value": [
+        "stn-seed.bitcoinsv.io"
+      ]
+    },
+    "testnet.networkMagic with none enabled": {
+      "outcome": "ok",
+      "value": "buf:f4e5f3f4"
+    },
+    "testnet.networkMagic with regtest enabled": {
+      "outcome": "ok",
+      "value": "buf:dab5bffa"
+    },
+    "testnet.networkMagic with stn enabled": {
+      "outcome": "ok",
+      "value": "buf:fbcec4f9"
+    },
+    "testnet.port with none enabled": {
+      "outcome": "ok",
+      "value": 18333
+    },
+    "testnet.port with regtest enabled": {
+      "outcome": "ok",
+      "value": 18444
+    },
+    "testnet.port with stn enabled": {
+      "outcome": "ok",
+      "value": 9333
+    },
+    "toggles restore cleanly": {
+      "outcome": "ok",
+      "value": {
+        "restored": true
+      }
+    }
+  }
+}

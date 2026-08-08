@@ -1,0 +1,323 @@
+{
+  "suite": "script",
+  "generatedBy": "v7.5.5",
+  "caseCount": 42,
+  "cases": {
+    "add 520-byte element": {
+      "outcome": "ok",
+      "value": 523
+    },
+    "add 521-byte element": {
+      "outcome": "ok",
+      "value": 524
+    },
+    "build data out empty": {
+      "outcome": "ok",
+      "value": "6a00"
+    },
+    "build data out short": {
+      "outcome": "ok",
+      "value": "6a0568656c6c6f"
+    },
+    "build multisig 2-of-2": {
+      "outcome": "ok",
+      "value": "5221029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59f2103c95924e02c240b5545089c69c6432447412b58be43fd671918bd184a5009834352ae"
+    },
+    "build multisig sorts keys by default": {
+      "outcome": "ok",
+      "value": {
+        "ab": "5221029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59f2103c95924e02c240b5545089c69c6432447412b58be43fd671918bd184a5009834352ae",
+        "ba": "5221029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59f2103c95924e02c240b5545089c69c6432447412b58be43fd671918bd184a5009834352ae",
+        "unsortedAb": "5221029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59f2103c95924e02c240b5545089c69c6432447412b58be43fd671918bd184a5009834352ae",
+        "unsortedBa": "522103c95924e02c240b5545089c69c6432447412b58be43fd671918bd184a5009834321029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59f52ae"
+      }
+    },
+    "build multisig threshold above key count": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument: Number of required signatures must be less than or equal to the number of public keys"
+      }
+    },
+    "build p2pk from pubkey": {
+      "outcome": "ok",
+      "value": "210279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ac"
+    },
+    "build p2pkh from address": {
+      "outcome": "ok",
+      "value": "76a91447376c6f537d62177a2c41c4ca9b45829ab9908388ac"
+    },
+    "build safe data out": {
+      "outcome": "ok",
+      "value": "006a0568656c6c6f"
+    },
+    "build scripthash out": {
+      "outcome": "ok",
+      "value": "a9145c68cb4841c7726257f559102e804dc5d923e59487"
+    },
+    "classify empty": {
+      "outcome": "ok",
+      "value": "Unknown"
+    },
+    "classify multisig": {
+      "outcome": "ok",
+      "value": "Unknown"
+    },
+    "classify opreturn": {
+      "outcome": "ok",
+      "value": {
+        "data": [
+          "buf:68656c6c6f"
+        ],
+        "isDataOut": false,
+        "type": "Safe data push"
+      }
+    },
+    "classify p2pk": {
+      "outcome": "ok",
+      "value": "Pay to public key"
+    },
+    "classify p2pkh": {
+      "outcome": "ok",
+      "value": {
+        "isDataOut": false,
+        "isPublicKeyHashOut": true,
+        "isPublicKeyOut": false,
+        "isScriptHashOut": false,
+        "type": "Pay to public key hash"
+      }
+    },
+    "classify p2sh": {
+      "outcome": "ok",
+      "value": "Pay to script hash"
+    },
+    "empty script properties": {
+      "outcome": "ok",
+      "value": {
+        "asm": "",
+        "chunks": 0,
+        "classify": "Unknown",
+        "hex": ""
+      }
+    },
+    "fromASM \"OP_0\"": {
+      "outcome": "ok",
+      "value": {
+        "asm": "0",
+        "hex": "00",
+        "roundTrips": false
+      }
+    },
+    "fromASM \"OP_1 OP_2 OP_ADD OP_3 OP_EQUAL\"": {
+      "outcome": "ok",
+      "value": {
+        "asm": "OP_1 OP_2 OP_ADD OP_3 OP_EQUAL",
+        "hex": "5152935387",
+        "roundTrips": true
+      }
+    },
+    "fromASM \"OP_16\"": {
+      "outcome": "ok",
+      "value": {
+        "asm": "OP_16",
+        "hex": "60",
+        "roundTrips": true
+      }
+    },
+    "fromASM \"OP_1NEGATE\"": {
+      "outcome": "ok",
+      "value": {
+        "asm": "-1",
+        "hex": "4f",
+        "roundTrips": false
+      }
+    },
+    "fromASM \"OP_DUP OP_HASH160 48b20e254c0677e760bab964aec16818d6b7134a OP_EQUALVERIFY OP_CHECKSIG\"": {
+      "outcome": "ok",
+      "value": {
+        "asm": "OP_DUP OP_HASH160 48b20e254c0677e760bab964aec16818d6b7134a OP_EQUALVERIFY OP_CHECKSIG",
+        "hex": "76a91448b20e254c0677e760bab964aec16818d6b7134a88ac",
+        "roundTrips": true
+      }
+    },
+    "fromASM \"OP_RETURN 68656c6c6f\"": {
+      "outcome": "ok",
+      "value": {
+        "asm": "OP_RETURN 68656c6c6f",
+        "hex": "6a0568656c6c6f",
+        "roundTrips": true
+      }
+    },
+    "fromASM with invalid opcode": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "invalid hex string in script"
+      }
+    },
+    "fromASM with odd hex": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "invalid hex string in script"
+      }
+    },
+    "odd-length hex rejected": {
+      "outcome": "ok",
+      "value": {
+        "chunks": [
+          {
+            "opcodenum": 171
+          }
+        ]
+      }
+    },
+    "parse empty": {
+      "outcome": "ok",
+      "value": {
+        "asm": "",
+        "chunks": 0,
+        "hex": "",
+        "roundTrips": true,
+        "str": ""
+      }
+    },
+    "parse multisig": {
+      "outcome": "ok",
+      "value": {
+        "asm": "OP_2 0223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e 0496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52 da OP_DROP OP_RESERVED1 9515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858ee52ae",
+        "chunks": 7,
+        "hex": "52210223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e210496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858ee52ae",
+        "roundTrips": true,
+        "str": "OP_2 33 0x0223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e 33 0x0496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52 0xda OP_DROP OP_RESERVED1 55 0x9515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858ee52ae"
+      }
+    },
+    "parse opReturn": {
+      "outcome": "ok",
+      "value": {
+        "asm": "0 OP_RETURN 68656c6c6f",
+        "chunks": 3,
+        "hex": "006a0568656c6c6f",
+        "roundTrips": true,
+        "str": "OP_0 OP_RETURN 5 0x68656c6c6f"
+      }
+    },
+    "parse p2pk": {
+      "outcome": "ok",
+      "value": {
+        "asm": "0496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858ee OP_CHECKSIG",
+        "chunks": 2,
+        "hex": "410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac",
+        "roundTrips": true,
+        "str": "65 0x0496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858ee OP_CHECKSIG"
+      }
+    },
+    "parse p2pkh": {
+      "outcome": "ok",
+      "value": {
+        "asm": "OP_DUP OP_HASH160 48b20e254c0677e760bab964aec16818d6b7134a OP_EQUALVERIFY OP_CHECKSIG",
+        "chunks": 5,
+        "hex": "76a91448b20e254c0677e760bab964aec16818d6b7134a88ac",
+        "roundTrips": true,
+        "str": "OP_DUP OP_HASH160 20 0x48b20e254c0677e760bab964aec16818d6b7134a OP_EQUALVERIFY OP_CHECKSIG"
+      }
+    },
+    "parse p2sh": {
+      "outcome": "ok",
+      "value": {
+        "asm": "OP_HASH160 e8c300c87986efa94c37c0519929019ef86eb5b4 OP_EQUAL",
+        "chunks": 3,
+        "hex": "a914e8c300c87986efa94c37c0519929019ef86eb5b487",
+        "roundTrips": true,
+        "str": "OP_HASH160 20 0xe8c300c87986efa94c37c0519929019ef86eb5b4 OP_EQUAL"
+      }
+    },
+    "push claiming more than available": {
+      "outcome": "ok",
+      "value": "OP_INVALIDOPCODE"
+    },
+    "push size boundaries": {
+      "outcome": "ok",
+      "value": [
+        {
+          "prefix": "00",
+          "size": 0,
+          "total": 1
+        },
+        {
+          "prefix": "01ab",
+          "size": 1,
+          "total": 2
+        },
+        {
+          "prefix": "4bababababab",
+          "size": 75,
+          "total": 76
+        },
+        {
+          "prefix": "4c4cabababab",
+          "size": 76,
+          "total": 78
+        },
+        {
+          "prefix": "4c4dabababab",
+          "size": 77,
+          "total": 79
+        },
+        {
+          "prefix": "4cfeabababab",
+          "size": 254,
+          "total": 256
+        },
+        {
+          "prefix": "4cffabababab",
+          "size": 255,
+          "total": 257
+        },
+        {
+          "prefix": "4d0001ababab",
+          "size": 256,
+          "total": 259
+        },
+        {
+          "prefix": "4dffffababab",
+          "size": 65535,
+          "total": 65538
+        },
+        {
+          "prefix": "4e00000100ab",
+          "size": 65536,
+          "total": 65541
+        }
+      ]
+    },
+    "script from address p2pkh": {
+      "outcome": "ok",
+      "value": "76a91447376c6f537d62177a2c41c4ca9b45829ab9908388ac"
+    },
+    "script from address p2sh": {
+      "outcome": "ok",
+      "value": "a914e8c300c87986efa84c37c0519929019ef86eb5b487"
+    },
+    "script getData on p2pkh (not data)": {
+      "outcome": "ok",
+      "value": "buf:48b20e254c0677e760bab964aec16818d6b7134a"
+    },
+    "script toAddress from p2pkh out": {
+      "outcome": "ok",
+      "value": "17dNxJroBbzyoyoQMTveJwxYpkitAAChtX"
+    },
+    "truncated direct push": {
+      "outcome": "ok",
+      "value": "0102"
+    },
+    "truncated pushdata1": {
+      "outcome": "ok",
+      "value": "0102"
+    },
+    "truncated pushdata2": {
+      "outcome": "ok",
+      "value": "0102"
+    }
+  }
+}

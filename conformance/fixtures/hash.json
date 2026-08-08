@@ -1,0 +1,298 @@
+{
+  "suite": "hash",
+  "generatedBy": "v7.5.5",
+  "caseCount": 42,
+  "cases": {
+    "hmac rejects string key": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "ripemd160 across block boundaries": {
+      "outcome": "ok",
+      "value": [
+        "9c1185a5c5e9fc54612808977ee8f548b2258d31",
+        "82895e91fe5b276b0880dc7db44989c14000c1eb",
+        "84239512912db9d6d33e8248eea1f77b1ff4d614",
+        "91f653a5ab8423317a2cee041ccd32197e69873c",
+        "a88658f0aa4e0173fa36c8f6dd75b2ad1e22d601",
+        "ae2313e9273fcdccc623a86f430c7cf110d2f83d",
+        "24b8da95717fd0a018f662fde4644777a25fab91",
+        "d50b3b7fd62e0b187aa9ad16736d52ea2e8fb9d0",
+        "ab0689dafecfd5dcf431a988d15e184f2cd27050",
+        "3b26ec4e6b5c6097f398e067ab9b7d6a84e935ea",
+        "a1c92d14165394b38251886696ba1c9f357a7f06",
+        "3392aaece2ad3d6e78b0089f4e4fa54834cd6f54",
+        "8a381a05b20d6585e0186c07e9b5d2c7081c3eee"
+      ]
+    },
+    "ripemd160 of \"abc\"": {
+      "outcome": "ok",
+      "value": "buf:8eb208f7e05d987a9b044a8e98c6b087f15a0bfc"
+    },
+    "ripemd160 of \"hello\"": {
+      "outcome": "ok",
+      "value": "buf:108f07b8382412612c048d07d13f814118445acd"
+    },
+    "ripemd160 of empty": {
+      "outcome": "ok",
+      "value": "buf:9c1185a5c5e9fc54612808977ee8f548b2258d31"
+    },
+    "ripemd160 rejects a string argument": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "ripemd160 rejects null": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha1 across block boundaries": {
+      "outcome": "ok",
+      "value": [
+        "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+        "fe83f217d464f6fdfa5b2b1f87fe3a1a47371196",
+        "6090c2fa6dd5cbd5c13f464e7001b0e4d10a138f",
+        "6fa5580ac496dbf805006c3c0d103c1784690815",
+        "7612ebff94a5bd9aa26341e337df6d317904d707",
+        "19167c83c72622dfeacbaa547af1e68786e3dd36",
+        "205e0d061b826e5f0fee08f144fbac415149c627",
+        "2400e634e0ba1ddddb3c3bb8e2b225a847eda6a7",
+        "97552dfb88f3fdedf3f8d17df685af2bb3bd3dd4",
+        "2e87550f7d321a76e8ff51fa412a42e048915d0f",
+        "a1689008028f622f313af6d4539a112177393329",
+        "343b6f7b2f4901995e22d20ad23ff82048f30272",
+        "61dc7e8462a5113182fb2aa231dca0ae498c068b"
+      ]
+    },
+    "sha1 of \"abc\"": {
+      "outcome": "ok",
+      "value": "buf:a9993e364706816aba3e25717850c26c9cd0d89d"
+    },
+    "sha1 of \"hello\"": {
+      "outcome": "ok",
+      "value": "buf:aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d"
+    },
+    "sha1 of empty": {
+      "outcome": "ok",
+      "value": "buf:da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    },
+    "sha1 rejects a string argument": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha1 rejects null": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha256 across block boundaries": {
+      "outcome": "ok",
+      "value": [
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "087d80f7f182dd44f184aa86ca34488853ebcc04f0c60d5294919a466b463831",
+        "48d76eab30e51201f4f03ec7a85dab8510fb3409ccd15b54767f9b4435c9f54d",
+        "a8c9906ade2a2eff868fd8f97a570bbc01a13cddc32c3dfdc9a18f0618d69e55",
+        "d1036ba30d050c74b1a5ab301fa29ff0c607a27cc55af3412577f7e06dbd190b",
+        "ec65c8798ecf95902413c40f7b9e6d4b0068885f5f324aba1f9ba1c8e14aea61",
+        "39cd843414d5125dd308568ace26d04e60b7fa6d2b1a901fb5184fa2eae0598b",
+        "a773085d98f8978583efd89d0f06e29076a12e2e059103ec533f63e1c6f17dd7",
+        "3442eea54f994b0d41c1da867e8347d69fa1a40e2d8a437dcde54dae74504922",
+        "f7488c3608a1dd18b17578527c61e872803356b6b8302bc3e0f0e4ce8ad1148d",
+        "80125c62d518fac6f8b487e1f784c1f12a6acc5d607d554f2e3cccf5342dd29a",
+        "60e283f5bf907ec112c1ddf23a227bc3db763f4dc1fbf6366721c47abdc0b536",
+        "1cfbcd29ecded7332549d09174ee24185a0978679e46507ac7467d8fe1e63880"
+      ]
+    },
+    "sha256 of \"abc\"": {
+      "outcome": "ok",
+      "value": "buf:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    },
+    "sha256 of \"hello\"": {
+      "outcome": "ok",
+      "value": "buf:2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    },
+    "sha256 of empty": {
+      "outcome": "ok",
+      "value": "buf:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "sha256 rejects a string argument": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha256 rejects null": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha256hmac empty key and data": {
+      "outcome": "ok",
+      "value": "buf:b613679a0814d9ec772f95d778c35fc5ff1697c493715653c6c712144292c5ad"
+    },
+    "sha256hmac oversized key": {
+      "outcome": "ok",
+      "value": "buf:8829fe612797eadb78e6664f2d1841a7072e1d666d4d088ad36eb54d8fd61449"
+    },
+    "sha256hmac rfc4231 case2": {
+      "outcome": "ok",
+      "value": "buf:5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+    },
+    "sha256ripemd160 across block boundaries": {
+      "outcome": "ok",
+      "value": [
+        "b472a266d0bd89c13706a4132ccfb16f7c3b9fcb",
+        "2710d55635fd8c42e006137a96ca61cba1a947fc",
+        "351d01be7ce4a4d84225ea31513e6c641d072d1e",
+        "61d763b6310b37cf1758971155bab0ffa2f62bd0",
+        "3003d91654196eb30495aad8afb71f5e1ce16097",
+        "2c899a9a8734b997f350087e8415052f162940c4",
+        "898059e660b87947d84883f11233eb165ae3da27",
+        "b4a4b388172c79bff94c7e958d466f5ce0479b0a",
+        "24f00bddf5c39c6f3a2201660ab747669de1c689",
+        "672ebad6dd7080f461883298b73e9c2bff0877c1",
+        "ea5a228919a76d414be4dce510da4f437fb23219",
+        "fb08b4d575d04a25b404c22e0633780b3d18ebf2",
+        "3d5b5a05cabad0140665a15c94a2837f4bdf08cd"
+      ]
+    },
+    "sha256ripemd160 of \"abc\"": {
+      "outcome": "ok",
+      "value": "buf:bb1be98c142444d7a56aa3981c3942a978e4dc33"
+    },
+    "sha256ripemd160 of \"hello\"": {
+      "outcome": "ok",
+      "value": "buf:b6a9c8c230722b7c748331a8b450f05566dc7d0f"
+    },
+    "sha256ripemd160 of empty": {
+      "outcome": "ok",
+      "value": "buf:b472a266d0bd89c13706a4132ccfb16f7c3b9fcb"
+    },
+    "sha256ripemd160 rejects a string argument": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha256ripemd160 rejects null": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha256sha256 across block boundaries": {
+      "outcome": "ok",
+      "value": [
+        "5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456",
+        "a420fdd170370f5d58a7bf3ccbf0689039ec0e6366501bf875fa66837399fcd2",
+        "510c7bc3fa51c812c9ae435f899212c91a2097c41b714d1d1fbe19a72beab084",
+        "80435d40c4af8c8fa9424fd9a5f46d9a4623beff78e165a15d82c0ab729970de",
+        "a924cfa51191ca05126e759e30796b50a9ba128578b341d4c86a3fd642b2a4d8",
+        "cfc07871b2cf4b35a3c625c1eb0fc963bd0b18d7b6a44d8f4c0ed35f90d36b50",
+        "4435c516cad6d816f97884a6e1395ac576b55ae4b033b65e3baedbc0ae732d90",
+        "a956a0b6679eee0df07ef9fc1b5a384d81ad8a1161dbe898b45bd28ca2cfab5f",
+        "267d4ad0ce4f631b5a929333ddbe952596659a041bfd3af3a3a1fd0930c19a8c",
+        "5dbf11281d1fcd9b1cc1d4bf8d026181dc749de9369a7182179b53d4913870d7",
+        "b270d90fc9f682a4b045e4c6398888e71fafc6cc995f6fe500729fb791427f40",
+        "cb74859ca8bf4414d247790608b42e7232a213b34b63ea989bf536b4a92cbc1c",
+        "7705784a68cf57301e02075416cdeae5cad5a2ea4318964571f6b4a7171411d1"
+      ]
+    },
+    "sha256sha256 of \"abc\"": {
+      "outcome": "ok",
+      "value": "buf:4f8b42c22dd3729b519ba6f68d2da7cc5b2d606d05daed5ad5128cc03e6c6358"
+    },
+    "sha256sha256 of \"hello\"": {
+      "outcome": "ok",
+      "value": "buf:9595c9df90075148eb06860365df33584b75bff782a510c6cd4883a419833d50"
+    },
+    "sha256sha256 of empty": {
+      "outcome": "ok",
+      "value": "buf:5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456"
+    },
+    "sha256sha256 rejects a string argument": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha256sha256 rejects null": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha512 across block boundaries": {
+      "outcome": "ok",
+      "value": [
+        "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+        "216fc02d84810658832a33d1760dd9ee633aebf66e61156547ceb424abf6b22a249dcd8ef7a8f3604d7a1e9a660dbd039a561519dc7d38990ceebe3e7604d394",
+        "799a221c3807dcc6a4970428d4f2db6cdcbe07f360e025e2361ec1bb2846dc4a97cb2066f0f4535fb7118f2f485b7bc0e55be59e44cd050d1c528f176a6f009d",
+        "049df28dafbe35fabe422a3bf79c6db640faafc094c8bb21069d6d7052c6a5cbaa5347fb8fb6c5377441b1bf6560c0f2b56d926dd5fe11eb9abd02f5a13d9f85",
+        "87a3fe0af014d816f98de4906855657867a6d9a0f3ca097f615c1344fd5591bc6dc37d659a9f3791798bfb528c11d3a074095f1f515ca619a8763065f6bf72e4",
+        "3e9e989108aee0c7406414cadbcbca3879a83e39ff2a7e4c122bff6b9b2979de27949ed3a99b980df26543e6a9bc197c0fccd0c9b37ec7ec646756696630ee4a",
+        "47dee91d41faa38caec135db217e0a8ab5098f4e8a3e9bdf2f4fd4a14dfffa2c08add53f9b87d837652e7d6bcf348ed6485b7307a066f7b3a39d5c0b3f3a7fea",
+        "a53575859f1f3e099955edfc2bb7c06c5449222a3028b4490ebe30f7b366275337ee88425c1452ceaaaaee91cb8045b6d28209772e0ade42087da3104c0047d3",
+        "05786a6a6b88759adfa1ce8b7fcce388669e6bbd047f4d1620231dbfe3195918049d6f7ced40d539eddf8fe3c230fc9d9d4625ecfe07a24842f9da318321be7c",
+        "f527218967975f5c17fa847c8ac23493ebc171913851be02ffd40779df62e04bd530047077579a10058791ebb9f384b24f1e8082501803cabf85cd897f38b87d",
+        "eb1e622bef9b054af09d1ebe393236ba511fffdcc1e861fee42916e1bc1730516403ed2126e472b714835b784e6f1a13e4675fb0c645c865e81c6fdc68eb64af",
+        "29bde2e9a338a2ac8e85e196547d4a8f698280e7562721b0b151cc30c69f3718d1ffb20cccde55644fbab0bcef45df76521f4f569269b5710d98dc7a0f802699",
+        "fd805b4f843ccb741c22186ed4f6f0f12dafc2e6a330458fe84f9ecf1ad1a17ca24489d6ae63662bc29f507bd00882573473ccc660ff05f818fe6a720632abfc"
+      ]
+    },
+    "sha512 of \"abc\"": {
+      "outcome": "ok",
+      "value": "buf:ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+    },
+    "sha512 of \"hello\"": {
+      "outcome": "ok",
+      "value": "buf:9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca72323c3d99ba5c11d7c7acc6e14b8c5da0c4663475c2e5c3adef46f73bcdec043"
+    },
+    "sha512 of empty": {
+      "outcome": "ok",
+      "value": "buf:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+    },
+    "sha512 rejects a string argument": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha512 rejects null": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument"
+      }
+    },
+    "sha512hmac oversized key": {
+      "outcome": "ok",
+      "value": "buf:33fe1f82bc11e426ae2ba6973b50ce2782012cb5fe1458a3baaea701389af4d92be94466db62ef4923ede5c42b72ade6f500fb6dadaf4afcca8bac95e3f16c33"
+    },
+    "sha512hmac rfc4231 case2": {
+      "outcome": "ok",
+      "value": "buf:164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737"
+    }
+  }
+}

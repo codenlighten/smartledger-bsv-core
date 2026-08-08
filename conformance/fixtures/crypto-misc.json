@@ -1,0 +1,543 @@
+{
+  "suite": "crypto-misc",
+  "generatedBy": "v7.5.5",
+  "caseCount": 50,
+  "cases": {
+    "BN constants": {
+      "outcome": "ok",
+      "value": {
+        "minus1": "-1",
+        "one": "1",
+        "zero": "0"
+      }
+    },
+    "BN from hex": {
+      "outcome": "ok",
+      "value": "3735928559"
+    },
+    "BN from number": {
+      "outcome": "ok",
+      "value": "12345"
+    },
+    "BN fromBuffer oversized": {
+      "outcome": "ok",
+      "value": "2135987035920910082395021706169552114602704522356652769947041607822219725780640550022962086936575"
+    },
+    "BN fromSM / toSM": {
+      "outcome": "ok",
+      "value": [
+        {
+          "h": "00",
+          "sm": "0"
+        },
+        {
+          "h": "01",
+          "sm": "1"
+        },
+        {
+          "h": "81",
+          "sm": "-1"
+        },
+        {
+          "h": "0080",
+          "sm": "128"
+        },
+        {
+          "h": "ff",
+          "sm": "-127"
+        },
+        {
+          "h": "8000",
+          "sm": "0"
+        }
+      ]
+    },
+    "BN fromScriptNumBuffer non-minimal with require flag": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "non-minimally encoded script number"
+      }
+    },
+    "BN script num round-trip": {
+      "outcome": "ok",
+      "value": [
+        {
+          "back": "0",
+          "buf": "",
+          "n": 0
+        },
+        {
+          "back": "1",
+          "buf": "01",
+          "n": 1
+        },
+        {
+          "back": "-1",
+          "buf": "81",
+          "n": -1
+        },
+        {
+          "back": "127",
+          "buf": "7f",
+          "n": 127
+        },
+        {
+          "back": "-127",
+          "buf": "ff",
+          "n": -127
+        },
+        {
+          "back": "128",
+          "buf": "8000",
+          "n": 128
+        },
+        {
+          "back": "-128",
+          "buf": "8080",
+          "n": -128
+        },
+        {
+          "back": "255",
+          "buf": "ff00",
+          "n": 255
+        },
+        {
+          "back": "-255",
+          "buf": "ff80",
+          "n": -255
+        },
+        {
+          "back": "256",
+          "buf": "0001",
+          "n": 256
+        },
+        {
+          "back": "-256",
+          "buf": "0081",
+          "n": -256
+        },
+        {
+          "back": "32767",
+          "buf": "ff7f",
+          "n": 32767
+        },
+        {
+          "back": "-32767",
+          "buf": "ffff",
+          "n": -32767
+        },
+        {
+          "back": "2147483647",
+          "buf": "ffffff7f",
+          "n": 2147483647
+        },
+        {
+          "back": "-2147483647",
+          "buf": "ffffffff",
+          "n": -2147483647
+        }
+      ]
+    },
+    "BN toBuffer natural": {
+      "outcome": "ok",
+      "value": "buf:0102"
+    },
+    "BN toBuffer sized": {
+      "outcome": "ok",
+      "value": "buf:0000000000000000000000000000000000000000000000000000000000000001"
+    },
+    "Point G coordinates": {
+      "outcome": "ok",
+      "value": {
+        "x": "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+        "y": "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8"
+      }
+    },
+    "Point N and validation": {
+      "outcome": "ok",
+      "value": {
+        "gValid": true,
+        "n": "fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"
+      }
+    },
+    "Point from invalid coordinates rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "Invalid X"
+      }
+    },
+    "Point scalar multiply by 2": {
+      "outcome": "ok",
+      "value": "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5"
+    },
+    "Random getRandomBuffer shape": {
+      "outcome": "ok",
+      "value": {
+        "differs": true,
+        "isBuffer": true,
+        "length": 32
+      }
+    },
+    "Random zero length": {
+      "outcome": "ok",
+      "value": 0
+    },
+    "ecies empty message": {
+      "outcome": "ok",
+      "value": "buf:42494531029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59f0dc7a7cf9e2627d18afa4e4bb268b00d13b85e3bbea7d73a63e6b4c9d8b1a1338b2fe33089ac67a171b2c5b67a439bdd"
+    },
+    "ecies encrypt fixed keys": {
+      "outcome": "ok",
+      "value": "buf:42494531029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59fa1521291f9a22791d91128f16c7895833445adff1342d305b8fb9115cbd46769589434e3eeed7682ea5f0e1ac289ec01"
+    },
+    "ecies long message": {
+      "outcome": "ok",
+      "value": "buf:42494531029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59f3d5a368d5f4c5ab60340476817dfe2f80de9f4ca4f779964d96b9872f73710c6e6775f04df4ce1f9c70821520312b85913b0d1b6a7fe87f6ce4c2aa1e816ebf9e11c2cd8341f73320b34a06ec76acf4b93f0be1879465a97da0bb397b78bd04eb7c28a81e82c18776d75a3a7cc122ead404e4ae661f5673d71fec0897fd074f7bc9f142ddfc9e1d3e4f5de975aee85776b8fd064235c3d7cfbfde416d6076048c87afce58a29781a6b1638f06d420dd2668c9c27cad49ba93903bd2a1f9059c113083b590fcfe96a62ab8210f43a29f08fac19da3ac6f22bdef01a0543f1d682ed2f99be083d25c24b1d63cb7434a46bccf308597e88a37b3a672c2535cc4e3c42340faf8b7fec9a15f09b775eb87bc89fb6e564f1fbecd5d2ac12ccfdce7711aba2a22339330b409ee74d78717cc4b2602264ff0e92e5997356b216b062a575ee4c565f41391fad545aa3a0ed3c5311977f30f231c57a13ef24f157adafff579dd7d432e17719be59351ef8fef83c35845cefa1e3656d755b24473044175bcfbeb0ee9a0c58a4a34d10f2e091ee2fa1ab8f1651648c4e24bab94277a6618e6dd0c9cb9d28b453e2cc3d457c37c3d3770e1acb6744514c1e9f762e709f2e13b0b8812105392142abf78cab500239548c2d7dc7df75bdb184aaaea30b1e5cbdee84e1d5e48e6879402f754720f6bf77e504036a7e5aa67a364a0fcc62c68d69b23c8950118f2cfe4bb5dbb8eb3d7bb6d9beea4fa63d16aca31d005a9235e780a0716b3c9c3946dcbf921ffb4734f89f28"
+    },
+    "ecies rejects tampered ciphertext": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorECIESDecryptionError",
+        "message": "Invalid Message: Invalid checksum"
+      }
+    },
+    "ecies rejects wrong key": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorECIESDecryptionError",
+        "message": "Invalid Message: Invalid checksum"
+      }
+    },
+    "ecies round-trip": {
+      "outcome": "ok",
+      "value": "hello world"
+    },
+    "ecies truncated ciphertext": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorECIESDecryptionError",
+        "message": "Invalid Message: Invalid Magic"
+      }
+    },
+    "hash160 of key=1 pubkey": {
+      "outcome": "ok",
+      "value": "buf:751e76e8199196d454941c45d1b3a323f1433bd6"
+    },
+    "message empty string": {
+      "outcome": "ok",
+      "value": "INK3XQD+RiG0Xs8V0c7bI493TCP3nRCHVF7k2jB3sn+CPgbPmhx2tiOtx7nN9OnpcSpG1haSedfoNCkqGQocrIc="
+    },
+    "message magicHash": {
+      "outcome": "ok",
+      "value": "buf:cf0447ec85f0ce7150a257db32ebfcb7523dae17c36dbd1be598779fec0484f4"
+    },
+    "message sign deterministic": {
+      "outcome": "ok",
+      "value": {
+        "sig": "IJM6ISSkhRJarS/17I9un8LBvLntLQ4CF06tVt73+COIAG9zhOgOYM/xe/JZWtjvWhBMrY5dvlF89GdbyfkXHPA=",
+        "stable": true
+      }
+    },
+    "message unicode": {
+      "outcome": "ok",
+      "value": {
+        "hash": "buf:256968f427c22b8455a5458dd3264b29ad94d705bdd524fcb3687a3fdb93f92c",
+        "sig": "IMiAZhgWaVcyqxXxfxdbdxpqeXlva4G/yOfX4w0hno3cHGcwoIwv2InrN368zhueIcQvuPm17dFL5yUMCIVBLzA="
+      }
+    },
+    "message verify garbage signature": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument: Error: i must be 0, 1, 2, or 3"
+      }
+    },
+    "message verify round-trip": {
+      "outcome": "ok",
+      "value": {
+        "good": true,
+        "wrongAddress": false,
+        "wrongMessage": false
+      }
+    },
+    "mnemonic from entropy": {
+      "outcome": "ok",
+      "value": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+    },
+    "mnemonic invalid checksum rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorMnemonicInvalidMnemonic",
+        "message": "Mnemonic string is invalid: abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon"
+      }
+    },
+    "mnemonic isValid table": {
+      "outcome": "ok",
+      "value": [
+        {
+          "m": "abandon abandon abandon abando",
+          "valid": true
+        },
+        {
+          "m": "abandon abandon abandon abando",
+          "valid": false
+        },
+        {
+          "m": "not a real mnemonic at all",
+          "valid": false
+        },
+        {
+          "m": "",
+          "valid": false
+        }
+      ]
+    },
+    "mnemonic non-wordlist word rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorMnemonicInvalidMnemonic",
+        "message": "Mnemonic string is invalid: zzzz abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+      }
+    },
+    "mnemonic toHDPrivateKey": {
+      "outcome": "ok",
+      "value": "xprv9s21ZrQH143K3h3fDYiay8mocZ3afhfULfb5GX8kCBdno77K4HiA15Tg23wpbeF1pLfs1c5SPmYHrEpTuuRhxMwvKDwqdKiGJS9XFKzUsAF"
+    },
+    "mnemonic wrong word count rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "RangeError",
+        "message": "The value of \"offset\" is out of range. It must be >= 0 and <= 1. Received 2"
+      }
+    },
+    "opcode fromString unknown": {
+      "outcome": "throws",
+      "error": {
+        "name": "TypeError",
+        "message": "Invalid opcodestr"
+      }
+    },
+    "opcode isSmallIntOp": {
+      "outcome": "ok",
+      "value": [
+        true,
+        true,
+        true,
+        false
+      ]
+    },
+    "opcode map is complete": {
+      "outcome": "ok",
+      "value": {
+        "OP_0": 0,
+        "OP_0NOTEQUAL": 146,
+        "OP_1": 81,
+        "OP_10": 90,
+        "OP_11": 91,
+        "OP_12": 92,
+        "OP_13": 93,
+        "OP_14": 94,
+        "OP_15": 95,
+        "OP_16": 96,
+        "OP_1ADD": 139,
+        "OP_1NEGATE": 79,
+        "OP_1SUB": 140,
+        "OP_2": 82,
+        "OP_2DIV": 142,
+        "OP_2DROP": 109,
+        "OP_2DUP": 110,
+        "OP_2MUL": 141,
+        "OP_2OVER": 112,
+        "OP_2ROT": 113,
+        "OP_2SWAP": 114,
+        "OP_3": 83,
+        "OP_3DUP": 111,
+        "OP_4": 84,
+        "OP_5": 85,
+        "OP_6": 86,
+        "OP_7": 87,
+        "OP_8": 88,
+        "OP_9": 89,
+        "OP_ABS": 144,
+        "OP_ADD": 147,
+        "OP_AND": 132,
+        "OP_BIN2NUM": 129,
+        "OP_BOOLAND": 154,
+        "OP_BOOLOR": 155,
+        "OP_CAT": 126,
+        "OP_CHECKLOCKTIMEVERIFY": 177,
+        "OP_CHECKMULTISIG": 174,
+        "OP_CHECKMULTISIGVERIFY": 175,
+        "OP_CHECKSEQUENCEVERIFY": 178,
+        "OP_CHECKSIG": 172,
+        "OP_CHECKSIGVERIFY": 173,
+        "OP_CODESEPARATOR": 171,
+        "OP_DEPTH": 116,
+        "OP_DIV": 150,
+        "OP_DROP": 117,
+        "OP_DUP": 118,
+        "OP_ELSE": 103,
+        "OP_ENDIF": 104,
+        "OP_EQUAL": 135,
+        "OP_EQUALVERIFY": 136,
+        "OP_FALSE": 0,
+        "OP_FROMALTSTACK": 108,
+        "OP_GREATERTHAN": 160,
+        "OP_GREATERTHANOREQUAL": 162,
+        "OP_HASH160": 169,
+        "OP_HASH256": 170,
+        "OP_IF": 99,
+        "OP_IFDUP": 115,
+        "OP_INVALIDOPCODE": 255,
+        "OP_INVERT": 131,
+        "OP_LEFT": 180,
+        "OP_LESSTHAN": 159,
+        "OP_LESSTHANOREQUAL": 161,
+        "OP_LSHIFT": 152,
+        "OP_MAX": 164,
+        "OP_MIN": 163,
+        "OP_MOD": 151,
+        "OP_MUL": 149,
+        "OP_NEGATE": 143,
+        "OP_NIP": 119,
+        "OP_NOP": 97,
+        "OP_NOP1": 176,
+        "OP_NOP10": 188,
+        "OP_NOP2": 177,
+        "OP_NOP3": 178,
+        "OP_NOP4": 182,
+        "OP_NOP5": 183,
+        "OP_NOP6": 184,
+        "OP_NOP7": 185,
+        "OP_NOP8": 186,
+        "OP_NOP9": 187,
+        "OP_NOT": 145,
+        "OP_NOTIF": 100,
+        "OP_NUM2BIN": 128,
+        "OP_NUMEQUAL": 156,
+        "OP_NUMEQUALVERIFY": 157,
+        "OP_NUMNOTEQUAL": 158,
+        "OP_OR": 133,
+        "OP_OVER": 120,
+        "OP_PICK": 121,
+        "OP_PUBKEY": 254,
+        "OP_PUBKEYHASH": 253,
+        "OP_PUSHDATA1": 76,
+        "OP_PUSHDATA2": 77,
+        "OP_PUSHDATA4": 78,
+        "OP_RESERVED": 80,
+        "OP_RESERVED1": 137,
+        "OP_RESERVED2": 138,
+        "OP_RETURN": 106,
+        "OP_RIGHT": 181,
+        "OP_RIPEMD160": 166,
+        "OP_ROLL": 122,
+        "OP_ROT": 123,
+        "OP_RSHIFT": 153,
+        "OP_SHA1": 167,
+        "OP_SHA256": 168,
+        "OP_SIZE": 130,
+        "OP_SPLIT": 127,
+        "OP_SUB": 148,
+        "OP_SUBSTR": 179,
+        "OP_SWAP": 124,
+        "OP_TOALTSTACK": 107,
+        "OP_TRUE": 81,
+        "OP_TUCK": 125,
+        "OP_VER": 98,
+        "OP_VERIF": 101,
+        "OP_VERIFY": 105,
+        "OP_VERNOTIF": 102,
+        "OP_WITHIN": 165,
+        "OP_XOR": 134
+      }
+    },
+    "opcode smallInt out of range": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument: Invalid Argument: n must be between 0 and 16"
+      }
+    },
+    "opcode smallInt round-trip": {
+      "outcome": "ok",
+      "value": [
+        "OP_0",
+        "OP_1",
+        "OP_2",
+        "OP_15",
+        "OP_16"
+      ]
+    },
+    "sha256 of utf8 vs latin1 differ": {
+      "outcome": "ok",
+      "value": {
+        "latin1": "dafd66c0b98965e688be1fc12942c09f0350e6be0685017c3f234e97d0adc92e",
+        "utf8": "850f7dc43910ff890f8879c0ed26fe697c93a067ad93a7d50f466a7028a9bf4e"
+      }
+    },
+    "shamir all shares recombine": {
+      "outcome": "ok",
+      "value": true
+    },
+    "shamir below threshold does not recover": {
+      "outcome": "ok",
+      "value": "threw:Error"
+    },
+    "shamir shares above 255 rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "Threshold and shares must be <= 255"
+      }
+    },
+    "shamir shares below threshold rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "Number of shares must be at least threshold"
+      }
+    },
+    "shamir split shape": {
+      "outcome": "ok",
+      "value": {
+        "count": 3,
+        "keys": [
+          "checksum",
+          "id",
+          "length",
+          "share",
+          "shares",
+          "splitId",
+          "threshold",
+          "v"
+        ]
+      }
+    },
+    "shamir threshold below 2 rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "Threshold must be at least 2"
+      }
+    },
+    "shamir threshold shares recombine": {
+      "outcome": "ok",
+      "value": true
+    },
+    "shamir verifyShare on a real share": {
+      "outcome": "ok",
+      "value": true
+    },
+    "txid byte order is reversed hash": {
+      "outcome": "ok",
+      "value": {
+        "hash": "779a3e5b3c2c452c85333d8521f804c1a52800e60f4b7c3bbe36f4bab350b72c",
+        "id": "779a3e5b3c2c452c85333d8521f804c1a52800e60f4b7c3bbe36f4bab350b72c",
+        "reversed": false
+      }
+    }
+  }
+}

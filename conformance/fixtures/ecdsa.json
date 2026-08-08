@@ -1,0 +1,149 @@
+{
+  "suite": "ecdsa",
+  "generatedBy": "v7.5.5",
+  "caseCount": 23,
+  "cases": {
+    "compact signature round-trip": {
+      "outcome": "ok",
+      "value": {
+        "compact": "buf:207ebd668f1ced9179517e3ca22048593ebf6810483be9dbce27bf28af448908552ba1e32f0f9c845d15871c34d7c8e7c3f68b2d4edc2567a8a741bf614038f145",
+        "i": 1,
+        "roundTrips": true
+      }
+    },
+    "distinct messages give distinct nonces": {
+      "outcome": "ok",
+      "value": {
+        "allDistinct": true,
+        "rs": [
+          "38efc907df8b3d4456baaee89790ca85f5c53fc596bd5fc853d070c2c6bf8e0f",
+          "a0764835d888e3c9d56182f21411d46cf4d3c9c5e26b5c5e54a3836bd0e96369",
+          "1f82c58f70684ee78084cab78cfaf70a445de1b4b7be7ec58105c4b9e7df523c"
+        ]
+      }
+    },
+    "fromDER rejects negative R": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument: Error: Value of r is negative"
+      }
+    },
+    "fromDER rejects padded R": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument: Error: Length byte should length of what follows"
+      }
+    },
+    "fromDER rejects trailing garbage": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument: Error: Length byte should length of what follows"
+      }
+    },
+    "fromDER rejects truncated": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument: Error: Length byte should length of what follows"
+      }
+    },
+    "isTxDER on well-formed": {
+      "outcome": "ok",
+      "value": true
+    },
+    "isTxDER rejects empty": {
+      "outcome": "ok",
+      "value": false
+    },
+    "isTxDER rejects excess length": {
+      "outcome": "ok",
+      "value": false
+    },
+    "isTxDER rejects wrong leading byte": {
+      "outcome": "ok",
+      "value": false
+    },
+    "produced signatures are low-S": {
+      "outcome": "ok",
+      "value": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ]
+    },
+    "sign digest ff": {
+      "outcome": "ok",
+      "value": "304402205cdacb76aa63226913105cf857fc8281713d0cc63fd73b6aad162a2a5cd7b105022076923f1cdced4ced779ebec0f691233ad8888d31d180d768c1224f80b3cd2720"
+    },
+    "sign digest of sha256(\"abc\")": {
+      "outcome": "ok",
+      "value": "304502210081ddd81582a9868b45e5100dcd053aaf865bb97b181ac98d6572f3a0597c7cc402202be2c3bfe7675c34d9d5c9c928e5eb010be49e0b9fbe6fb96b8f78838bd5f212"
+    },
+    "sign digest one": {
+      "outcome": "ok",
+      "value": "304402205a820559412e2ce0c08f16b7c768cbee0db8506f4fb89e89b86f917189ddb540022051679a5657b985cea7067e3a7b149205e198a0c8dd793f00184d950c6bd566b9"
+    },
+    "sign digest zero": {
+      "outcome": "ok",
+      "value": "304402206c7ab5e5b0581119c6ec4ac6f683ebac3d19d896a63b375d8104641a11100f360220668ca2f7e8a169fe1610e3c426aa2110db822baba5d0654b947af929cc24d820"
+    },
+    "sign is deterministic across calls": {
+      "outcome": "ok",
+      "value": {
+        "sig": "304502210081ddd81582a9868b45e5100dcd053aaf865bb97b181ac98d6572f3a0597c7cc402202be2c3bfe7675c34d9d5c9c928e5eb010be49e0b9fbe6fb96b8f78838bd5f212",
+        "stable": true
+      }
+    },
+    "sign rejects short digest": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidState",
+        "message": "Invalid state: Error: hashbuf must be a 32 byte buffer"
+      }
+    },
+    "sign rejects string digest": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidState",
+        "message": "Invalid state: Error: hashbuf must be a 32 byte buffer"
+      }
+    },
+    "sign with null key (crashes, does not validate)": {
+      "outcome": "throws",
+      "error": {
+        "name": "TypeError",
+        "message": "Cannot read properties of undefined (reading 'bn')"
+      }
+    },
+    "sign/verify round-trip": {
+      "outcome": "ok",
+      "value": {
+        "verifies": true,
+        "wrongKey": false,
+        "wrongMsg": false
+      }
+    },
+    "signature DER round-trip": {
+      "outcome": "ok",
+      "value": {
+        "der": "buf:304402200a6c3c7877ef678328498a8bca03eb53699e2da8cdfc0d316f93704598b6670302206c86affae5f5e62b934d4c308210d6a3344fc8af80a3b305391f3d753b055124",
+        "roundTrips": true
+      }
+    },
+    "toLowS is idempotent": {
+      "outcome": "ok",
+      "value": {
+        "same": true
+      }
+    },
+    "verify with malformed signature": {
+      "outcome": "ok",
+      "value": false
+    }
+  }
+}

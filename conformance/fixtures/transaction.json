@@ -1,0 +1,306 @@
+{
+  "suite": "transaction",
+  "generatedBy": "v7.5.5",
+  "caseCount": 27,
+  "cases": {
+    "BIP69 sort is stable": {
+      "outcome": "ok",
+      "value": {
+        "after": "01000000015884e5db9de218238671572340b207ee85b628074e7e467096c267266baf77a4000000006a473044022013fa3089327b50263029265572ae1b022a91d10ac80eb4f32f291c914533670b02200d8a5ed5f62634a7e1a0dc9188a3cc460a986267ae4d58faf50c79105431327501210223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5effffffff0150690f00000000001976a9147821c0a3768aa9d1a37e16cf76002aef5373f1a888ac00000000",
+        "changed": false
+      }
+    },
+    "build and sign p2pkh": {
+      "outcome": "ok",
+      "value": {
+        "fee": 1000,
+        "fullySigned": true,
+        "hex": "01000000010000000000000000000000000000000000000000000000000000000000000000000000006a47304402202ac5a50a7dbd1e65959fc2f091a45f20728d3da4cd33e82cfed083d71ea418c402204e39fcb561db760fcfebda73ea54ef7f528cc37b6b11439e25ee5cbd12918eee4121029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59fffffffff02905f0100000000001976a91447376c6f537d62177a2c41c4ca9b45829ab9908388ac28230000000000001976a91447862fe165e6121af80d5dde1ecb478ed170565b88ac00000000",
+        "id": "5480ea0da28aa1dfd60811d065d2686c7b7f6b1c05a432a2eca559181b9734a4",
+        "inputAmount": 100000,
+        "outputAmount": 99000,
+        "verified": true
+      }
+    },
+    "build with OP_RETURN data": {
+      "outcome": "ok",
+      "value": {
+        "hex": "01000000011111111111111111111111111111111111111111111111111111111111111111000000006a47304402203456e64859400fe9c912d044d5112205e6d8ea3df93a9f90a3aeee6f1d3c129102206ca641759e6a145938964d5a8bd65c09e2dc2de68368f8194e30045f5090cb494121029f50f51d63b345039a290c94bffd3180c99ed659ff6ea6b1242bca47eb93b59fffffffff0100000000000000000e006a0b636f6e666f726d616e636500000000",
+        "outputs": 1
+      }
+    },
+    "checkedSerialize on unsigned tx": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorTransactionMissingSignatures",
+        "message": "Some inputs have not been fully signed - For more information please see: https://bsv.io/api/lib/transaction#serialization-checks"
+      }
+    },
+    "coinbase input detection": {
+      "outcome": "ok",
+      "value": {
+        "coinbase": true,
+        "spend": false
+      }
+    },
+    "feePerKb affects fee": {
+      "outcome": "ok",
+      "value": [
+        {
+          "estimatedSize": 226,
+          "fee": 1,
+          "rate": 1
+        },
+        {
+          "estimatedSize": 226,
+          "fee": 12,
+          "rate": 50
+        },
+        {
+          "estimatedSize": 226,
+          "fee": 113,
+          "rate": 500
+        }
+      ]
+    },
+    "input toObject": {
+      "outcome": "ok",
+      "value": {
+        "outputIndex": 0,
+        "prevTxId": "a477af6b2667c29670467e4e0728b685ee07b240235771862318e29ddbe58458",
+        "script": "473044022013fa3089327b50263029265572ae1b022a91d10ac80eb4f32f291c914533670b02200d8a5ed5f62634a7e1a0dc9188a3cc460a986267ae4d58faf50c79105431327501210223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e",
+        "scriptString": "71 0x3044022013fa3089327b50263029265572ae1b022a91d10ac80eb4f32f291c914533670b02200d8a5ed5f62634a7e1a0dc9188a3cc460a986267ae4d58faf50c79105431327501 33 0x0223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e",
+        "sequenceNumber": 4294967295
+      }
+    },
+    "invalidSatoshis detection": {
+      "outcome": "ok",
+      "value": false
+    },
+    "lockUntilBlockHeight": {
+      "outcome": "ok",
+      "value": {
+        "getLockTime": 400000,
+        "nLockTime": 400000
+      }
+    },
+    "lockUntilBlockHeight above threshold rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorTransactionBlockHeightTooHigh",
+        "message": "Block Height can be at most 2^32 -1"
+      }
+    },
+    "lockUntilDate": {
+      "outcome": "ok",
+      "value": {
+        "nLockTime": 1893456000
+      }
+    },
+    "output rejects fractional satoshis": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument: Output satoshis is not a natural number"
+      }
+    },
+    "output rejects negative satoshis": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidArgument",
+        "message": "Invalid Argument: Output satoshis is not a natural number"
+      }
+    },
+    "output round-trip": {
+      "outcome": "ok",
+      "value": {
+        "hex": "buf:39300000000000001976a91448b20e254c0677e760bab964aec16818d6b7134a88ac",
+        "obj": {
+          "satoshis": 12345,
+          "script": "76a91448b20e254c0677e760bab964aec16818d6b7134a88ac"
+        },
+        "size": 34
+      }
+    },
+    "parse block1Coinbase": {
+      "outcome": "ok",
+      "value": {
+        "hash": "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+        "id": "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+        "inputCount": 1,
+        "isCoinbase": true,
+        "nLockTime": 0,
+        "outputAmount": 5000000000,
+        "outputCount": 1,
+        "roundTrips": true,
+        "size": 134,
+        "version": 1
+      }
+    },
+    "parse coinbaseV2": {
+      "outcome": "ok",
+      "value": {
+        "hash": "bd60cebfa76ea81d0e29f7e312cb506000fd29ae15bf417d94300af595c1fe6e",
+        "id": "bd60cebfa76ea81d0e29f7e312cb506000fd29ae15bf417d94300af595c1fe6e",
+        "inputCount": 1,
+        "isCoinbase": true,
+        "nLockTime": 0,
+        "outputAmount": 156251466,
+        "outputCount": 1,
+        "roundTrips": true,
+        "size": 131,
+        "version": 2
+      }
+    },
+    "parse empty hex": {
+      "outcome": "ok",
+      "value": {
+        "_inputAmount": "undefined",
+        "_outputAmount": "undefined",
+        "inputs": [],
+        "nLockTime": 0,
+        "outputs": [],
+        "version": 1
+      }
+    },
+    "parse garbage": {
+      "outcome": "throws",
+      "error": {
+        "name": "RangeError",
+        "message": "The value of \"offset\" is out of range. It must be >= 0 and <= 4. Received 5"
+      }
+    },
+    "parse odd-length hex": {
+      "outcome": "throws",
+      "error": {
+        "name": "RangeError",
+        "message": "Attempt to access memory outside buffer bounds"
+      }
+    },
+    "parse p2pkhSpend": {
+      "outcome": "ok",
+      "value": {
+        "hash": "779a3e5b3c2c452c85333d8521f804c1a52800e60f4b7c3bbe36f4bab350b72c",
+        "id": "779a3e5b3c2c452c85333d8521f804c1a52800e60f4b7c3bbe36f4bab350b72c",
+        "inputCount": 1,
+        "isCoinbase": false,
+        "nLockTime": 0,
+        "outputAmount": 1010000,
+        "outputCount": 1,
+        "roundTrips": true,
+        "size": 191,
+        "version": 1
+      }
+    },
+    "parse truncated tx": {
+      "outcome": "throws",
+      "error": {
+        "name": "RangeError",
+        "message": "The value of \"offset\" is out of range. It must be >= 0 and <= 16. Received 37"
+      }
+    },
+    "parse tx with trailing bytes": {
+      "outcome": "ok",
+      "value": {
+        "_inputAmount": "undefined",
+        "_outputAmount": "undefined",
+        "inputs": [
+          {
+            "_scriptBuffer": "buf:473044022013fa3089327b50263029265572ae1b022a91d10ac80eb4f32f291c914533670b02200d8a5ed5f62634a7e1a0dc9188a3cc460a986267ae4d58faf50c79105431327501210223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e",
+            "outputIndex": 0,
+            "prevTxId": "buf:a477af6b2667c29670467e4e0728b685ee07b240235771862318e29ddbe58458",
+            "sequenceNumber": 4294967295
+          }
+        ],
+        "nLockTime": 0,
+        "outputs": [
+          {
+            "_satoshis": 1010000,
+            "_satoshisBN": "bn:1010000",
+            "_scriptBuffer": "buf:76a9147821c0a3768aa9d1a37e16cf76002aef5373f1a888ac"
+          }
+        ],
+        "version": 1
+      }
+    },
+    "serialization error on dust output": {
+      "outcome": "ok",
+      "value": {
+        "error": "Change address is missing"
+      }
+    },
+    "signing is deterministic": {
+      "outcome": "ok",
+      "value": {
+        "stable": true
+      }
+    },
+    "toObject block1Coinbase": {
+      "outcome": "ok",
+      "value": {
+        "hash": "0e3e2357e806b6cdb1f70b54c3a3a17b6714ee1f0e68bebb44a74b1efd512098",
+        "inputs": [
+          {
+            "outputIndex": 4294967295,
+            "prevTxId": "0000000000000000000000000000000000000000000000000000000000000000",
+            "script": "04ffff001d0104",
+            "sequenceNumber": 4294967295
+          }
+        ],
+        "nLockTime": 0,
+        "outputs": [
+          {
+            "satoshis": 5000000000,
+            "script": "410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac"
+          }
+        ],
+        "version": 1
+      }
+    },
+    "toObject coinbaseV2": {
+      "outcome": "ok",
+      "value": {
+        "hash": "bd60cebfa76ea81d0e29f7e312cb506000fd29ae15bf417d94300af595c1fe6e",
+        "inputs": [
+          {
+            "outputIndex": 4294967295,
+            "prevTxId": "0000000000000000000000000000000000000000000000000000000000000000",
+            "script": "039b1e1304c0737c5b68747470733a2f2f6769746875622e636f6d2f62636578742f01000001c096020000000000",
+            "sequenceNumber": 4294967295
+          }
+        ],
+        "nLockTime": 0,
+        "outputs": [
+          {
+            "satoshis": 156251466,
+            "script": "76a91448b20e254c0677e760bab964aec16818d6b7134a88ac"
+          }
+        ],
+        "version": 2
+      }
+    },
+    "toObject p2pkhSpend": {
+      "outcome": "ok",
+      "value": {
+        "hash": "779a3e5b3c2c452c85333d8521f804c1a52800e60f4b7c3bbe36f4bab350b72c",
+        "inputs": [
+          {
+            "outputIndex": 0,
+            "prevTxId": "a477af6b2667c29670467e4e0728b685ee07b240235771862318e29ddbe58458",
+            "script": "473044022013fa3089327b50263029265572ae1b022a91d10ac80eb4f32f291c914533670b02200d8a5ed5f62634a7e1a0dc9188a3cc460a986267ae4d58faf50c79105431327501210223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e",
+            "scriptString": "71 0x3044022013fa3089327b50263029265572ae1b022a91d10ac80eb4f32f291c914533670b02200d8a5ed5f62634a7e1a0dc9188a3cc460a986267ae4d58faf50c79105431327501 33 0x0223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e",
+            "sequenceNumber": 4294967295
+          }
+        ],
+        "nLockTime": 0,
+        "outputs": [
+          {
+            "satoshis": 1010000,
+            "script": "76a9147821c0a3768aa9d1a37e16cf76002aef5373f1a888ac"
+          }
+        ],
+        "version": 1
+      }
+    }
+  }
+}

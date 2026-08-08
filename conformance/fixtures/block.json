@@ -1,0 +1,106 @@
+{
+  "suite": "block",
+  "generatedBy": "v7.5.5",
+  "caseCount": 11,
+  "cases": {
+    "block1 header parse": {
+      "outcome": "ok",
+      "value": {
+        "id": "00000000839a8e6886ab5951d76f411475428afc90947ee320161bbf18eb6048",
+        "prevHash": "buf:6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000",
+        "validPoW": true
+      }
+    },
+    "block1 links to genesis": {
+      "outcome": "ok",
+      "value": {
+        "links": true
+      }
+    },
+    "genesis header parse": {
+      "outcome": "ok",
+      "value": {
+        "bits": 486604799,
+        "hash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+        "id": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+        "merkleRoot": "buf:3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a",
+        "nonce": 2083236893,
+        "prevHash": "buf:0000000000000000000000000000000000000000000000000000000000000000",
+        "roundTrips": true,
+        "time": 1231006505,
+        "version": 1
+      }
+    },
+    "genesis header validates proof of work": {
+      "outcome": "ok",
+      "value": {
+        "difficulty": 1,
+        "target": "ffff0000000000000000000000000000000000000000000000000000",
+        "validPoW": true
+      }
+    },
+    "header rejects oversized buffer": {
+      "outcome": "ok",
+      "value": {
+        "bits": 486604799,
+        "merkleRoot": "buf:3ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a",
+        "nonce": 2083236893,
+        "prevHash": "buf:0000000000000000000000000000000000000000000000000000000000000000",
+        "time": 1231006505,
+        "timestamp": 1231006505,
+        "version": 1
+      }
+    },
+    "header rejects truncated buffer": {
+      "outcome": "throws",
+      "error": {
+        "name": "RangeError",
+        "message": "The value of \"offset\" is out of range. It must be >= 0 and <= 16. Received 68"
+      }
+    },
+    "header toObject": {
+      "outcome": "ok",
+      "value": {
+        "bits": 486604799,
+        "hash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f",
+        "merkleRoot": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b",
+        "nonce": 2083236893,
+        "prevHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "time": 1231006505,
+        "version": 1
+      }
+    },
+    "real block merkle tree": {
+      "outcome": "ok",
+      "value": {
+        "tree": [
+          "f5cda48bc0d776035d973bcfe643e1d7f1e14f3c2854b5b9ea53b74f28b4f7a6",
+          "7f0a4b53fe53da3f1f7d3c0092e1815dd55bbf2855978c63191b790e9c67c260",
+          "7892bace5eb1289505482a765c1e1ee0ce6788693bd9da63dd4ca38d86e85cd3",
+          "037985ae58d6ab9b3c68b703e3d0b522a59b934896affcfc29ce030e23b90178",
+          "07c43c82ea4d2297716990246a12aa0bc60fd60358ad0870cc9c670ed8db6713",
+          "4cd66adb0b47cd74c5bac49bb9d7e3442d488d1fca3a639a2939e7da4eafb4dc",
+          "1c4a563bca8c1bd57bde4168618384a36da8109d8b3d3df5f7503c63bbc31d7a",
+          "64c9e1ff0e587729d4e87a6d9b8a2cfd57f7f0b750b1566458dbf976c1ea6677"
+        ]
+      }
+    },
+    "real block parse": {
+      "outcome": "ok",
+      "value": {
+        "id": "000000000b99b16390660d79fcc138d2ad0c89a0d044c4201a02bdf1f61ffa11",
+        "merkleRoot": "97fc4c97868288e984ff9f246f2c38510f5c37a3d5b41aae7004b01e2dd5e658",
+        "txCount": 22,
+        "validMerkleRoot": true
+      }
+    },
+    "real block round-trips": {
+      "outcome": "ok",
+      "value": 8003
+    },
+    "tampered nonce fails proof of work": {
+      "outcome": "ok",
+      "value": false
+    }
+  }
+}

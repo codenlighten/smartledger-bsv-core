@@ -1,0 +1,80 @@
+{
+  "name": "@smartledger/bsv-core",
+  "version": "0.1.0",
+  "description": "Bitcoin SV primitives: keys, addresses, script, transactions, encoding, SPV, ECIES, mnemonics, 1Sat Ordinals and OP_PUSH_TX covenants.",
+  "author": "SmartLedger Technology <hello@smartledger.technology> (https://smartledger.technology)",
+  "license": "MIT",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./lib/*": "./lib/*.js"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "test": "mocha",
+    "lint": "standard",
+    "conformance": "node conformance/verify.js",
+    "conformance:generate": "node conformance/generate.js",
+    "check": "npm run lint && npm test && npm run conformance"
+  },
+  "files": [
+    "index.js",
+    "lib/",
+    "LICENSE",
+    "README.md"
+  ],
+  "keywords": [
+    "bitcoin",
+    "bitcoin-sv",
+    "bsv",
+    "transaction",
+    "script",
+    "address",
+    "signature",
+    "hd-wallet",
+    "bip32",
+    "bip39",
+    "mnemonic",
+    "ecies",
+    "spv",
+    "ordinals",
+    "covenant",
+    "op-push-tx",
+    "bip143"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codenlighten/smartledger-bsv-core.git"
+  },
+  "dependencies": {
+    "@noble/ciphers": "2.2.0",
+    "@noble/curves": "2.2.0",
+    "@noble/hashes": "2.2.0",
+    "bn.js": "=4.12.3",
+    "bs58": "=4.0.1",
+    "clone-deep": "^4.0.1",
+    "hash.js": "^1.1.7",
+    "inherits": "2.0.4",
+    "secrets.js-grempe": "^2.0.0",
+    "unorm": "1.6.0"
+  },
+  "devDependencies": {
+    "chai": "6.2.2",
+    "mocha": "^11.8.0",
+    "sinon": "22.1.0",
+    "standard": "^17.1.2"
+  },
+  "standard": {
+    "globals": [
+      "after",
+      "afterEach",
+      "before",
+      "beforeEach",
+      "describe",
+      "it"
+    ]
+  }
+}

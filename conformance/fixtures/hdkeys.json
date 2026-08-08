@@ -1,0 +1,831 @@
+{
+  "suite": "hdkeys",
+  "generatedBy": "v7.5.5",
+  "caseCount": 44,
+  "cases": {
+    "derive index 0x7fffffff": {
+      "outcome": "ok",
+      "value": "xprv9uHRZZhk6KAJADhgVY6W4fob2z9QhjjbkQiBvNZRPpkXQAYa7RGcEgWC4NWYfRbLXiHmzCWbPeYe2V1sSuhYLPxC1zGLPqBKmSRKqu4JrNj"
+    },
+    "derive index 0x80000000 (hardened via number)": {
+      "outcome": "ok",
+      "value": "xprv9uHRZZhk6KAJC1avXpDAp4MDc3sQKNxDiPvvkX8Br5ngLNv1TxvUxt4cV1rGL5hj6KCesnDYUhd7oWgT11eZG7XnxHrnYeSvkzY7d2bhkJ7"
+    },
+    "derive negative index rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorHDPrivateKeyInvalidPath",
+        "message": "Invalid derivation path: -1"
+      }
+    },
+    "garbage path rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorHDPrivateKeyInvalidPath",
+        "message": "Invalid derivation path: not/a/path"
+      }
+    },
+    "hardened derivation from xpub is rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorHDPublicKeyInvalidIndexCantDeriveHardened",
+        "message": "Invalid argument: creating a hardened path requires an HDPrivateKey"
+      }
+    },
+    "public derivation matches private (m/0)": {
+      "outcome": "ok",
+      "value": {
+        "fromPriv": "xpub68Gmy5EVb2BdFbj2LpWrk1M7obNuaPTpT5oh9QCCo5sRfqSHVYWex97WpDZzszdzHzxXDAzPLVSwybe4uPYkSk4G3gnrPqqkV9RyNzAcNJ1",
+        "fromPub": "xpub68Gmy5EVb2BdFbj2LpWrk1M7obNuaPTpT5oh9QCCo5sRfqSHVYWex97WpDZzszdzHzxXDAzPLVSwybe4uPYkSk4G3gnrPqqkV9RyNzAcNJ1",
+        "match": true
+      }
+    },
+    "seed too long rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorHDPrivateKeyInvalidEntropyArgumentTooMuchEntropy",
+        "message": "Invalid entropy: more than 512 bits is non standard, got \"\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\""
+      }
+    },
+    "seed too short rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorHDPrivateKeyInvalidEntropyArgumentNotEnoughEntropy",
+        "message": "Invalid entropy: at least 128 bits needed, got \"\u0001\u0001\u0001\u0001\u0001\u0001\u0001\u0001\""
+      }
+    },
+    "seed1 derive m": {
+      "outcome": "ok",
+      "value": {
+        "address": "15mKKb2eos1hWa6tisdPwwDC1a5J1y9nma",
+        "chainCode": "undefined",
+        "depth": 0,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L52XzL2cMkHxqxBXRyEpnPQZGUs3uKiL3R11XbAdHigRzDozKZeW",
+        "xprv": "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi",
+        "xpub": "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8"
+      }
+    },
+    "seed1 derive m/0": {
+      "outcome": "ok",
+      "value": {
+        "address": "1FHz8bpEE5qUZ9XhfjzAbCCwo5bT1HMNAc",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "Kyqg1PJsc5QzLC8rv5BwC156aXBiZZuEyt6FqRQRTXBjTX96bNkW",
+        "xprv": "xprv9uHRZZhbkedL37eZEnyrNsQPFZYRAvjy5rt6M1nbEkLSo378x1CQQLo2xxBvREwiK6kqf7GRNvsNEchwibzXaV6i5GcsgyjBeRguXhKsi4R",
+        "xpub": "xpub68Gmy5EVb2BdFbj2LpWrk1M7obNuaPTpT5oh9QCCo5sRfqSHVYWex97WpDZzszdzHzxXDAzPLVSwybe4uPYkSk4G3gnrPqqkV9RyNzAcNJ1"
+      }
+    },
+    "seed1 derive m/0'": {
+      "outcome": "ok",
+      "value": {
+        "address": "19Q2WoS5hSS6T8GjhK8KZLMgmWaq4neXrh",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L5BmPijJjrKbiUfG4zbiFKNqkvuJ8usooJmzuD7Z8dkRoTThYnAT",
+        "xprv": "xprv9uHRZZhk6KAJC1avXpDAp4MDc3sQKNxDiPvvkX8Br5ngLNv1TxvUxt4cV1rGL5hj6KCesnDYUhd7oWgT11eZG7XnxHrnYeSvkzY7d2bhkJ7",
+        "xpub": "xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQRKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw"
+      }
+    },
+    "seed1 derive m/0'/1": {
+      "outcome": "ok",
+      "value": {
+        "address": "1JQheacLPdM5ySCkrZkV66G2ApAXe1mqLj",
+        "chainCode": "undefined",
+        "depth": 2,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KyFAjQ5rgrKvhXvNMtFB5PCSKUYD1yyPEe3xr3T34TZSUHycXtMM",
+        "xprv": "xprv9wTYmMFdV23N2TdNG573QoEsfRrWKQgWeibmLntzniatZvR9BmLnvSxqu53Kw1UmYPxLgboyZQaXwTCg8MSY3H2EU4pWcQDnRnrVA1xe8fs",
+        "xpub": "xpub6ASuArnXKPbfEwhqN6e3mwBcDTgzisQN1wXN9BJcM47sSikHjJf3UFHKkNAWbWMiGj7Wf5uMash7SyYq527Hqck2AxYysAA7xmALppuCkwQ"
+      }
+    },
+    "seed1 derive m/0'/1/2'": {
+      "outcome": "ok",
+      "value": {
+        "address": "1NjxqbA9aZWnh17q1UW3rB4EPu79wDXj7x",
+        "chainCode": "undefined",
+        "depth": 3,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L43t3od1Gh7Lj55Bzjj1xDAgJDcL7YFo2nEcNaMGiyRZS1CidBVU",
+        "xprv": "xprv9z4pot5VBttmtdRTWfWQmoH1taj2axGVzFqSb8C9xaxKymcFzXBDptWmT7FwuEzG3ryjH4ktypQSAewRiNMjANTtpgP4mLTj34bhnZX7UiM",
+        "xpub": "xpub6D4BDPcP2GT577Vvch3R8wDkScZWzQzMMUm3PWbmWvVJrZwQY4VUNgqFJPMM3No2dFDFGTsxxpG5uJh7n7epu4trkrX7x7DogT5Uv6fcLW5"
+      }
+    },
+    "seed1 derive m/0'/1/2'/2": {
+      "outcome": "ok",
+      "value": {
+        "address": "1LjmJcdPnDHhNTUgrWyhLGnRDKxQjoxAgt",
+        "chainCode": "undefined",
+        "depth": 4,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KwjQsVuMjbCP2Zmr3VaFaStav7NvevwjvvkqrWd5Qmh1XVnCteBR",
+        "xprv": "xprvA2JDeKCSNNZky6uBCviVfJSKyQ1mDYahRjijr5idH2WwLsEd4Hsb2Tyh8RfQMuPh7f7RtyzTtdrbdqqsunu5Mm3wDvUAKRHSC34sJ7in334",
+        "xpub": "xpub6FHa3pjLCk84BayeJxFW2SP4XRrFd1JYnxeLeU8EqN3vDfZmbqBqaGJAyiLjTAwm6ZLRQUMv1ZACTj37sR62cfN7fe5JnJ7dh8zL4fiyLHV"
+      }
+    },
+    "seed1 derive m/0'/1/2'/2/1000000000": {
+      "outcome": "ok",
+      "value": {
+        "address": "1LZiqrop2HGR4qrH1ULZPyBpU6AUP49Uam",
+        "chainCode": "undefined",
+        "depth": 5,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "Kybw8izYevo5xMh1TK7aUr7jHFCxXS1zv8p3oqFz3o2zFbhRXHYs",
+        "xprv": "xprvA41z7zogVVwxVSgdKUHDy1SKmdb533PjDz7J6N6mV6uS3ze1ai8FHa8kmHScGpWmj4WggLyQjgPie1rFSruoUihUZREPSL39UNdE3BBDu76",
+        "xpub": "xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy"
+      }
+    },
+    "seed1 derive m/2147483647": {
+      "outcome": "ok",
+      "value": {
+        "address": "1BFBdq6uje3nLNjtZUukD5GFRLLWai8ubq",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L4LwYV6NNtGVaqVfECETzhrgntvEaa1kMhzsPsxVGmpnV5V44vLX",
+        "xprv": "xprv9uHRZZhk6KAJADhgVY6W4fob2z9QhjjbkQiBvNZRPpkXQAYa7RGcEgWC4NWYfRbLXiHmzCWbPeYe2V1sSuhYLPxC1zGLPqBKmSRKqu4JrNj",
+        "xpub": "xpub68Gmy5EdvgibNhn9bZdWRokKb1yu7CTT7ddniky2xAHWGxsiexarnUpfudCSba6fGWF9vm4VQBctCSieRBQhYJiZjr1gHgnf8Z4KsApZxDk"
+      }
+    },
+    "seed1 derive m/2147483647'": {
+      "outcome": "ok",
+      "value": {
+        "address": "18xQyvgGDHvc3KAbA14QHjfomqL5EE56TE",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L5gf5CDc358SUK5dx1XNgyjvo7afGibEiVL8TSzshPoo58dUsYKo",
+        "xprv": "xprv9uHRZZhtRyhGLP92ctqeXTtBmRkH9KRCfDewcgmunsc1NbRuYpghum5VhzkQBtRXtm4JGXD6SaZHMXBduaHXWFpCVU5UkEKouXdP6zTzxrg",
+        "xpub": "xpub68Gmy5EnGMFZYsDVivNetbpvKTamYn942SaYR5BXMD8zFPm46MzxTZPyZH87vodeLm4BR9tmRhtF7pCiKi7J5CTFRBjSZ7JY75s8muoKRa7"
+      }
+    },
+    "seed1 master": {
+      "outcome": "ok",
+      "value": {
+        "xprv": "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi",
+        "xpub": "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8"
+      }
+    },
+    "seed2 derive m": {
+      "outcome": "ok",
+      "value": {
+        "address": "1JEoxevbLLG8cVqeoGKQiAwoWbNYSUyYjg",
+        "chainCode": "undefined",
+        "depth": 0,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KyjXhyHF9wTphBkfpxjL8hkDXDUSbE3tKANT94kXSyh6vn6nKaoy",
+        "xprv": "xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U",
+        "xpub": "xpub661MyMwAqRbcFW31YEwpkMuc5THy2PSt5bDMsktWQcFF8syAmRUapSCGu8ED9W6oDMSgv6Zz8idoc4a6mr8BDzTJY47LJhkJ8UB7WEGuduB"
+      }
+    },
+    "seed2 derive m/0": {
+      "outcome": "ok",
+      "value": {
+        "address": "19EuDJdgfRkwCmRzbzVBHZWQG9QNWhftbZ",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L2ysLrR6KMSAtx7uPqmYpoTeiRzydXBattRXjXz5GDFPrdfPzKbj",
+        "xprv": "xprv9vHkqa6EV4sPZHYqZznhT2NPtPCjKuDKGY38FBWLvgaDx45zo9WQRUT3dKYnjwih2yJD9mkrocEZXo1ex8G81dwSM1fwqWpWkeS3v86pgKt",
+        "xpub": "xpub69H7F5d8KSRgmmdJg2KhpAK8SR3DjMwAdkxj3ZuxV27CprR9LgpeyGmXUbC6wb7ERfvrnKZjXoUmmDznezpbZb7ap6r1D3tgFxHmwMkQTPH"
+      }
+    },
+    "seed2 derive m/0'": {
+      "outcome": "ok",
+      "value": {
+        "address": "19toqDs51CGZ8gabrsp7FxArzfLHY5jk6S",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "Kz7NbMHtJhxgqFq2DY4PHkue2zBGm4R31WZEAvAiUsQ5R3npTtYj",
+        "xprv": "xprv9vHkqa6NpjQMiZJLz4sFbVqYk7EXEUrWBd8drQZCp4furXS13egriq1pr2ncv2UBok3GifpitiQfp9kxNitz2RXbwtAo8hiv4CieaLTHyRL",
+        "xpub": "xpub69H7F5dGf6xew3Np66QFxdnHJ951dwaMYr4EenxpNQCtjKm9bC17GdLJhM1sYGyeZuE2mwbXgYpaH9PdAN3PTnD2htW8QSGHca5mThjovwQ"
+      }
+    },
+    "seed2 derive m/0'/1": {
+      "outcome": "ok",
+      "value": {
+        "address": "19s5owVwtC5Ri25GeGM4eEtn37UGeVNH4",
+        "chainCode": "undefined",
+        "depth": 2,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KxVDC49KCo6Re6r8Lu9XqcMEoRU6uVGP58eUVckDdDqAthjtS9zd",
+        "xprv": "xprv9wVsMarstVU17geV9GbnSK3Y4r2YTXhc2Ztj72CHSreYF4sLNwW43oniTBRUWGszgGvAsJ78jiXMQRRpdFZoR5Gc99HXTrzocgBjdkRifsV",
+        "xpub": "xpub6AVDm6Pmis2JLAixFJ8noSzGcss2rzRTPnpKuQbu1CBX7sCUvUpJbc7CJTyjWFdmYR5SCvRJWrsv83iuvrZKimiWgR9RXqaeTsMF8AsUzcY"
+      }
+    },
+    "seed2 derive m/0'/1/2'": {
+      "outcome": "ok",
+      "value": {
+        "address": "1ECZ3XfBzo31gZKP7fAW7VCeiYFKryFFb5",
+        "chainCode": "undefined",
+        "depth": 3,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L5LPcVp4vQMaQSUAaaTRYvwShfXSeK3jnrqrq7L22yjaASSGqDjZ",
+        "xprv": "xprv9xg8bDP6toQg7J3VsNZZsbgYxWZ1ip6wJjE74CHzgdQKoeL9Fn62a9jyJZ8k3KufTiVeRfD9jNaVjiGjPkn6nVLpbnXK1P2zJcAtPLs78mF",
+        "xpub": "xpub6BfUziuzjAxyKn7xyQ6aEjdHWYPW8Gpnfx9hrahcExwJgSfHoKQH7x4T9pXSe9gpALwXaL3VM35jVmkE4eVjsbA8cWW94z3zKKPhQuwDTqt"
+      }
+    },
+    "seed2 derive m/0'/1/2'/2": {
+      "outcome": "ok",
+      "value": {
+        "address": "12F5kr1zzbmVAuXq5cTxhtBd8ephvVketd",
+        "chainCode": "undefined",
+        "depth": 4,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KxRjdKqCrNDUDCZM4391U3uqT4ukd13YQUNm4AigwJS3kxExV7dy",
+        "xprv": "xprvA1cGxPioe1RQKEYuDMFBS94sSCMUa6cM9UqLyApaRuasqbu8nj4xKUuRZ2uB7eQTHFnMm3bZ7iDdNHwBw2QfrKiJ6iEPduvFfUXf3MqRVxD",
+        "xpub": "xpub6EbdMuFhUNyhXidNKNnBoH1bzEBxyZLCWhkwmZEBzF7riQEHLGPCsHDuQMTC63Ug9YyCs8cWt1R4j8WnUf8qmhdHJ1iZzeLNd9575KekmtY"
+      }
+    },
+    "seed2 derive m/0'/1/2'/2/1000000000": {
+      "outcome": "ok",
+      "value": {
+        "address": "19LJfeCPmBGfQMw6Ug1dV7WEmvdmEhKeq6",
+        "chainCode": "undefined",
+        "depth": 5,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KwStpPqfp97LPWVQ1Td4E5N2ibveisVKCRLgJ2Saa3GXRHBcDZp2",
+        "xprv": "xprvA2XVwFseZWTvP9g6uRiqunXWfQVnsHcH4EoD9ZBaMunAz2JWmorFdW1nhbFTFQrfZd4vvVJVC3Ma3xVn8Wkd39qANxMcb1j5Q7d8MNmHjmT",
+        "xpub": "xpub6FWrLmQYPt2Dbdka1TFrGvUFDSLHGkL8RTiowwbBvFK9rpdfKMAWBJLGYtVshZkmm12ijTYQ1vSmbEJtuZYRU79md1YvUW3nX4xoCjgjQwG"
+      }
+    },
+    "seed2 derive m/2147483647": {
+      "outcome": "ok",
+      "value": {
+        "address": "1FMuoBujNpGEzSiZw2XnC4W5GB9hT51uC6",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KxmbEZQe1ZcRzJDP7v3UFP4MrkBk3CcK6pKFfYwbQfHy2bHV1jg4",
+        "xprv": "xprv9vHkqa6NpjQMfPS59BXXx8BHLYtFkf6qbhJXNEytHPucq3Zrc6rLcPN2PPZjpCMhP6U8Xdm1mfu3DfSGhWSjgYcveXbZckpiWGG17FUtkKv",
+        "xpub": "xpub69H7F5dGf6xessWYFD4YKG81taikA7pgxvE8AdPVqjSbhqu19eAbABgWEi5TbZR6NDuDS8LKxafvJqohokq1gmxPeYqDupBB2ZLyocNJfR4"
+      }
+    },
+    "seed2 derive m/2147483647'": {
+      "outcome": "ok",
+      "value": {
+        "address": "17SKdkmBycCLjUcp6UAN7xVkXUu5LqcZs5",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "Kz2ERMrCZJj8oAoDKQuUT17APmRJJeBcG5oD8VQYKaMFayuf4gSQ",
+        "xprv": "xprv9vHkqa6XAPwKqSKSEJMcAB3yoCZhaSVsGZbSkFY5L3Lfjjk8sjZucbsbvEw5o3QrSA69nPfZDCgFnNnLhQ2ohpZuwummndnPasDw2Qr6dC2",
+        "xpub": "xpub69H7F5dQzmVd3vPuLKtcXJziMEQByuDidnX3YdwgtNsecY5HRGtAAQC5mXTt4dsv9RzyjgDjAQs9VGVV6ydYCHnprc9vvaA5YtqWyL6hyds"
+      }
+    },
+    "seed2 master": {
+      "outcome": "ok",
+      "value": {
+        "xprv": "xprv9s21ZrQH143K31xYSDQpPDxsXRTUcvj2iNHm5NUtrGiGG5e2DtALGdso3pGz6ssrdK4PFmM8NSpSBHNqPqm55Qn3LqFtT2emdEXVYsCzC2U",
+        "xpub": "xpub661MyMwAqRbcFW31YEwpkMuc5THy2PSt5bDMsktWQcFF8syAmRUapSCGu8ED9W6oDMSgv6Zz8idoc4a6mr8BDzTJY47LJhkJ8UB7WEGuduB"
+      }
+    },
+    "seed3 derive m": {
+      "outcome": "ok",
+      "value": {
+        "address": "1717ZYpXhZW5CqAbWSjDJbCey3FyKUmCSf",
+        "chainCode": "undefined",
+        "depth": 0,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KwFPqAq9SKx1sPg15Qk56mqkHwrfGPuywtLUxoWPkiTSBoxCs8am",
+        "xprv": "xprv9s21ZrQH143K25QhxbucbDDuQ4naNntJRi4KUfWT7xo4EKsHt2QJDu7KXp1A3u7Bi1j8ph3EGsZ9Xvz9dGuVrtHHs7pXeTzjuxBrCmmhgC6",
+        "xpub": "xpub661MyMwAqRbcEZVB4dScxMAdx6d4nFc9nvyvH3v4gJL378CSRZiYmhRoP7mBy6gSPSCYk6SzXPTf3ND1cZAceL7SfJ1Z3GC8vBgp2epUt13"
+      }
+    },
+    "seed3 derive m/0": {
+      "outcome": "ok",
+      "value": {
+        "address": "1B9sSDrLr5YGYiSaWw1TJqrxK1NFfSs66S",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "Ky234iNLmp856HzCQe7zoySWKFvCAapzABMpQaHr6jvjVumxgLm3",
+        "xprv": "xprv9uPDJpEGLksh3FFUvGWPXpMW5KMgi1jh7WkU1djdErPxm2s7mqRTEX7rKvHdWC2iaGmbdXfS47akHXwKTRyCkBnPZ5tvyiGuYvCBCqvTxWt",
+        "xpub": "xpub68NZiKmAB8RzFjKx2J3PtxJEdMCB7UTYUjg4p29EoBvwdqCGKNjhnKSLBDxFHjjVd1rBLGVCqKgiHdhqW11rpkV8MESRNyV51KGDLAoHtNQ"
+      }
+    },
+    "seed3 derive m/0'": {
+      "outcome": "ok",
+      "value": {
+        "address": "1K4L3YxEwg8HkSEapM4iSiGuR6HeQ53KPX",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KyfrPaeirL5yYAoZvfzyoKXSdszeLqg5vb6dNy9ymvjzZrMZY8GW",
+        "xprv": "xprv9uPDJpEQgRQfDcW7BkF7eTya6RPxXeJCqCJGHuCJ4GiRVLzkTXBAJMu2qaMWPrS7AANYqdq6vcBcBUdJCVVFceUvJFjaPdGZ2y9WACViL4L",
+        "xpub": "xpub68NZiKmJWnxxS6aaHmn81bvJeTESw724CRDs6HbuccFQN9Ku14VQrADWgqbhhTHBaohPX4CjNLf9fq9MYo6oDaPPLPxSb7gwQN3ih19Zm4Y"
+      }
+    },
+    "seed3 derive m/0'/1": {
+      "outcome": "ok",
+      "value": {
+        "address": "12NQRU2DxvQADF9gY1JE4LPyqNuGUBodz5",
+        "chainCode": "undefined",
+        "depth": 2,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KzhR6GMSsxExD9N4oaH1xFhniZenPLrStTvRtFmAjETHNuskDdqo",
+        "xprv": "xprv9xEiueA9MPpdh7GBSLBc2ak7MX6q4rfbgPpwUWV8K6LyCrUmvWR55tiWm9dUuWQZdTTVPtnpY2obf96nrksDTieWoj9h4Mn2aUJe4xRkJ1C",
+        "xpub": "xpub6BE5K9h3BmNvubLeYMicPigquYwKUKPT3ckYGttjsRsx5eovU3jKdh2zcSRL1Wy8So8imgB68nPPNRytKfdhqEEZFT6A5Ee4qZN7P6FAQAV"
+      }
+    },
+    "seed3 derive m/0'/1/2'": {
+      "outcome": "ok",
+      "value": {
+        "address": "164XEoxTd9eFPk9Y478tevRjRkFNYsdYKF",
+        "chainCode": "undefined",
+        "depth": 3,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KxsbMYaZbWxr1HkgC3T5tyoormu12AAWFdX8f4uJe7xrj6HvAP1v",
+        "xprv": "xprv9xmpTZ5jxeDLcbqqqnAm7Wqnidhi3xp6Rp8SKcRN57VpQ87cLXWwfJsKbiPZTbVoadM3su3uWYcPdqZ4iuFteRWM6vrB7ixtUEmzroLPA9p",
+        "xpub": "xpub6BmAs4cdo1mdq5vJwohmUenXGfYCTRXwo3437zpydT2oGvSkt4qCD7BoT2jhqjovRZo5LeNKRy9ADtpdNnXYcPzDK6Q6d4SrBRCymNLYqU7"
+      }
+    },
+    "seed3 derive m/0'/1/2'/2": {
+      "outcome": "ok",
+      "value": {
+        "address": "1PxT6dcabShkaDKz7sVTUGCQSh9P8YU448",
+        "chainCode": "undefined",
+        "depth": 4,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L54nLjh3rWCAp8HCn6kAtfhFn23Dj934hEcivgcbXQKtG44jgbsq",
+        "xprv": "xprv9zxDbV2J2juHSzb18UZdW6gn4usyR57EPNqHLBGbYY6YBUL8CttmiRfQfRhZHZEPEuwZSWpUNUr1f3mavqX88hkifqs2pxk9GATwzgaGKbZ",
+        "xpub": "xpub6DwZzzZBs7TafUfUEW6dsEdWcwiTpXq5kbkt8ZgD6sdX4GfGkSD2GDytWhcfZBWA41f2fdjYCne3yDiYcNSgaJnyKQjnXq9c1ErnoA4z13Y"
+      }
+    },
+    "seed3 derive m/0'/1/2'/2/1000000000": {
+      "outcome": "ok",
+      "value": {
+        "address": "14nbGscdwVjCWVvQry9qN1soqbzuF58ECX",
+        "chainCode": "undefined",
+        "depth": 5,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "KwrWUkAnZBck8jbf8HQjk6XqsWxQegmAbMhsPhNoxCBoHiz82nhB",
+        "xprv": "xprvA4H383AE28mH7gagEXtjLN4oQ6wWpFQavoxMkun7htfXiKcmTQQdRMjR2oZxLjtMBaXLM7C5zJT6B9xGXyPCkeqSDVkJbJhw2rc3FfcuUtK",
+        "xpub": "xpub6HGPXYh7rWKaLAf9LZRjhW1Xx8n1Di8SJ2sxZJBjGECWb7wuzwisyA3tt6wBjW3FZsASRireidz5wQS9vMghHVtGpxScJZ6T9Sc7FtXUfA2"
+      }
+    },
+    "seed3 derive m/2147483647": {
+      "outcome": "ok",
+      "value": {
+        "address": "1LmEwR7EU4sLHReXygA9Qst4vZckDqJo13",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L3EF8oqYtttAwfFrsb1WpWm5g4ezipRZtp75rHsVHYFoPUq3Lirq",
+        "xprv": "xprv9uPDJpEQgRQf9XZZZoLaTqBcvPy5DiEsq7hBLmtYAobZ26JnobonvyKeHxSd4jkqhnsC6bFwS6rtD2u7yMBsQqd5QFoi2hKZJRadD4cDDUp",
+        "xpub": "xpub68NZiKmJWnxxN1e2fpsapy8MURoZdAxjCLcn9AJ9j98XttdwM983Ume89EZzfstzfHQpPRSFTR6rjguZT2oM8u7UkBmsHuBjCFm6vkb8eEo"
+      }
+    },
+    "seed3 derive m/2147483647'": {
+      "outcome": "ok",
+      "value": {
+        "address": "193E3sowiwnvweUTb6B8nDiXNYcCpuKpMs",
+        "chainCode": "undefined",
+        "depth": 1,
+        "fingerprint": "undefined",
+        "index": "undefined",
+        "privkey": "L3BmvgXRy7BVzgXPa1qk6ggkeHKcGC9oQdH43CRwi5tWade2SHH8",
+        "xprv": "xprv9uPDJpEZ25wdL21utctgckj2WEK95GLf6FQLPv96DS975mXN1sQCVFVA6tB92SSoCA4Q2hPEUnBCZmtFg1G1AS3DRzU7vx7f7Hgj8DD3aJR",
+        "xpub": "xpub68NZiKmSrTVvYW6NzeRgytfm4G9dUj4WTUKwCJYhmmg5xZrWZQiT33odx8YKxRwzhcVkzZccJca5gJ2QT16vVAiewQoJLEXkvEr7SnDNQdK"
+      }
+    },
+    "seed3 master": {
+      "outcome": "ok",
+      "value": {
+        "xprv": "xprv9s21ZrQH143K25QhxbucbDDuQ4naNntJRi4KUfWT7xo4EKsHt2QJDu7KXp1A3u7Bi1j8ph3EGsZ9Xvz9dGuVrtHHs7pXeTzjuxBrCmmhgC6",
+        "xpub": "xpub661MyMwAqRbcEZVB4dScxMAdx6d4nFc9nvyvH3v4gJL378CSRZiYmhRoP7mBy6gSPSCYk6SzXPTf3ND1cZAceL7SfJ1Z3GC8vBgp2epUt13"
+      }
+    },
+    "xprv parse round-trips": {
+      "outcome": "ok",
+      "value": "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi"
+    },
+    "xprv parsed as xpub rejected": {
+      "outcome": "ok",
+      "value": {
+        "_buffers": {
+          "chainCode": "buf:873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508",
+          "checksum": "buf:ab473b21",
+          "childIndex": "buf:00000000",
+          "depth": "buf:00",
+          "parentFingerPrint": "buf:00000000",
+          "privateKey": "undefined",
+          "publicKey": "buf:0339a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2",
+          "version": "buf:0488b21e",
+          "xprivkey": "undefined",
+          "xpubkey": "buf:787075623636314d794d77417152626346745867533573594a414271714739594c6d433451315264617039675345384e7174777962476865505932675a32394553466a714a6f4375315275706a65385974477173656644323635544d67377573554446647036573145474d63657438"
+        },
+        "depth": 0,
+        "fingerPrint": "buf:3442193e",
+        "network": {
+          "alias": "mainnet",
+          "cashAddrPrefix": "bitcoincash",
+          "cashAddrPrefixArray": [
+            2,
+            9,
+            20,
+            3,
+            15,
+            9,
+            14,
+            3,
+            1,
+            19,
+            8
+          ],
+          "dnsSeeds": [
+            "seed.bitcoinsv.org",
+            "seed.bitcoinunlimited.info"
+          ],
+          "name": "livenet",
+          "networkMagic": "buf:e3e1f3e8",
+          "port": 8333,
+          "privatekey": 128,
+          "pubkeyhash": 0,
+          "scripthash": 5,
+          "xprivkey": 76066276,
+          "xpubkey": 76067358
+        },
+        "publicKey": {
+          "compressed": true,
+          "network": {
+            "alias": "mainnet",
+            "cashAddrPrefix": "bitcoincash",
+            "cashAddrPrefixArray": [
+              2,
+              9,
+              20,
+              3,
+              15,
+              9,
+              14,
+              3,
+              1,
+              19,
+              8
+            ],
+            "dnsSeeds": [
+              "seed.bitcoinsv.org",
+              "seed.bitcoinunlimited.info"
+            ],
+            "name": "livenet",
+            "networkMagic": "buf:e3e1f3e8",
+            "port": 8333,
+            "privatekey": 128,
+            "pubkeyhash": 0,
+            "scripthash": 5,
+            "xprivkey": 76066276,
+            "xpubkey": 76067358
+          },
+          "point": {
+            "_p": {
+              "X": "big:26070491525757212273923430130929023832023083399656255554599993618152067728834",
+              "Y": "big:27475340966630338619946172401610299714452031745281566289223681642426902078081",
+              "Z": "big:1"
+            }
+          }
+        },
+        "xpubkey": "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8"
+      }
+    },
+    "xprv toObject": {
+      "outcome": "ok",
+      "value": {
+        "chainCode": "873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508",
+        "checksum": 3883834737,
+        "childIndex": 0,
+        "depth": 0,
+        "fingerPrint": 876747070,
+        "network": "livenet",
+        "parentFingerPrint": 0,
+        "privateKey": "e8f32e723decf4051aefac8e2c93c9c5b214313817cdb01a1494b917c8436b35",
+        "xprivkey": "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi"
+      }
+    },
+    "xprv with bad checksum rejected": {
+      "outcome": "throws",
+      "error": {
+        "name": "bsv.ErrorInvalidB58Checksum",
+        "message": "Invalid Base58 checksum for xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHX"
+      }
+    },
+    "xpub parse round-trips": {
+      "outcome": "ok",
+      "value": "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8"
+    },
+    "xpub parsed as xprv rejected": {
+      "outcome": "ok",
+      "value": {
+        "_buffers": {
+          "chainCode": "buf:873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508",
+          "checksum": "buf:b4b09a71",
+          "childIndex": "buf:00000000",
+          "depth": "buf:00",
+          "parentFingerPrint": "buf:00000000",
+          "privateKey": "buf:39a36013301597daef41fbe593a02cc513d0b55527ec2df1050e2e8ff49c85c2",
+          "version": "buf:0488b21e",
+          "xprivkey": "buf:787075623636314d794d77417152626346745867533573594a414271714739594c6d433451315264617039675345384e71747779624768655059326759764a7a755a506a6b584244627941693175475a324b3359754b4d733878766a4b4368596a6d4277713855716b515065616f53"
+        },
+        "_hdPublicKey": null,
+        "depth": 0,
+        "fingerPrint": "buf:a725ec7b",
+        "hdPublicKey": {
+          "_buffers": {
+            "chainCode": "buf:873dff81c02f525623fd1fe5167eac3a55a049de3d314bb42ee227ffed37d508",
+            "checksum": "buf:34853300",
+            "childIndex": "buf:00000000",
+            "depth": "buf:00",
+            "parentFingerPrint": "buf:00000000",
+            "privateKey": "undefined",
+            "publicKey": "buf:02815917aa40aeff56b30cd99b94a2546dd7b4584587cd3500ce24e95867c36c57",
+            "version": "buf:0488b21e",
+            "xprivkey": "undefined",
+            "xpubkey": "buf:787075623636314d794d77417152626346745867533573594a414271714739594c6d433451315264617039675345384e717477796247686550593267597a6b347a5370534d5678524d50734d7a524e326965706f6d666651636d38636138385a5a4b795350715a7a6650576a726d35"
+          },
+          "depth": 0,
+          "fingerPrint": "buf:a725ec7b",
+          "network": {
+            "alias": "mainnet",
+            "cashAddrPrefix": "bitcoincash",
+            "cashAddrPrefixArray": [
+              2,
+              9,
+              20,
+              3,
+              15,
+              9,
+              14,
+              3,
+              1,
+              19,
+              8
+            ],
+            "dnsSeeds": [
+              "seed.bitcoinsv.org",
+              "seed.bitcoinunlimited.info"
+            ],
+            "name": "livenet",
+            "networkMagic": "buf:e3e1f3e8",
+            "port": 8333,
+            "privatekey": 128,
+            "pubkeyhash": 0,
+            "scripthash": 5,
+            "xprivkey": 76066276,
+            "xpubkey": 76067358
+          },
+          "publicKey": {
+            "compressed": true,
+            "network": {
+              "alias": "mainnet",
+              "cashAddrPrefix": "bitcoincash",
+              "cashAddrPrefixArray": [
+                2,
+                9,
+                20,
+                3,
+                15,
+                9,
+                14,
+                3,
+                1,
+                19,
+                8
+              ],
+              "dnsSeeds": [
+                "seed.bitcoinsv.org",
+                "seed.bitcoinunlimited.info"
+              ],
+              "name": "livenet",
+              "networkMagic": "buf:e3e1f3e8",
+              "port": 8333,
+              "privatekey": 128,
+              "pubkeyhash": 0,
+              "scripthash": 5,
+              "xprivkey": 76066276,
+              "xpubkey": 76067358
+            },
+            "point": {
+              "_p": {
+                "X": "big:58505770186175526332521071949568778410130230893129651720262513838902418304087",
+                "Y": "big:15948045331084862919063250065234684768004756435944975229391631146980136898768",
+                "Z": "big:1"
+              }
+            }
+          },
+          "xpubkey": "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gYzk4zSpSMVxRMPsMzRN2iepomffQcm8ca88ZZKySPqZzfPWjrm5"
+        },
+        "network": {
+          "alias": "mainnet",
+          "cashAddrPrefix": "bitcoincash",
+          "cashAddrPrefixArray": [
+            2,
+            9,
+            20,
+            3,
+            15,
+            9,
+            14,
+            3,
+            1,
+            19,
+            8
+          ],
+          "dnsSeeds": [
+            "seed.bitcoinsv.org",
+            "seed.bitcoinunlimited.info"
+          ],
+          "name": "livenet",
+          "networkMagic": "buf:e3e1f3e8",
+          "port": 8333,
+          "privatekey": 128,
+          "pubkeyhash": 0,
+          "scripthash": 5,
+          "xprivkey": 76066276,
+          "xpubkey": 76067358
+        },
+        "privateKey": {
+          "_pubkey": {
+            "compressed": true,
+            "network": {
+              "alias": "mainnet",
+              "cashAddrPrefix": "bitcoincash",
+              "cashAddrPrefixArray": [
+                2,
+                9,
+                20,
+                3,
+                15,
+                9,
+                14,
+                3,
+                1,
+                19,
+                8
+              ],
+              "dnsSeeds": [
+                "seed.bitcoinsv.org",
+                "seed.bitcoinunlimited.info"
+              ],
+              "name": "livenet",
+              "networkMagic": "buf:e3e1f3e8",
+              "port": 8333,
+              "privatekey": 128,
+              "pubkeyhash": 0,
+              "scripthash": 5,
+              "xprivkey": 76066276,
+              "xpubkey": 76067358
+            },
+            "point": {
+              "_p": {
+                "X": "big:58505770186175526332521071949568778410130230893129651720262513838902418304087",
+                "Y": "big:15948045331084862919063250065234684768004756435944975229391631146980136898768",
+                "Z": "big:1"
+              }
+            }
+          },
+          "bn": "bn:26070491525757212273923430130929023832023083399656255554599993618152067728834",
+          "compressed": true,
+          "network": {
+            "alias": "mainnet",
+            "cashAddrPrefix": "bitcoincash",
+            "cashAddrPrefixArray": [
+              2,
+              9,
+              20,
+              3,
+              15,
+              9,
+              14,
+              3,
+              1,
+              19,
+              8
+            ],
+            "dnsSeeds": [
+              "seed.bitcoinsv.org",
+              "seed.bitcoinunlimited.info"
+            ],
+            "name": "livenet",
+            "networkMagic": "buf:e3e1f3e8",
+            "port": 8333,
+            "privatekey": 128,
+            "pubkeyhash": 0,
+            "scripthash": 5,
+            "xprivkey": 76066276,
+            "xpubkey": 76067358
+          },
+          "publicKey": {
+            "compressed": true,
+            "network": {
+              "alias": "mainnet",
+              "cashAddrPrefix": "bitcoincash",
+              "cashAddrPrefixArray": [
+                2,
+                9,
+                20,
+                3,
+                15,
+                9,
+                14,
+                3,
+                1,
+                19,
+                8
+              ],
+              "dnsSeeds": [
+                "seed.bitcoinsv.org",
+                "seed.bitcoinunlimited.info"
+              ],
+              "name": "livenet",
+              "networkMagic": "buf:e3e1f3e8",
+              "port": 8333,
+              "privatekey": 128,
+              "pubkeyhash": 0,
+              "scripthash": 5,
+              "xprivkey": 76066276,
+              "xpubkey": 76067358
+            },
+            "point": {
+              "_p": {
+                "X": "big:58505770186175526332521071949568778410130230893129651720262513838902418304087",
+                "Y": "big:15948045331084862919063250065234684768004756435944975229391631146980136898768",
+                "Z": "big:1"
+              }
+            }
+          }
+        },
+        "publicKey": {
+          "compressed": true,
+          "network": {
+            "alias": "mainnet",
+            "cashAddrPrefix": "bitcoincash",
+            "cashAddrPrefixArray": [
+              2,
+              9,
+              20,
+              3,
+              15,
+              9,
+              14,
+              3,
+              1,
+              19,
+              8
+            ],
+            "dnsSeeds": [
+              "seed.bitcoinsv.org",
+              "seed.bitcoinunlimited.info"
+            ],
+            "name": "livenet",
+            "networkMagic": "buf:e3e1f3e8",
+            "port": 8333,
+            "privatekey": 128,
+            "pubkeyhash": 0,
+            "scripthash": 5,
+            "xprivkey": 76066276,
+            "xpubkey": 76067358
+          },
+          "point": {
+            "_p": {
+              "X": "big:58505770186175526332521071949568778410130230893129651720262513838902418304087",
+              "Y": "big:15948045331084862919063250065234684768004756435944975229391631146980136898768",
+              "Z": "big:1"
+            }
+          }
+        },
+        "xprivkey": "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gYvJzuZPjkXBDbyAi1uGZ2K3YuKMs8xvjKChYjmBwq8UqkQPeaoS",
+        "xpubkey": "xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gYzk4zSpSMVxRMPsMzRN2iepomffQcm8ca88ZZKySPqZzfPWjrm5"
+      }
+    }
+  }
+}

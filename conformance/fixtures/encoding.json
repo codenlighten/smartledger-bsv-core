@@ -1,0 +1,213 @@
+{
+  "suite": "encoding",
+  "generatedBy": "v7.5.5",
+  "caseCount": 44,
+  "cases": {
+    "base58 decode empty string": {
+      "outcome": "ok",
+      "value": "buf:"
+    },
+    "base58 decode rejects invalid char 0": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "Non-base58 character"
+      }
+    },
+    "base58 encode 00": {
+      "outcome": "ok",
+      "value": "1"
+    },
+    "base58 encode empty": {
+      "outcome": "ok",
+      "value": ""
+    },
+    "base58 encode ff": {
+      "outcome": "ok",
+      "value": "5Q"
+    },
+    "base58 encode hello": {
+      "outcome": "ok",
+      "value": "Cn8eVZg"
+    },
+    "base58 encode leading zeros": {
+      "outcome": "ok",
+      "value": "1116h8cQN"
+    },
+    "base58 roundtrip leading zeros": {
+      "outcome": "ok",
+      "value": "buf:000000deadbeef"
+    },
+    "base58check checksum of empty": {
+      "outcome": "ok",
+      "value": "buf:5df6e0e2"
+    },
+    "base58check decode known address": {
+      "outcome": "ok",
+      "value": "buf:0047376c6f537d62177a2c41c4ca9b45829ab99083"
+    },
+    "base58check encode p2pkh payload": {
+      "outcome": "ok",
+      "value": "17dNxJroBbzyoyoQMTveJwxYpkitAAChtX"
+    },
+    "base58check rejects bad checksum": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "Checksum mismatch"
+      }
+    },
+    "base58check roundtrip all sample addresses": {
+      "outcome": "ok",
+      "value": [
+        true,
+        true,
+        true
+      ]
+    },
+    "base58check validChecksum on bad": {
+      "outcome": "ok",
+      "value": false
+    },
+    "base58check validChecksum on good": {
+      "outcome": "ok",
+      "value": true
+    },
+    "bufferreader read past end": {
+      "outcome": "throws",
+      "error": {
+        "name": "RangeError",
+        "message": "Attempt to access memory outside buffer bounds"
+      }
+    },
+    "bufferreader readAll on empty": {
+      "outcome": "ok",
+      "value": "buf:"
+    },
+    "bufferreader readReverse": {
+      "outcome": "ok",
+      "value": "buf:04030201"
+    },
+    "bufferreader readVarLengthBuffer truncated": {
+      "outcome": "throws",
+      "error": {
+        "name": "RangeError",
+        "message": "Attempt to access memory outside buffer bounds"
+      }
+    },
+    "bufferreader readVarintBN 8-byte": {
+      "outcome": "ok",
+      "value": "bn:18446744073709551615"
+    },
+    "bufferreader readVarintNum 8-byte overflows safe int": {
+      "outcome": "throws",
+      "error": {
+        "name": "Error",
+        "message": "number too large to retain precision - use readVarintBN"
+      }
+    },
+    "bufferreader reads to eof": {
+      "outcome": "ok",
+      "value": {
+        "a": 1,
+        "b": 33752069,
+        "eof": true,
+        "finished": true
+      }
+    },
+    "bufferwriter empty toBuffer": {
+      "outcome": "ok",
+      "value": "buf:"
+    },
+    "bufferwriter mixed widths": {
+      "outcome": "ok",
+      "value": "buf:01000203000000000405000000faffffff"
+    },
+    "bufferwriter writeReverse": {
+      "outcome": "ok",
+      "value": "buf:04030201"
+    },
+    "bufferwriter writeUInt64BEBN": {
+      "outcome": "ok",
+      "value": "buf:0000000100000000"
+    },
+    "bufferwriter writeUInt64LEBN": {
+      "outcome": "ok",
+      "value": "buf:0000000001000000"
+    },
+    "bufferwriter writeUInt8 negative": {
+      "outcome": "throws",
+      "error": {
+        "name": "RangeError",
+        "message": "The value of \"value\" is out of range. It must be >= 0 and <= 255. Received -1"
+      }
+    },
+    "bufferwriter writeUInt8 overflow 256": {
+      "outcome": "throws",
+      "error": {
+        "name": "RangeError",
+        "message": "The value of \"value\" is out of range. It must be >= 0 and <= 255. Received 256"
+      }
+    },
+    "bufferwriter writeVarintNum boundaries": {
+      "outcome": "ok",
+      "value": "buf:0001fcfdfd00fdfe00fdfffffe00000100feffffffffff0000000001000000"
+    },
+    "script hex roundtrip p2pkh": {
+      "outcome": "ok",
+      "value": true
+    },
+    "varint fromBN large": {
+      "outcome": "ok",
+      "value": "buf:ffffffffffffffffff"
+    },
+    "varint fromNumber 0": {
+      "outcome": "ok",
+      "value": "buf:00"
+    },
+    "varint fromNumber 1": {
+      "outcome": "ok",
+      "value": "buf:01"
+    },
+    "varint fromNumber 252": {
+      "outcome": "ok",
+      "value": "buf:fc"
+    },
+    "varint fromNumber 253": {
+      "outcome": "ok",
+      "value": "buf:fdfd00"
+    },
+    "varint fromNumber 254": {
+      "outcome": "ok",
+      "value": "buf:fdfe00"
+    },
+    "varint fromNumber 4294967295": {
+      "outcome": "ok",
+      "value": "buf:feffffffff"
+    },
+    "varint fromNumber 4294967296": {
+      "outcome": "ok",
+      "value": "buf:ff0000000001000000"
+    },
+    "varint fromNumber 65535": {
+      "outcome": "ok",
+      "value": "buf:fdffff"
+    },
+    "varint fromNumber 65536": {
+      "outcome": "ok",
+      "value": "buf:fe00000100"
+    },
+    "varint roundtrip 252": {
+      "outcome": "ok",
+      "value": 252
+    },
+    "varint roundtrip 253": {
+      "outcome": "ok",
+      "value": 253
+    },
+    "varint toBN of 8-byte": {
+      "outcome": "ok",
+      "value": "bn:18446744073709551615"
+    }
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "generatedBy": "v7.5.5",
+  "node": "v22.23.1",
+  "suiteCount": 11,
+  "caseCount": 371,
+  "rejectCount": 76,
+  "suites": [
+    {
+      "suite": "block",
+      "cases": 11,
+      "throws": 1
+    },
+    {
+      "suite": "crypto-misc",
+      "cases": 50,
+      "throws": 14
+    },
+    {
+      "suite": "ecdsa",
+      "cases": 23,
+      "throws": 7
+    },
+    {
+      "suite": "encoding",
+      "cases": 44,
+      "throws": 7
+    },
+    {
+      "suite": "hash",
+      "cases": 42,
+      "throws": 13
+    },
+    {
+      "suite": "hdkeys",
+      "cases": 44,
+      "throws": 6
+    },
+    {
+      "suite": "interpreter",
+      "cases": 15,
+      "throws": 0
+    },
+    {
+      "suite": "keys",
+      "cases": 42,
+      "throws": 16
+    },
+    {
+      "suite": "script",
+      "cases": 42,
+      "throws": 3
+    },
+    {
+      "suite": "sighash",
+      "cases": 31,
+      "throws": 2
+    },
+    {
+      "suite": "transaction",
+      "cases": 27,
+      "throws": 7
+    }
+  ]
+}

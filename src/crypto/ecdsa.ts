@@ -1,31 +1,45 @@
 'use strict'
 
-const BN = require('./bn')
-const Point = require('./point')
-const Signature = require('./signature')
-const PublicKey = require('../publickey')
-const Random = require('./random')
-const Hash = require('./hash')
-const _ = require('../util/_')
-const $ = require('../util/preconditions')
+import BN = require('./bn')
+import Point = require('./point')
+import Signature = require('./signature')
+import Random = require('./random')
+import Hash = require('./hash')
+import _ = require('../util/_')
+import $ = require('../util/preconditions')
+import type { ECDSA, ECDSAConstructor, ECDSAObj, Endian } from './ecdsa.types'
+import type { PublicKey, PublicKeyConstructor } from '../publickey.types'
+import type { PrivateKey } from '../privatekey.types'
 
-const ECDSA = function ECDSA (obj) {
+// publickey is in this cycle, so it is resolved on demand rather than captured
+// at load time.
+const publicKeyClass = (): PublicKeyConstructor => require('../publickey')
+
+// PRECONDITION FOR THE METHODS BELOW: every field on ECDSA is optional,
+// because the object is built incrementally via set(). The signing and
+// verification methods are only reachable once the relevant fields are
+// populated — the static helpers (ECDSA.sign, ECDSA.verify) construct a fully
+// populated instance before calling them. The assertions below state that
+// precondition; they are erased at runtime, so a genuinely missing field still
+// produces exactly the same TypeError it always did.
+
+const ECDSA = function ECDSA (this: ECDSA, obj?: ECDSAObj) {
   if (!(this instanceof ECDSA)) {
-    return new ECDSA(obj)
+    return new (ECDSA as ECDSAConstructor)(obj)
   }
-  if (obj) {
+  if (obj != null) {
     this.set(obj)
   }
-}
+} as unknown as ECDSAConstructor
 
 // A nonce may be consumed by at most one signature: signing two messages under
 // one k reveals the private key. Assigning k marks it fresh; _findSignature
 // marks it stale once used, and derives a new RFC 6979 nonce when it is stale.
 Object.defineProperty(ECDSA.prototype, 'k', {
-  get: function () {
+  get: function (this: ECDSA) {
     return this._k
   },
-  set: function (k) {
+  set: function (this: ECDSA, k: BN) {
     this._k = k
     this._kFresh = true
   },
@@ -33,11 +47,11 @@ Object.defineProperty(ECDSA.prototype, 'k', {
   configurable: true
 })
 
-ECDSA.prototype.set = function (obj) {
-  this.hashbuf = obj.hashbuf || this.hashbuf
+ECDSA.prototype.set = function (this: ECDSA, obj: ECDSAObj): ECDSA {
+  this.hashbuf = obj.hashbuf || (this.hashbuf as Buffer)
   this.endian = obj.endian || this.endian // the endianness of hashbuf
   this.privkey = obj.privkey || this.privkey
-  this.pubkey = obj.pubkey || (this.privkey ? this.privkey.publicKey : this.pubkey)
+  this.pubkey = obj.pubkey || (this.privkey ? (this.privkey as PrivateKey).publicKey : this.pubkey)
 
   // === SmartLedger Signature Handling ===
   // Auto-parse DER buffers to Signature objects for compatibility
@@ -54,7 +68,7 @@ ECDSA.prototype.set = function (obj) {
   // No else branch: `this.sig = this.sig` was a no-op. Unlike `k` below, `sig`
   // is a plain data property with no setter, so re-assigning it did nothing.
 
-  // Must not be `this.k = obj.k || this.k`: that re-runs the setter and would
+  // Must not be `this.k = obj.k || (this.k as BN)`: that re-runs the setter and would
   // re-mark an already-spent nonce as fresh.
   if (obj.k) {
     this.k = obj.k
@@ -63,13 +77,13 @@ ECDSA.prototype.set = function (obj) {
   return this
 }
 
-ECDSA.prototype.privkey2pubkey = function () {
-  this.pubkey = this.privkey.toPublicKey()
+ECDSA.prototype.privkey2pubkey = function (this: ECDSA): void {
+  this.pubkey = (this.privkey as PrivateKey).toPublicKey()
 }
 
-ECDSA.prototype.calci = function () {
+ECDSA.prototype.calci = function (this: ECDSA): ECDSA {
   for (let i = 0; i < 4; i++) {
-    this.sig.i = i
+    (this.sig as Signature).i = i
     var Qprime
     try {
       Qprime = this.toPublicKey()
@@ -78,22 +92,22 @@ ECDSA.prototype.calci = function () {
       continue
     }
 
-    if (Qprime.point.eq(this.pubkey.point)) {
-      this.sig.compressed = this.pubkey.compressed
+    if (Qprime.point.eq((this.pubkey as PublicKey).point)) {
+      (this.sig as Signature).compressed = (this.pubkey as PublicKey).compressed
       return this
     }
   }
 
-  this.sig.i = undefined
+  (this.sig as Signature).i = undefined
   throw new Error('Unable to find valid recovery factor')
 }
 
-ECDSA.fromString = function (str) {
+ECDSA.fromString = function (str: string): ECDSA {
   const obj = JSON.parse(str)
-  return new ECDSA(obj)
+  return new (ECDSA as ECDSAConstructor)(obj)
 }
 
-ECDSA.prototype.randomK = function () {
+ECDSA.prototype.randomK = function (this: ECDSA): ECDSA {
   const N = Point.getN()
   let k
   do {
@@ -104,21 +118,21 @@ ECDSA.prototype.randomK = function () {
 }
 
 // https://tools.ietf.org/html/rfc6979#section-3.2
-ECDSA.prototype.deterministicK = function (badrs) {
+ECDSA.prototype.deterministicK = function (this: ECDSA, badrs?: number): ECDSA {
   // if r or s were invalid when this function was used in signing,
   // we do not want to actually compute r, s here for efficiency, so,
   // we can increment badrs. explained at end of RFC 6979 section 3.2
   if (_.isUndefined(badrs)) {
     badrs = 0
   }
-  let v = Buffer.alloc(32)
+  let v: Buffer = Buffer.alloc(32)
   v.fill(0x01)
-  let k = Buffer.alloc(32)
+  let k: Buffer = Buffer.alloc(32)
   k.fill(0x00)
-  const x = this.privkey.bn.toBuffer({
+  const x = (this.privkey as PrivateKey).bn.toBuffer({
     size: 32
   })
-  const hashbuf = this.endian === 'little' ? Buffer.from(this.hashbuf).reverse() : this.hashbuf
+  const hashbuf = this.endian === 'little' ? Buffer.from((this.hashbuf as Buffer)).reverse() : (this.hashbuf as Buffer)
   k = Hash.sha256hmac(Buffer.concat([v, Buffer.from([0x00]), x, hashbuf]), k)
   v = Hash.sha256hmac(v, k)
   k = Hash.sha256hmac(Buffer.concat([v, Buffer.from([0x01]), x, hashbuf]), k)
@@ -142,20 +156,22 @@ ECDSA.prototype.deterministicK = function (badrs) {
 // Information about public key recovery:
 // https://bitcointalk.org/index.php?topic=6430.0
 // http://stackoverflow.com/questions/19665491/how-do-i-get-an-ecdsa-public-key-from-just-a-bitcoin-signature-sec1-4-1-6-k
-ECDSA.prototype.toPublicKey = function () {
-  const i = this.sig.i
+ECDSA.prototype.toPublicKey = function (this: ECDSA): PublicKey {
+  // sig.i is the recovery parameter, always set before toPublicKey() is
+  // called: calci() assigns it and fromCompact() parses it.
+  const i = (this.sig as Signature).i as number
   $.checkArgument(i === 0 || i === 1 || i === 2 || i === 3, new Error('i must be equal to 0, 1, 2, or 3'))
 
-  const e = BN.fromBuffer(this.hashbuf)
-  const r = this.sig.r
-  const s = this.sig.s
+  const e = BN.fromBuffer((this.hashbuf as Buffer))
+  const r = (this.sig as Signature).r
+  const s = (this.sig as Signature).s
 
   // A set LSB signifies that the y-coordinate is odd
-  const isYOdd = i & 1
+  const isYOdd = (i & 1) !== 0
 
   // The more significant bit specifies whether we should use the
   // first or second candidate key.
-  const isSecondKey = i >> 1
+  const isSecondKey = (i >> 1) !== 0
 
   const n = Point.getN()
   const G = Point.getG()
@@ -181,18 +197,18 @@ ECDSA.prototype.toPublicKey = function () {
   // var Q = R.multiplyTwo(s, G, eNeg).mul(rInv);
   const Q = R.mul(s).add(G.mul(eNeg)).mul(rInv)
 
-  const pubkey = PublicKey.fromPoint(Q, this.sig.compressed)
+  const pubkey = publicKeyClass().fromPoint(Q, (this.sig as Signature).compressed)
 
   return pubkey
 }
 
-ECDSA.prototype.sigError = function () {
-  if (!Buffer.isBuffer(this.hashbuf) || this.hashbuf.length !== 32) {
+ECDSA.prototype.sigError = function (this: ECDSA): string | false {
+  if (!Buffer.isBuffer((this.hashbuf as Buffer)) || (this.hashbuf as Buffer).length !== 32) {
     return 'hashbuf must be a 32 byte buffer'
   }
 
-  const r = this.sig.r
-  const s = this.sig.s
+  const r = (this.sig as Signature).r
+  const s = (this.sig as Signature).s
   const n = Point.getN()
 
   try {
@@ -202,7 +218,7 @@ ECDSA.prototype.sigError = function () {
       return 'r and s not in range'
     }
 
-    const e = BN.fromBuffer(this.hashbuf, this.endian
+    const e = BN.fromBuffer((this.hashbuf as Buffer), this.endian
       ? {
           endian: this.endian
         }
@@ -217,7 +233,7 @@ ECDSA.prototype.sigError = function () {
     const u1 = sinv.mul(e).umod(n)
     const u2 = sinv.mul(r).umod(n)
 
-    const p = Point.getG().mulAdd(u1, this.pubkey.point, u2)
+    const p = Point.getG().mulAdd(u1, (this.pubkey as PublicKey).point, u2)
     if (p.isInfinity()) {
       return 'p is infinity'
     }
@@ -227,11 +243,11 @@ ECDSA.prototype.sigError = function () {
     }
     return false
   } catch (error) {
-    return 'Signature security validation failed: ' + error.message
+    return 'Signature security validation failed: ' + (error as Error).message
   }
 }
 
-ECDSA.toLowS = function (s) {
+ECDSA.toLowS = function (s: BN): BN {
   // enforce low s
   // see BIP 62, "low S values in signatures"
   if (s.gt(BN.fromBuffer(Buffer.from('7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0', 'hex')))) {
@@ -240,7 +256,7 @@ ECDSA.toLowS = function (s) {
   return s
 }
 
-ECDSA.prototype._findSignature = function (d, e) {
+ECDSA.prototype._findSignature = function (this: ECDSA, d: BN, e: BN): { s: BN, r: BN } {
   const N = Point.getN()
   const G = Point.getG()
   // try different values of k until r, s are valid
@@ -248,13 +264,13 @@ ECDSA.prototype._findSignature = function (d, e) {
   let k, Q, r, s
   do {
     // A spent nonce (!this._kFresh) must never be reused for a second message.
-    if (!this.k || !this._kFresh || badrs > 0) {
+    if (!(this.k as BN) || !this._kFresh || badrs > 0) {
       this.deterministicK(badrs)
     }
     badrs++
-    k = this.k
+    k = (this.k as BN)
     Q = G.mul(k)
-    r = Q.x.umod(N)
+    r = Q.getX().umod(N)
     s = k.invm(N).mul(e.add(d.mul(r))).umod(N)
   } while (r.cmp(BN.Zero) <= 0 || s.cmp(BN.Zero) <= 0)
 
@@ -267,13 +283,13 @@ ECDSA.prototype._findSignature = function (d, e) {
   }
 }
 
-ECDSA.prototype.sign = function () {
-  const hashbuf = this.hashbuf
-  const privkey = this.privkey
+ECDSA.prototype.sign = function (this: ECDSA): ECDSA {
+  const hashbuf = (this.hashbuf as Buffer)
+  const privkey = this.privkey as PrivateKey
   const d = privkey.bn
 
-  $.checkState(hashbuf && privkey && d, new Error('invalid parameters'))
-  $.checkState(Buffer.isBuffer(hashbuf) && hashbuf.length === 32, new Error('hashbuf must be a 32 byte buffer'))
+  $.checkState(hashbuf != null && privkey != null && d != null, 'invalid parameters')
+  $.checkState(Buffer.isBuffer(hashbuf) && hashbuf.length === 32, 'hashbuf must be a 32 byte buffer')
 
   const e = BN.fromBuffer(hashbuf, this.endian
     ? {
@@ -282,32 +298,34 @@ ECDSA.prototype.sign = function () {
     : undefined)
 
   const obj = this._findSignature(d, e)
-  obj.compressed = this.pubkey.compressed
+  obj.compressed = (this.pubkey as PublicKey).compressed
 
   this.sig = new Signature(obj)
   return this
 }
 
-ECDSA.prototype.signRandomK = function () {
+ECDSA.prototype.signRandomK = function (this: ECDSA): ECDSA {
   this.randomK()
   return this.sign()
 }
 
-ECDSA.prototype.toString = function () {
-  const obj = {}
-  if (this.hashbuf) {
+ECDSA.prototype.toString = function (this: ECDSA): string {
+  // Only the populated fields are serialized, so this stays an incrementally
+  // built record rather than a literal.
+  const obj: Record<string, string> = {}
+  if (this.hashbuf != null) {
     obj.hashbuf = this.hashbuf.toString('hex')
   }
-  if (this.privkey) {
+  if (this.privkey != null) {
     obj.privkey = this.privkey.toString()
   }
-  if (this.pubkey) {
+  if (this.pubkey != null) {
     obj.pubkey = this.pubkey.toString()
   }
-  if (this.sig) {
+  if (this.sig != null) {
     obj.sig = this.sig.toString()
   }
-  if (this.k) {
+  if (this.k != null) {
     obj.k = this.k.toString()
   }
   return JSON.stringify(obj)
@@ -321,8 +339,8 @@ ECDSA.prototype.toString = function () {
 // returns the boolean directly. `this.verified` is still set as a side effect,
 // so `ecdsa.verify(); if (ecdsa.verified)` keeps working; only the chained
 // `.verify().verified` idiom is gone — read the return value instead.
-ECDSA.prototype.verify = function () {
-  this.verified = !this.sigError()
+ECDSA.prototype.verify = function (this: ECDSA): boolean {
+  this.verified = this.sigError() === false
   return this.verified
 }
 
@@ -332,35 +350,35 @@ ECDSA.prototype.verify = function () {
  * strict boolean.
  * @returns {Boolean}
  */
-ECDSA.prototype.verifyBool = function () {
+ECDSA.prototype.verifyBool = function (this: ECDSA): boolean {
   return this.verify() === true
 }
 
-ECDSA.sign = function (hashbuf, privkey, endian) {
+ECDSA.sign = function (hashbuf: Buffer, privkey: PrivateKey, endian?: Endian): Signature {
   return ECDSA().set({
     hashbuf,
     endian,
     privkey
-  }).sign().sig
+  }).sign().sig as Signature
 }
 
-ECDSA.signWithCalcI = function (hashbuf, privkey, endian) {
+ECDSA.signWithCalcI = function (hashbuf: Buffer, privkey: PrivateKey, endian?: Endian): Signature {
   return ECDSA().set({
     hashbuf,
     endian,
     privkey
-  }).sign().calci().sig
+  }).sign().calci().sig as Signature
 }
 
-ECDSA.signRandomK = function (hashbuf, privkey, endian) {
+ECDSA.signRandomK = function (hashbuf: Buffer, privkey: PrivateKey, endian?: Endian): Signature {
   return ECDSA().set({
     hashbuf,
     endian,
     privkey
-  }).signRandomK().sig
+  }).signRandomK().sig as Signature
 }
 
-ECDSA.verify = function (hashbuf, sig, pubkey, endian) {
+ECDSA.verify = function (hashbuf: Buffer, sig: Signature, pubkey: PublicKey, endian?: Endian): boolean {
   return ECDSA().set({
     hashbuf,
     endian,
@@ -369,4 +387,4 @@ ECDSA.verify = function (hashbuf, sig, pubkey, endian) {
   }).verify()
 }
 
-module.exports = ECDSA
+export = ECDSA

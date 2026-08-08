@@ -1,15 +1,20 @@
 'use strict'
 
-const _ = require('./util/_')
-const Address = require('./address')
-const Base58Check = require('./encoding/base58check')
-const BN = require('./crypto/bn')
-const JSUtil = require('./util/js')
-const Networks = require('./networks')
-const Point = require('./crypto/point')
-const PublicKey = require('./publickey')
-const Random = require('./crypto/random')
-const $ = require('./util/preconditions')
+import _ = require('./util/_')
+import Base58Check = require('./encoding/base58check')
+import BN = require('./crypto/bn')
+import JSUtil = require('./util/js')
+import Networks = require('./networks')
+import Point = require('./crypto/point')
+import Random = require('./crypto/random')
+import $ = require('./util/preconditions')
+import type { PrivateKey, PrivateKeyConstructor, PrivateKeyInfo } from './privatekey.types'
+import type { PublicKeyConstructor } from './publickey.types'
+
+// Runtime edges into the address <-> publickey <-> privatekey cycle, resolved
+// at call time so nothing is dereferenced during module evaluation.
+const publicKeyCtor = (): PublicKeyConstructor => require('./publickey')
+const addressCtor = (): { fromPublicKey: (p: unknown, n?: unknown) => unknown } => require('./address')
 
 // The marker toJSON() emits in place of the secret. _transformObject rejects it by name
 // so a JSON round-trip fails loudly instead of quietly yielding a different key.
@@ -23,18 +28,18 @@ const REDACTED = '[REDACTED]'
  * @returns {PrivateKey} A new valid instance of an PrivateKey
  * @constructor
  */
-function PrivateKey (data, network) {
+const PrivateKey = function PrivateKey (this: PrivateKey, data?: unknown, network?: unknown) {
   if (!(this instanceof PrivateKey)) {
-    return new PrivateKey(data, network)
+    return new (PrivateKey as PrivateKeyConstructor)(data, network)
   }
-  if (data instanceof PrivateKey) {
-    return data
+  if (data instanceof (PrivateKey as unknown as new () => unknown)) {
+    return data as PrivateKey
   }
 
   const info = this._classifyArguments(data, network)
 
   // validation
-  if (!info.bn || info.bn.cmp(new BN(0)) === 0) {
+  if (info.bn == null || info.bn.cmp(new BN(0)) === 0) {
     throw new TypeError('Number can not be equal to zero, undefined, null or false')
   }
   if (!info.bn.lt(Point.getN())) {
@@ -57,7 +62,7 @@ function PrivateKey (data, network) {
   })
 
   return this
-};
+} as unknown as PrivateKeyConstructor
 
 /**
  * Internal helper to instantiate PrivateKey internal `info` object from
@@ -67,29 +72,32 @@ function PrivateKey (data, network) {
  * @param {Network|string=} network - a {@link Network} object, or a string with the network name
  * @return {Object}
  */
-PrivateKey.prototype._classifyArguments = function (data, network) {
-  let info = {
+PrivateKey.prototype._classifyArguments = function (this: PrivateKey, data: unknown, network?: unknown): PrivateKeyInfo {
+  // Starts populated but is REASSIGNED wholesale by several branches below
+  // (_transformBuffer, _transformObject, _transformWIF), so it is typed as the
+  // shared partial rather than inferred from this literal.
+  let info: PrivateKeyInfo = {
     compressed: true,
-    network: network ? Networks.get(network) : Networks.defaultNetwork
+    network: network != null ? Networks.get(network as string | number) : Networks.defaultNetwork
   }
 
   // detect type of data
   if (_.isUndefined(data) || _.isNull(data)) {
-    info.bn = PrivateKey._getRandomBN()
+    info.bn = (PrivateKey as PrivateKeyConstructor)._getRandomBN()
   } else if (data instanceof BN) {
     info.bn = data
   } else if (data instanceof Buffer || data instanceof Uint8Array) {
-    info = PrivateKey._transformBuffer(data, network)
-  } else if (data.bn && data.network) {
-    info = PrivateKey._transformObject(data)
-  } else if (!network && Networks.get(data)) {
-    info.bn = PrivateKey._getRandomBN()
-    info.network = Networks.get(data)
+    info = (PrivateKey as PrivateKeyConstructor)._transformBuffer(Buffer.from(data), network)
+  } else if ((data as { bn?: unknown, network?: unknown })?.bn != null && (data as { network?: unknown }).network != null) {
+    info = (PrivateKey as PrivateKeyConstructor)._transformObject(data as Record<string, unknown>)
+  } else if (network == null && Networks.get(data as string | number) != null) {
+    info.bn = (PrivateKey as PrivateKeyConstructor)._getRandomBN()
+    info.network = Networks.get(data as string | number)
   } else if (typeof (data) === 'string') {
     if (JSUtil.isHexa(data)) {
       info.bn = new BN(Buffer.from(data, 'hex'))
     } else {
-      info = PrivateKey._transformWIF(data, network)
+      info = (PrivateKey as PrivateKeyConstructor)._transformWIF(data, network)
     }
   } else {
     throw new TypeError('First argument is an unrecognized data type.')
@@ -103,7 +111,7 @@ PrivateKey.prototype._classifyArguments = function (data, network) {
  * @returns {BN} A new randomly generated BN
  * @private
  */
-PrivateKey._getRandomBN = function () {
+PrivateKey._getRandomBN = function (): BN {
   let condition
   let bn
   do {
@@ -122,20 +130,21 @@ PrivateKey._getRandomBN = function () {
  * @returns {Object} An object with keys: bn, network and compressed
  * @private
  */
-PrivateKey._transformBuffer = function (buf, network) {
-  const info = {}
+PrivateKey._transformBuffer = function (buf: Buffer, network?: unknown): PrivateKeyInfo {
+  const info: PrivateKeyInfo = {}
 
   if (buf.length === 32) {
     return PrivateKey._transformBNBuffer(buf, network)
   }
 
-  info.network = Networks.get(buf[0], 'privatekey')
+  // buf is length-checked above, so byte 0 is present.
+  info.network = Networks.get(buf[0] as number, 'privatekey')
 
   if (!info.network) {
     throw new Error('Invalid network')
   }
 
-  if (network && info.network !== Networks.get(network)) {
+  if (network && info.network !== Networks.get(network as string | number)) {
     throw new TypeError('Private key network mismatch')
   }
 
@@ -160,9 +169,9 @@ PrivateKey._transformBuffer = function (buf, network) {
  * @returns {object} an Object with keys: bn, network, and compressed
  * @private
  */
-PrivateKey._transformBNBuffer = function (buf, network, compressed) {
-  const info = {}
-  info.network = Networks.get(network) || Networks.defaultNetwork
+PrivateKey._transformBNBuffer = function (buf: Buffer, network?: unknown, compressed?: boolean): PrivateKeyInfo {
+  const info: PrivateKeyInfo = {}
+  info.network = Networks.get(network as string | number) || Networks.defaultNetwork
   info.bn = BN.fromBuffer(buf)
   // A raw 32-byte scalar carries no compression information, so this is a choice, not a
   // reading. It used to be `false` while every other constructor path — random keys, hex
@@ -182,7 +191,7 @@ PrivateKey._transformBNBuffer = function (buf, network, compressed) {
  * @returns {Object} An object with keys: bn, network and compressed
  * @private
  */
-PrivateKey._transformWIF = function (str, network) {
+PrivateKey._transformWIF = function (str: string, network?: unknown): PrivateKeyInfo {
   return PrivateKey._transformBuffer(Base58Check.decode(str), network)
 }
 
@@ -193,11 +202,11 @@ PrivateKey._transformWIF = function (str, network) {
  * @param {Network} network
  * @return {PrivateKey}
  */
-PrivateKey.fromBuffer = function (buf, network, compressed) {
+PrivateKey.fromBuffer = function (buf: Buffer, network?: unknown, compressed?: boolean): PrivateKey {
   if (compressed !== undefined && buf && buf.length === 32) {
-    return new PrivateKey(PrivateKey._transformBNBuffer(buf, network, compressed))
+    return new (PrivateKey as PrivateKeyConstructor)(PrivateKey._transformBNBuffer(buf, network, compressed))
   }
-  return new PrivateKey(buf, network)
+  return new (PrivateKey as PrivateKeyConstructor)(buf, network)
 }
 
 /**
@@ -206,7 +215,7 @@ PrivateKey.fromBuffer = function (buf, network, compressed) {
  * @param {boolean=} compressed - defaults to true, matching every other constructor path
  * @return {PrivateKey}
  */
-PrivateKey.fromHex = function (hex, network, compressed) {
+PrivateKey.fromHex = function (hex: string, network?: unknown, compressed?: boolean): PrivateKey {
   return PrivateKey.fromBuffer(Buffer.from(hex, 'hex'), network, compressed)
 }
 
@@ -218,7 +227,7 @@ PrivateKey.fromHex = function (hex, network, compressed) {
  * @returns {Object} An object with keys: bn, network and compressed
  * @private
  */
-PrivateKey._transformObject = function (json) {
+PrivateKey._transformObject = function (json: Record<string, unknown>): PrivateKeyInfo {
   // bn.js 4 silently SKIPS characters it cannot parse rather than failing, so any
   // malformed `bn` produced a wrong key instead of an error. The natural round-trip
   // `fromObject(JSON.parse(JSON.stringify(key)))` fed it the redaction marker that
@@ -231,8 +240,8 @@ PrivateKey._transformObject = function (json) {
   if (json.bn instanceof BN) {
     return {
       bn: json.bn,
-      network: Networks.get(json.network),
-      compressed: json.compressed
+      network: Networks.get(json.network as string | number),
+      compressed: json.compressed as boolean
     }
   }
   if (typeof json.bn !== 'string' || !json.bn.length) {
@@ -250,11 +259,11 @@ PrivateKey._transformObject = function (json) {
   if (bn.isZero() || bn.gte(Point.getN())) {
     throw new TypeError('Invalid private key: outside the range of valid keys')
   }
-  const network = Networks.get(json.network)
+  const network = Networks.get(json.network as string | number)
   return {
     bn,
     network,
-    compressed: json.compressed
+    compressed: json.compressed as boolean
   }
 }
 
@@ -271,9 +280,9 @@ PrivateKey._transformObject = function (json) {
  * @param {Network|string=} network
  * @returns {PrivateKey} A new valid instance of PrivateKey
  */
-PrivateKey.fromString = PrivateKey.fromWIF = function (str, network) {
+PrivateKey.fromString = PrivateKey.fromWIF = function (str: string, network?: unknown): PrivateKey {
   $.checkArgument(_.isString(str), 'First argument is expected to be a string.')
-  return new PrivateKey(str, network)
+  return new (PrivateKey as PrivateKeyConstructor)(str, network)
 }
 
 /**
@@ -281,9 +290,9 @@ PrivateKey.fromString = PrivateKey.fromWIF = function (str, network) {
  *
  * @param {Object} obj - The output from privateKey.toObject()
  */
-PrivateKey.fromObject = PrivateKey.fromJSON = function (obj) {
+PrivateKey.fromObject = PrivateKey.fromJSON = function (obj: Record<string, unknown>): PrivateKey {
   $.checkArgument(_.isObject(obj), 'First argument is expected to be an object.')
-  return new PrivateKey(obj)
+  return new (PrivateKey as PrivateKeyConstructor)(obj)
 }
 
 /**
@@ -292,9 +301,9 @@ PrivateKey.fromObject = PrivateKey.fromJSON = function (obj) {
  * @param {string=} network - Either "livenet" or "testnet"
  * @returns {PrivateKey} A new valid instance of PrivateKey
  */
-PrivateKey.fromRandom = function (network) {
+PrivateKey.fromRandom = function (network?: unknown): PrivateKey {
   const bn = PrivateKey._getRandomBN()
-  return new PrivateKey(bn, network)
+  return new (PrivateKey as PrivateKeyConstructor)(bn, network)
 }
 
 /**
@@ -305,12 +314,12 @@ PrivateKey.fromRandom = function (network) {
  * @returns {null|Error} An error if exists
  */
 
-PrivateKey.getValidationError = function (data, network) {
+PrivateKey.getValidationError = function (data: unknown, network?: unknown): Error | undefined {
   let error
   try {
     new PrivateKey(data, network) // eslint-disable-line
   } catch (e) {
-    error = e
+    error = e as Error
   }
   return error
 }
@@ -322,7 +331,7 @@ PrivateKey.getValidationError = function (data, network) {
  * @param {string=} network - Either "livenet" or "testnet"
  * @returns {Boolean} If the private key is would be valid
  */
-PrivateKey.isValid = function (data, network) {
+PrivateKey.isValid = function (data: unknown, network?: unknown): boolean {
   if (!data) {
     return false
   }
@@ -334,7 +343,7 @@ PrivateKey.isValid = function (data, network) {
  *
  * @returns {string}
  */
-PrivateKey.prototype.toString = function () {
+PrivateKey.prototype.toString = function (this: PrivateKey): string {
   return this.toWIF()
 }
 
@@ -343,17 +352,18 @@ PrivateKey.prototype.toString = function () {
  *
  * @returns {string} A WIP representation of the private key
  */
-PrivateKey.prototype.toWIF = function () {
+PrivateKey.prototype.toWIF = function (this: PrivateKey): string {
   const network = this.network
   const compressed = this.compressed
 
-  let buf
+  let buf: Buffer
+  const net = network as { privatekey: number }
   if (compressed) {
-    buf = Buffer.concat([Buffer.from([network.privatekey]),
+    buf = Buffer.concat([Buffer.from([net.privatekey]),
       this.bn.toBuffer({ size: 32 }),
       Buffer.from([0x01])])
   } else {
-    buf = Buffer.concat([Buffer.from([network.privatekey]),
+    buf = Buffer.concat([Buffer.from([net.privatekey]),
       this.bn.toBuffer({ size: 32 })])
   }
 
@@ -365,7 +375,7 @@ PrivateKey.prototype.toWIF = function () {
  *
  * @returns {BN} A BN instance of the private key
  */
-PrivateKey.prototype.toBigNumber = function () {
+PrivateKey.prototype.toBigNumber = function (this: PrivateKey): BN {
   return this.bn
 }
 
@@ -374,11 +384,11 @@ PrivateKey.prototype.toBigNumber = function () {
  *
  * @returns {Buffer} A buffer of the private key
  */
-PrivateKey.prototype.toBuffer = function () {
+PrivateKey.prototype.toBuffer = function (this: PrivateKey): Buffer {
   return this.bn.toBuffer({ size: 32 })
 }
 
-PrivateKey.prototype.toHex = function () {
+PrivateKey.prototype.toHex = function (this: PrivateKey): string {
   return this.toBuffer().toString('hex')
 }
 
@@ -387,9 +397,9 @@ PrivateKey.prototype.toHex = function () {
  *
  * @returns {PublicKey} A public key generated from the private key
  */
-PrivateKey.prototype.toPublicKey = function () {
-  if (!this._pubkey) {
-    this._pubkey = PublicKey.fromPrivateKey(this)
+PrivateKey.prototype.toPublicKey = function (this: PrivateKey) {
+  if (this._pubkey == null) {
+    this._pubkey = publicKeyCtor().fromPrivateKey(this)
   }
   return this._pubkey
 }
@@ -401,9 +411,9 @@ PrivateKey.prototype.toPublicKey = function () {
  *
  * @returns {Address} An address generated from the private key
  */
-PrivateKey.prototype.toAddress = function (network) {
+PrivateKey.prototype.toAddress = function (this: PrivateKey, network?: unknown): unknown {
   const pubkey = this.toPublicKey()
-  return Address.fromPublicKey(pubkey, network || this.network)
+  return addressCtor().fromPublicKey(pubkey, network || this.network)
 }
 
 /**
@@ -414,7 +424,7 @@ PrivateKey.prototype.toAddress = function (network) {
  *
  * @returns {Object} A plain object representation
  */
-PrivateKey.prototype.toObject = function toObject () {
+PrivateKey.prototype.toObject = function toObject (this: PrivateKey): Record<string, unknown> {
   return {
     bn: this.bn.toString('hex'),
     compressed: this.compressed,
@@ -435,7 +445,7 @@ PrivateKey.prototype.toObject = function toObject () {
  *
  * @returns {Object} A redacted representation, safe to log
  */
-PrivateKey.prototype.toJSON = function toJSON () {
+PrivateKey.prototype.toJSON = function toJSON (this: PrivateKey): Record<string, unknown> {
   return {
     bn: REDACTED,
     compressed: this.compressed,
@@ -448,9 +458,9 @@ PrivateKey.prototype.toJSON = function toJSON () {
  *
  * @returns {string} Private key
  */
-PrivateKey.prototype.inspect = function () {
+PrivateKey.prototype.inspect = function (this: PrivateKey): string {
   const uncompressed = !this.compressed ? ', uncompressed' : ''
   return '<PrivateKey: ' + this.toHex() + ', network: ' + this.network + uncompressed + '>'
 }
 
-module.exports = PrivateKey
+export = PrivateKey

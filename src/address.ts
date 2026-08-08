@@ -1,13 +1,18 @@
 'use strict'
 
-const _ = require('./util/_')
-const $ = require('./util/preconditions')
-const errors = require('./errors')
-const Base58Check = require('./encoding/base58check')
-const Networks = require('./networks')
-const Hash = require('./crypto/hash')
-const JSUtil = require('./util/js')
-const PublicKey = require('./publickey')
+import _ = require('./util/_')
+import $ = require('./util/preconditions')
+import errors = require('./errors')
+import Base58Check = require('./encoding/base58check')
+import Networks = require('./networks')
+import Hash = require('./crypto/hash')
+import JSUtil = require('./util/js')
+import type { Address, AddressConstructor, AddressInfo, AddressType } from './address.types'
+import type { PublicKeyConstructor } from './publickey.types'
+
+// Resolved on demand for the same reason as scriptClass() below: publickey is
+// in this cycle, so capturing it at load time is order dependent.
+const publicKeyClass = (): PublicKeyConstructor => require('./publickey')
 
 /**
  * Instantiate an address from an address String or Buffer, a public key or script hash Buffer,
@@ -43,35 +48,35 @@ const PublicKey = require('./publickey')
  * @returns {Address} A new valid and frozen instance of an Address
  * @constructor
  */
-function Address (data, network, type) {
+const Address = function Address (this: Address, data: unknown, network?: unknown, type?: AddressType) {
   if (!(this instanceof Address)) {
-    return new Address(data, network, type)
+    return new (Address as AddressConstructor)(data, network, type)
   }
 
   if (_.isArray(data) && _.isNumber(network)) {
-    return Address.createMultisig(data, network, type)
+    return (Address as AddressConstructor).createMultisig(data as unknown[], network, type)
   }
 
-  if (data instanceof Address) {
+  if (data instanceof (Address as unknown as new () => unknown)) {
     // Immutable instance
-    return data
+    return data as Address
   }
 
   $.checkArgument(data, 'First argument is required, please include address data.', 'guide/address.html')
 
-  if (network && !Networks.get(network)) {
+  if (network != null && Networks.get(network as string | number) == null) {
     throw new TypeError('Second argument must be "livenet", "testnet", or "regtest".')
   }
 
-  if (type && (type !== Address.PayToPublicKeyHash && type !== Address.PayToScriptHash)) {
+  if (type != null && (type !== (Address as AddressConstructor).PayToPublicKeyHash && type !== (Address as AddressConstructor).PayToScriptHash)) {
     throw new TypeError('Third argument must be "pubkeyhash" or "scripthash".')
   }
 
   const info = this._classifyArguments(data, network, type)
 
   // set defaults if not set
-  info.network = info.network || Networks.get(network) || Networks.defaultNetwork
-  info.type = info.type || type || Address.PayToPublicKeyHash
+  info.network = info.network ?? Networks.get(network as string | number) ?? Networks.defaultNetwork
+  info.type = info.type ?? type ?? (Address as AddressConstructor).PayToPublicKeyHash
 
   JSUtil.defineImmutable(this, {
     hashBuffer: info.hashBuffer,
@@ -80,7 +85,7 @@ function Address (data, network, type) {
   })
 
   return this
-}
+} as unknown as AddressConstructor
 
 /**
  * Internal function used to split different kinds of arguments of the constructor
@@ -89,20 +94,20 @@ function Address (data, network, type) {
  * @param {string=} type - The type of address: 'script' or 'pubkey'
  * @returns {Object} An "info" object with "type", "network", and "hashBuffer"
  */
-Address.prototype._classifyArguments = function (data, network, type) {
+Address.prototype._classifyArguments = function (this: Address, data: unknown, network?: unknown, type?: AddressType): AddressInfo {
   // transform and validate input data
   if ((data instanceof Buffer || data instanceof Uint8Array) && data.length === 20) {
-    return Address._transformHash(data)
+    return (Address as AddressConstructor)._transformHash(Buffer.from(data))
   } else if ((data instanceof Buffer || data instanceof Uint8Array) && data.length === 21) {
-    return Address._transformBuffer(data, network, type)
-  } else if (data instanceof PublicKey) {
-    return Address._transformPublicKey(data)
+    return (Address as AddressConstructor)._transformBuffer(Buffer.from(data), network, type)
+  } else if (data instanceof (publicKeyClass() as unknown as new () => unknown)) {
+    return (Address as AddressConstructor)._transformPublicKey(data)
   } else if (isScript(data)) {
-    return Address._transformScript(data, network)
+    return (Address as AddressConstructor)._transformScript(data, network)
   } else if (typeof (data) === 'string') {
-    return Address._transformString(data, network, type)
+    return (Address as AddressConstructor)._transformString(data, network, type)
   } else if (_.isObject(data)) {
-    return Address._transformObject(data)
+    return (Address as AddressConstructor)._transformObject(data as Record<string, unknown>)
   } else {
     throw new TypeError('First argument is an unrecognized data format.')
   }
@@ -118,8 +123,8 @@ Address.PayToScriptHash = 'scripthash'
  * @returns {Object} An object with keys: hashBuffer
  * @private
  */
-Address._transformHash = function (hash) {
-  const info = {}
+Address._transformHash = function (hash: Buffer): AddressInfo {
+  const info: AddressInfo = {}
   if (!(hash instanceof Buffer) && !(hash instanceof Uint8Array)) {
     throw new TypeError('Address supplied is not a buffer.')
   }
@@ -138,13 +143,15 @@ Address._transformHash = function (hash) {
  * @param {Network=} data.network - the name of the network associated
  * @return {Address}
  */
-Address._transformObject = function (data) {
+Address._transformObject = function (data: Record<string, unknown>): AddressInfo {
   $.checkArgument(data.hash || data.hashBuffer, 'Must provide a `hash` or `hashBuffer` property')
   $.checkArgument(data.type, 'Must provide a `type` property')
   return {
-    hashBuffer: data.hash ? Buffer.from(data.hash, 'hex') : data.hashBuffer,
-    network: Networks.get(data.network) || Networks.defaultNetwork,
-    type: data.type
+    hashBuffer: data.hash != null
+      ? Buffer.from(data.hash as string, 'hex')
+      : data.hashBuffer as Buffer,
+    network: Networks.get(data.network as string | number) ?? Networks.defaultNetwork,
+    type: data.type as AddressType
   }
 }
 
@@ -155,18 +162,20 @@ Address._transformObject = function (data) {
  * @returns {Object} An object with keys: network and type
  * @private
  */
-Address._classifyFromVersion = function (buffer) {
-  const version = {}
+Address._classifyFromVersion = function (buffer: Buffer): AddressInfo {
+  const version: AddressInfo = {}
 
-  const pubkeyhashNetwork = Networks.get(buffer[0], 'pubkeyhash')
-  const scripthashNetwork = Networks.get(buffer[0], 'scripthash')
+  // The caller has already length-checked the buffer, so byte 0 is present.
+  const versionByte = buffer[0] as number
+  const pubkeyhashNetwork = Networks.get(versionByte, 'pubkeyhash')
+  const scripthashNetwork = Networks.get(versionByte, 'scripthash')
 
-  if (pubkeyhashNetwork) {
+  if (pubkeyhashNetwork != null) {
     version.network = pubkeyhashNetwork
-    version.type = Address.PayToPublicKeyHash
-  } else if (scripthashNetwork) {
+    version.type = (Address as AddressConstructor).PayToPublicKeyHash
+  } else if (scripthashNetwork != null) {
     version.network = scripthashNetwork
-    version.type = Address.PayToScriptHash
+    version.type = (Address as AddressConstructor).PayToScriptHash
   }
 
   return version
@@ -181,8 +190,8 @@ Address._classifyFromVersion = function (buffer) {
  * @returns {Object} An object with keys: hashBuffer, network and type
  * @private
  */
-Address._transformBuffer = function (buffer, network, type) {
-  const info = {}
+Address._transformBuffer = function (buffer: Buffer, network?: unknown, type?: AddressType): AddressInfo {
+  const info: AddressInfo = {}
   if (!(buffer instanceof Buffer) && !(buffer instanceof Uint8Array)) {
     throw new TypeError('Address supplied is not a buffer.')
   }
@@ -190,7 +199,7 @@ Address._transformBuffer = function (buffer, network, type) {
     throw new TypeError('Address buffers must be exactly 21 bytes.')
   }
 
-  const networkObj = Networks.get(network)
+  const networkObj = Networks.get(network as string | number)
   const bufferVersion = Address._classifyFromVersion(buffer)
 
   if (network && !networkObj) {
@@ -219,13 +228,13 @@ Address._transformBuffer = function (buffer, network, type) {
  * @returns {Object} An object with keys: hashBuffer, type
  * @private
  */
-Address._transformPublicKey = function (pubkey) {
-  const info = {}
-  if (!(pubkey instanceof PublicKey)) {
+Address._transformPublicKey = function (pubkey: unknown): AddressInfo {
+  const info: AddressInfo = {}
+  if (!(pubkey instanceof (publicKeyClass() as unknown as new () => unknown))) {
     throw new TypeError('Address must be an instance of PublicKey.')
   }
-  info.hashBuffer = Hash.sha256ripemd160(pubkey.toBuffer())
-  info.type = Address.PayToPublicKeyHash
+  info.hashBuffer = Hash.sha256ripemd160((pubkey as { toBuffer: () => Buffer }).toBuffer())
+  info.type = (Address as AddressConstructor).PayToPublicKeyHash
   return info
 }
 
@@ -236,11 +245,15 @@ Address._transformPublicKey = function (pubkey) {
  * @returns {Object} An object with keys: hashBuffer, type
  * @private
  */
-Address._transformScript = function (script, network) {
+Address._transformScript = function (script: any, network?: unknown): AddressInfo {
   $.checkArgument(isScript(script), 'script must be a Script instance')
   const info = script.getAddressInfo(network)
-  if (!info) {
-    throw new errors.Script.CantDeriveAddress(script)
+  // NOTE: getAddressInfo() returns `false` (not null/undefined) for a script
+  // that is not p2pkh/p2sh, so this must stay a FALSY check. Narrowing it to
+  // `info == null` lets `false` through, and the caller then tries to set
+  // .network on a boolean.
+  if (info === false || info == null) {
+    throw new ((errors.Script as Record<string, unknown>).CantDeriveAddress as new (s: unknown) => Error)(script)
   }
   return info
 }
@@ -257,9 +270,9 @@ Address._transformScript = function (script, network) {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @return {Address}
  */
-Address.createMultisig = function (publicKeys, threshold, network) {
-  network = network || publicKeys[0].network || Networks.defaultNetwork
-  return Address.payingTo(scriptClass().buildMultisigOut(publicKeys, threshold), network)
+Address.createMultisig = function (publicKeys: unknown[], threshold: number, network?: unknown): Address {
+  const net = network ?? (publicKeys[0] as { network?: unknown })?.network ?? Networks.defaultNetwork
+  return (Address as AddressConstructor).payingTo(scriptClass().buildMultisigOut(publicKeys, threshold), net)
 }
 
 /**
@@ -271,7 +284,7 @@ Address.createMultisig = function (publicKeys, threshold, network) {
  * @returns {Object} An object with keys: hashBuffer, network and type
  * @private
  */
-Address._transformString = function (data, network, type) {
+Address._transformString = function (data: string, network?: unknown, type?: AddressType): AddressInfo {
   if (typeof (data) !== 'string') {
     throw new TypeError('data parameter supplied is not a string.')
   }
@@ -279,7 +292,7 @@ Address._transformString = function (data, network, type) {
     throw new Error('Invalid Address string provided')
   }
   data = data.trim()
-  const networkObj = Networks.get(network)
+  const networkObj = Networks.get(network as string | number)
 
   if (network && !networkObj) {
     throw new TypeError('Unknown network')
@@ -296,10 +309,10 @@ Address._transformString = function (data, network, type) {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.fromPublicKey = function (data, network) {
+Address.fromPublicKey = function (data: unknown, network?: unknown): Address {
   const info = Address._transformPublicKey(data)
   network = network || Networks.defaultNetwork
-  return new Address(info.hashBuffer, network, info.type)
+  return new (Address as AddressConstructor)(info.hashBuffer, network, info.type)
 }
 
 /**
@@ -309,8 +322,8 @@ Address.fromPublicKey = function (data, network) {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.fromPrivateKey = function (privateKey, network) {
-  const publicKey = PublicKey.fromPrivateKey(privateKey)
+Address.fromPrivateKey = function (privateKey: any, network?: unknown): Address {
+  const publicKey = publicKeyClass().fromPrivateKey(privateKey)
   network = network || privateKey.network || Networks.defaultNetwork
   return Address.fromPublicKey(publicKey, network)
 }
@@ -322,9 +335,9 @@ Address.fromPrivateKey = function (privateKey, network) {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.fromPublicKeyHash = function (hash, network) {
+Address.fromPublicKeyHash = function (hash: Buffer, network?: unknown): Address {
   const info = Address._transformHash(hash)
-  return new Address(info.hashBuffer, network, Address.PayToPublicKeyHash)
+  return new (Address as AddressConstructor)(info.hashBuffer, network, Address.PayToPublicKeyHash)
 }
 
 /**
@@ -334,10 +347,10 @@ Address.fromPublicKeyHash = function (hash, network) {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.fromScriptHash = function (hash, network) {
+Address.fromScriptHash = function (hash: Buffer, network?: unknown): Address {
   $.checkArgument(hash, 'hash parameter is required')
   const info = Address._transformHash(hash)
-  return new Address(info.hashBuffer, network, Address.PayToScriptHash)
+  return new (Address as AddressConstructor)(info.hashBuffer, network, Address.PayToScriptHash)
 }
 
 /**
@@ -350,7 +363,7 @@ Address.fromScriptHash = function (hash, network) {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.payingTo = function (script, network) {
+Address.payingTo = function (script: any, network?: unknown): Address {
   $.checkArgument(script, 'script is required')
   $.checkArgument(isScript(script), 'script must be instance of Script')
 
@@ -369,10 +382,10 @@ Address.payingTo = function (script, network) {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.fromScript = function (script, network) {
+Address.fromScript = function (script: any, network?: unknown): Address {
   $.checkArgument(isScript(script), 'script must be a Script instance')
   const info = Address._transformScript(script, network)
-  return new Address(info.hashBuffer, network, info.type)
+  return new (Address as AddressConstructor)(info.hashBuffer, network, info.type)
 }
 
 /**
@@ -383,12 +396,12 @@ Address.fromScript = function (script, network) {
  * @param {string=} type - The type of address: 'script' or 'pubkey'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.fromBuffer = function (buffer, network, type) {
+Address.fromBuffer = function (buffer: Buffer, network?: unknown, type?: AddressType): Address {
   const info = Address._transformBuffer(buffer, network, type)
-  return new Address(info.hashBuffer, info.network, info.type)
+  return new (Address as AddressConstructor)(info.hashBuffer, info.network, info.type)
 }
 
-Address.fromHex = function (hex, network, type) {
+Address.fromHex = function (hex: string, network?: unknown, type?: AddressType): Address {
   return Address.fromBuffer(Buffer.from(hex, 'hex'), network, type)
 }
 
@@ -400,9 +413,9 @@ Address.fromHex = function (hex, network, type) {
  * @param {string=} type - The type of address: 'script' or 'pubkey'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.fromString = function (str, network, type) {
+Address.fromString = function (str: string, network?: unknown, type?: AddressType): Address {
   const info = Address._transformString(str, network, type)
-  return new Address(info.hashBuffer, info.network, info.type)
+  return new (Address as AddressConstructor)(info.hashBuffer, info.network, info.type)
 }
 
 /**
@@ -411,13 +424,13 @@ Address.fromString = function (str, network, type) {
  * @param {string} json - An JSON string or Object with keys: hash, network and type
  * @returns {Address} A new valid instance of an Address
  */
-Address.fromObject = function fromObject (obj) {
+Address.fromObject = function fromObject (obj: Record<string, unknown>): Address {
   $.checkState(
     JSUtil.isHexa(obj.hash),
     'Unexpected hash property, "' + obj.hash + '", expected to be hex.'
   )
-  const hashBuffer = Buffer.from(obj.hash, 'hex')
-  return new Address(hashBuffer, obj.network, obj.type)
+  const hashBuffer = Buffer.from(obj.hash as string, 'hex')
+  return new (Address as AddressConstructor)(hashBuffer, obj.network, obj.type as AddressType)
 }
 
 /**
@@ -434,12 +447,12 @@ Address.fromObject = function fromObject (obj) {
  * @param {string} type - The type of address: 'script' or 'pubkey'
  * @returns {null|Error} The corresponding error message
  */
-Address.getValidationError = function (data, network, type) {
-  let error
+Address.getValidationError = function (data: unknown, network?: unknown, type?: AddressType): Error | undefined {
+  let error: Error | undefined
   try {
-    new Address(data, network, type) // eslint-disable-line
+    new (Address as AddressConstructor)(data, network, type) // eslint-disable-line no-new
   } catch (e) {
-    error = e
+    error = e as Error
   }
   return error
 }
@@ -457,7 +470,7 @@ Address.getValidationError = function (data, network, type) {
  * @param {string} type - The type of address: 'script' or 'pubkey'
  * @returns {boolean} The corresponding error message
  */
-Address.isValid = function (data, network, type) {
+Address.isValid = function (data: unknown, network?: unknown, type?: AddressType): boolean {
   return !Address.getValidationError(data, network, type)
 }
 
@@ -465,7 +478,7 @@ Address.isValid = function (data, network, type) {
  * Returns true if an address is of pay to public key hash type
  * @return boolean
  */
-Address.prototype.isPayToPublicKeyHash = function () {
+Address.prototype.isPayToPublicKeyHash = function (this: Address): boolean {
   return this.type === Address.PayToPublicKeyHash
 }
 
@@ -473,7 +486,7 @@ Address.prototype.isPayToPublicKeyHash = function () {
  * Returns true if an address is of pay to script hash type
  * @return boolean
  */
-Address.prototype.isPayToScriptHash = function () {
+Address.prototype.isPayToScriptHash = function (this: Address): boolean {
   return this.type === Address.PayToScriptHash
 }
 
@@ -482,20 +495,20 @@ Address.prototype.isPayToScriptHash = function () {
  *
  * @returns {Buffer} Bitcoin address buffer
  */
-Address.prototype.toBuffer = function () {
+Address.prototype.toBuffer = function (this: Address): Buffer {
   const version = Buffer.from([this.network[this.type]])
   const buf = Buffer.concat([version, this.hashBuffer])
   return buf
 }
 
-Address.prototype.toHex = function () {
+Address.prototype.toHex = function (this: Address): string {
   return this.toBuffer().toString('hex')
 }
 
 /**
  * @returns {Object} A plain object with the address information
  */
-Address.prototype.toObject = Address.prototype.toJSON = function toObject () {
+Address.prototype.toObject = Address.prototype.toJSON = function toObject (this: Address): Record<string, unknown> {
   return {
     hash: this.hashBuffer.toString('hex'),
     type: this.type,
@@ -508,7 +521,7 @@ Address.prototype.toObject = Address.prototype.toJSON = function toObject () {
  *
  * @returns {string} Bitcoin address
  */
-Address.prototype.inspect = function () {
+Address.prototype.inspect = function (this: Address): string {
   return '<Address: ' + this.toString() + ', type: ' + this.type + ', network: ' + this.network + '>'
 }
 
@@ -517,11 +530,11 @@ Address.prototype.inspect = function () {
  *
  * @returns {string} Bitcoin address
  */
-Address.prototype.toString = function () {
+Address.prototype.toString = function (this: Address): string {
   return Base58Check.encode(this.toBuffer())
 }
 
-module.exports = Address
+export = Address
 
 // Resolved on demand rather than captured at load time.
 //
@@ -533,7 +546,7 @@ module.exports = Address
 // "Right-hand side of 'instanceof' is not callable". That is reachable in the
 // wild, since deep imports are public API. Resolving at call time instead
 // always yields the finished module.
-function scriptClass () {
+function scriptClass (): any {
   return require('./script')
 }
 
@@ -543,9 +556,10 @@ function scriptClass () {
 // and every caller here immediately uses the object as a Script. Testing for
 // the capability being relied upon is both load-order independent and a more
 // honest statement of the requirement.
-function isScript (v) {
-  return v != null &&
-    typeof v.toBuffer === 'function' &&
-    typeof v.getAddressInfo === 'function' &&
-    Array.isArray(v.chunks)
+function isScript (v: unknown): boolean {
+  const o = v as { toBuffer?: unknown, getAddressInfo?: unknown, chunks?: unknown }
+  return o != null &&
+    typeof o.toBuffer === 'function' &&
+    typeof o.getAddressInfo === 'function' &&
+    Array.isArray(o.chunks)
 }

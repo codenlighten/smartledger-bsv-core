@@ -216,6 +216,33 @@ corpus both missed. Two were harmless by accident; one was not.
 The corpus proved the two latent fixes were behavior-neutral. It could not
 have caught the live one: no case calls `enableStn()`.
 
+## Conversion hazards
+
+Recurring traps, each found the hard way.
+
+**`!x` is not `x == null`, and `||` is not `??`.** Strict mode nudges toward
+the nullish forms, but they are not equivalent when a value can legitimately
+be `false`, `0` or `''`. `Address._transformScript` guards
+`script.getAddressInfo(network)`, which returns **`false`** for a script that
+is not p2pkh/p2sh. Rewriting `if (!info)` as `if (info == null)` let `false`
+through, and the caller then tried to set `.network` on a boolean. Check what
+the guarded expression can actually return before narrowing.
+
+**`var` is function-scoped; `const` is not.** `Point.fromX` declared `var
+point` inside a `try` and read it after. A naive `var` -> `const` rewrite
+breaks that. Declare above the block instead.
+
+**Accumulators that are reassigned wholesale must stay mutable.**
+`blockheader._fromBufferReader` builds its result field by field, so one
+literal is clearer. `privatekey._classifyArguments` and
+`publickey._classifyArgs` are REASSIGNED entirely by several branches, so they
+stay typed mutable locals — a literal rewrite there would change control flow
+in code parsing untrusted key material. Same surface pattern, opposite answer.
+
+**Blanket text substitution leaks across function boundaries.** Renaming a
+local via a whole-file replace put a `v2` binding into an adjacent function.
+Bound edits to the function being changed.
+
 ## Conventions established
 
 Worth knowing before continuing, because they recur:

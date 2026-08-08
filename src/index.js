@@ -26,17 +26,17 @@
 
 const bsv = module.exports
 
-bsv.version = require('./package.json').version
+bsv.version = require('../package.json').version
 
 // crypto
 bsv.crypto = {}
-bsv.crypto.BN = require('./lib/crypto/bn')
-bsv.crypto.ECDSA = require('./lib/crypto/ecdsa')
-bsv.crypto.Hash = require('./lib/crypto/hash')
-bsv.crypto.Random = require('./lib/crypto/random')
-bsv.crypto.Point = require('./lib/crypto/point')
-bsv.crypto.Signature = require('./lib/crypto/signature')
-bsv.crypto.Shamir = require('./lib/crypto/shamir')
+bsv.crypto.BN = require('./crypto/bn')
+bsv.crypto.ECDSA = require('./crypto/ecdsa')
+bsv.crypto.Hash = require('./crypto/hash')
+bsv.crypto.Random = require('./crypto/random')
+bsv.crypto.Point = require('./crypto/point')
+bsv.crypto.Signature = require('./crypto/signature')
+bsv.crypto.Shamir = require('./crypto/shamir')
 
 // Strict signature verification: enforces low-S, rejects zero/out-of-range
 // components, and validates the message-hash length — checks the default
@@ -51,59 +51,59 @@ bsv.crypto.Shamir = require('./lib/crypto/shamir')
 // Folding these checks INTO the default verify path (or deleting this module)
 // is an API-design decision, tracked for the next phase. Carried meanwhile so
 // its security assertions keep running rather than being silently dropped.
-bsv.crypto.SmartVerify = require('./lib/crypto/smartledger_verify')
+bsv.crypto.SmartVerify = require('./crypto/smartledger_verify')
 
 // encoding
 bsv.encoding = {}
-bsv.encoding.Base58 = require('./lib/encoding/base58')
-bsv.encoding.Base58Check = require('./lib/encoding/base58check')
-bsv.encoding.BufferReader = require('./lib/encoding/bufferreader')
-bsv.encoding.BufferWriter = require('./lib/encoding/bufferwriter')
-bsv.encoding.Varint = require('./lib/encoding/varint')
+bsv.encoding.Base58 = require('./encoding/base58')
+bsv.encoding.Base58Check = require('./encoding/base58check')
+bsv.encoding.BufferReader = require('./encoding/bufferreader')
+bsv.encoding.BufferWriter = require('./encoding/bufferwriter')
+bsv.encoding.Varint = require('./encoding/varint')
 
 // utilities
 bsv.util = {}
-bsv.util.js = require('./lib/util/js')
-bsv.util.preconditions = require('./lib/util/preconditions')
+bsv.util.js = require('./util/js')
+bsv.util.preconditions = require('./util/preconditions')
 
 // errors thrown by the library
-bsv.errors = require('./lib/errors')
+bsv.errors = require('./errors')
 
 // keys and addresses
-bsv.Address = require('./lib/address')
-bsv.PrivateKey = require('./lib/privatekey')
-bsv.PublicKey = require('./lib/publickey')
-bsv.HDPrivateKey = require('./lib/hdprivatekey')
-bsv.HDPublicKey = require('./lib/hdpublickey')
-bsv.Networks = require('./lib/networks')
+bsv.Address = require('./address')
+bsv.PrivateKey = require('./privatekey')
+bsv.PublicKey = require('./publickey')
+bsv.HDPrivateKey = require('./hdprivatekey')
+bsv.HDPublicKey = require('./hdpublickey')
+bsv.Networks = require('./networks')
 
 // script and transactions
-bsv.Opcode = require('./lib/opcode')
-bsv.Script = require('./lib/script')
-bsv.Transaction = require('./lib/transaction')
-bsv.Input = require('./lib/transaction').Input
-bsv.Output = require('./lib/transaction').Output
-bsv.UnspentOutput = require('./lib/transaction').UnspentOutput
-bsv.Signature = require('./lib/crypto/signature')
+bsv.Opcode = require('./opcode')
+bsv.Script = require('./script')
+bsv.Transaction = require('./transaction')
+bsv.Input = require('./transaction').Input
+bsv.Output = require('./transaction').Output
+bsv.UnspentOutput = require('./transaction').UnspentOutput
+bsv.Signature = require('./crypto/signature')
 
 // blocks and SPV
-bsv.Block = require('./lib/block')
-bsv.BlockHeader = require('./lib/block/blockheader')
-bsv.MerkleBlock = require('./lib/block/merkleblock')
-bsv.SPV = require('./lib/spv')
+bsv.Block = require('./block')
+bsv.BlockHeader = require('./block/blockheader')
+bsv.MerkleBlock = require('./block/merkleblock')
+bsv.SPV = require('./spv')
 
 // higher-level primitives
-bsv.ECIES = require('./lib/ecies')
-bsv.Message = require('./lib/message')
-bsv.Mnemonic = require('./lib/mnemonic')
-bsv.Shamir = require('./lib/crypto/shamir')
+bsv.ECIES = require('./ecies')
+bsv.Message = require('./message')
+bsv.Mnemonic = require('./mnemonic')
+bsv.Shamir = require('./crypto/shamir')
 
 // 1Sat Ordinals (inscriptions, BSV-20, OrdLock)
-bsv.Ordinals = require('./lib/ordinals')
+bsv.Ordinals = require('./ordinals')
 
 // OP_PUSH_TX covenant primitives. Used by Ordinals' OrdLock and by the
 // smart-contract package; they depend on nothing above Script/Transaction.
-bsv.Covenant = require('./lib/covenant')
+bsv.Covenant = require('./covenant')
 
 // Exposed for advanced use and for the covenant/ordinals machinery.
-bsv.Transaction.sighash = require('./lib/transaction/sighash')
+bsv.Transaction.sighash = require('./transaction/sighash')

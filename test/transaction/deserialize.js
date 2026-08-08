@@ -1,6 +1,6 @@
 'use strict'
 
-const Transaction = require('../../lib/transaction')
+const Transaction = require('../../dist/transaction')
 
 const vectorsValid = require('../data/bitcoind/tx_valid.json')
 const vectorsInvalid = require('../data/bitcoind/tx_invalid.json')

@@ -1,7 +1,7 @@
 'use strict'
 
 const bsv = require('../..')
-const BN = require('../../lib/crypto/bn')
+const BN = require('../../dist/crypto/bn')
 const BufferReader = bsv.encoding.BufferReader
 const BufferWriter = bsv.encoding.BufferWriter
 const BlockHeader = bsv.BlockHeader

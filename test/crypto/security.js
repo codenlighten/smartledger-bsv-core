@@ -5,7 +5,7 @@
 require('chai').should()
 const expect = require('chai').expect
 
-const bsv = require('../../index.js')
+const bsv = require('../..')
 const BN = bsv.crypto.BN
 const ECDSA = bsv.crypto.ECDSA
 const Hash = bsv.crypto.Hash

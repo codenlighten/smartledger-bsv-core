@@ -1,7 +1,7 @@
 'use strict'
 
 const should = require('chai').should()
-const _ = require('../../../lib/util/_')
+const _ = require('../../../dist/util/_')
 
 const bsv = require('../../..')
 const Transaction = bsv.Transaction

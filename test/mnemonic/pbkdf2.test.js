@@ -3,7 +3,7 @@
 const chai = require('chai')
 chai.should()
 
-const pbkdf2 = require('../../lib/mnemonic/pbkdf2')
+const pbkdf2 = require('../../dist/mnemonic/pbkdf2')
 
 describe('pbkdf2', function () {
   this.timeout(10000)

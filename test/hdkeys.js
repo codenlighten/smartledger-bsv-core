@@ -6,7 +6,7 @@
 //   * store test vectors at the end, latedef: false
 //   * should call is never defined
 
-const _ = require('../lib/util/_')
+const _ = require('../dist/util/_')
 require('chai').should()
 const expect = require('chai').expect
 const sinon = require('sinon')

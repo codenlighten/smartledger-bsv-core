@@ -2,7 +2,7 @@
 
 const should = require('chai').should()
 const expect = require('chai').expect
-const _ = require('../../../lib/util/_')
+const _ = require('../../../dist/util/_')
 
 const bsv = require('../../..')
 const errors = bsv.errors

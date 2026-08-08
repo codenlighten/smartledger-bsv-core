@@ -1,6 +1,6 @@
 'use strict'
 
-const ECIES = require('../../lib/ecies/bitcore-ecies')
+const ECIES = require('../../dist/ecies/bitcore-ecies')
 
 const should = require('chai').should()
 const bsv = require('../../')

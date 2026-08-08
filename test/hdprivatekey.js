@@ -1,6 +1,6 @@
 'use strict'
 
-const _ = require('../lib/util/_')
+const _ = require('../dist/util/_')
 const assert = require('assert')
 const should = require('chai').should()
 const expect = require('chai').expect
@@ -9,7 +9,7 @@ const errors = bsv.errors
 const hdErrors = errors.HDPrivateKey
 const buffer = require('buffer')
 const Networks = bsv.Networks
-const JSUtil = require('../lib/util/js')
+const JSUtil = require('../dist/util/js')
 const HDPrivateKey = bsv.HDPrivateKey
 const Base58Check = bsv.encoding.Base58Check
 

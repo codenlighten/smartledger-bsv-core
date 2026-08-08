@@ -1,7 +1,7 @@
 'use strict'
 
 require('chai').should()
-const Hash = require('../../lib/crypto/hash.browser')
+const Hash = require('../../dist/crypto/hash.browser')
 
 describe('Hash', function () {
   const buf = Buffer.from([0, 1, 2, 3, 253, 254, 255])

@@ -1,0 +1,22 @@
+{
+  // Declaration emit, from TypeScript sources ONLY.
+  //
+  // The main tsconfig.json compiles the whole tree (JavaScript included) so
+  // dist/ is always complete and runnable. This config generates .d.ts files,
+  // and deliberately sees only .ts files: types derived from the untyped ES5
+  // JavaScript would be `any`-riddled and thrown away as each file converts.
+  //
+  // Consequence: the emitted type surface grows as the migration proceeds,
+  // and every type in it is one somebody actually wrote. When the last .js is
+  // gone this config and tsconfig.json collapse into one.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "sourceMap": false,
+    "outDir": "dist"
+  },
+  "include": ["src/**/*.ts"]
+}

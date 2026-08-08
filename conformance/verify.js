@@ -37,7 +37,7 @@ function preview (v) {
 
 async function main () {
   const args = parseArgs(process.argv)
-  const libPath = args.lib ? path.resolve(args.lib) : path.join(__dirname, '..', 'index.js')
+  const libPath = args.lib ? path.resolve(args.lib) : path.join(__dirname, '..', 'dist', 'index.js')
   const bsv = require(libPath)
 
   console.log(`library:  ${libPath}`)

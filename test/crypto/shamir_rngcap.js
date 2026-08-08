@@ -8,8 +8,8 @@
 // loop now throws a clear error instead of hanging.
 
 const assert = require('assert')
-const Shamir = require('../../lib/crypto/shamir')
-const Random = require('../../lib/crypto/random')
+const Shamir = require('../../dist/crypto/shamir')
+const Random = require('../../dist/crypto/random')
 
 describe('Shamir RNG degenerate-source cap', function () {
   const orig = Random.getRandomBuffer

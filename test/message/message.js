@@ -8,7 +8,7 @@ const bsv = require('../../')
 const Address = bsv.Address
 const Signature = bsv.crypto.Signature
 const PrivateKey = bsv.PrivateKey
-const Message = require('../../lib/message')
+const Message = require('../../dist/message')
 
 describe('Message', function () {
   const address = 'n1ZCYg9YXtB5XCZazLxSmPDa8iwJRZHhGx'

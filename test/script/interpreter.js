@@ -9,7 +9,7 @@ const Script = bsv.Script
 const BN = bsv.crypto.BN
 const BufferWriter = bsv.encoding.BufferWriter
 const Opcode = bsv.Opcode
-const _ = require('../../lib/util/_')
+const _ = require('../../dist/util/_')
 
 const scriptTests = require('../data/bitcoind/script_tests')
 const txValid = require('../data/bitcoind/tx_valid')

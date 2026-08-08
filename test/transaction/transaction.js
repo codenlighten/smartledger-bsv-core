@@ -5,7 +5,7 @@ const expect = require('chai').expect
 const sinon = require('sinon')
 
 const bsv = require('../..')
-const _ = require('../../lib/util/_')
+const _ = require('../../dist/util/_')
 const BN = bsv.crypto.BN
 const Transaction = bsv.Transaction
 const Input = bsv.Transaction.Input

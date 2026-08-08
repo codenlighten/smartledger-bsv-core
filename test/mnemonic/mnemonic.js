@@ -3,7 +3,7 @@
 const chai = require('chai')
 const should = chai.should()
 
-const Mnemonic = require('../../lib/mnemonic')
+const Mnemonic = require('../../dist/mnemonic')
 const errors = require('../../').errors
 const bip39vectors = require('./data/fixtures.json')
 

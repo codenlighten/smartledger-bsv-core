@@ -1,0 +1,51 @@
+{
+  "compilerOptions": {
+    // strict from the first commit. Retrofitting strict onto a converted
+    // codebase costs far more than starting with it, and the whole point of
+    // the migration is that the types are load-bearing.
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // allowJs lets the library be converted file by file: unconverted .js
+    // still compiles and ships, so the suite and the conformance corpus run
+    // against a complete build at every step of the migration.
+    //
+    // checkJs stays OFF. Type-checking 16k lines of untyped ES5 would bury the
+    // real errors from converted files under thousands of inferred-any
+    // complaints. Each file gets checked when it becomes .ts.
+    "allowJs": true,
+    "checkJs": false,
+
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2020"],
+    "types": ["node"],
+
+    // Declarations are NOT emitted from this config. Asking tsc to derive
+    // .d.ts files from the untyped ES5 JavaScript produces a wall of `any`,
+    // real TS9005 errors ("declaration emit requires using private name"), and
+    // an outright compiler crash in the full-project build.
+    //
+    // Types come from TypeScript source instead — see tsconfig.types.json,
+    // which emits declarations from .ts files only and therefore grows as the
+    // migration proceeds. This config's job is to produce a WORKING dist/ at
+    // every step so the test suite and the conformance corpus keep running.
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
+
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "isolatedModules": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

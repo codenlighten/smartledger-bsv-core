@@ -1,12 +1,12 @@
 'use strict'
 
-const ECDSA = require('../../lib/crypto/ecdsa')
-const Hash = require('../../lib/crypto/hash')
-const Privkey = require('../../lib/privatekey')
-const Pubkey = require('../../lib/publickey')
-const Signature = require('../../lib/crypto/signature')
-const BN = require('../../lib/crypto/bn')
-const point = require('../../lib/crypto/point')
+const ECDSA = require('../../dist/crypto/ecdsa')
+const Hash = require('../../dist/crypto/hash')
+const Privkey = require('../../dist/privatekey')
+const Pubkey = require('../../dist/publickey')
+const Signature = require('../../dist/crypto/signature')
+const BN = require('../../dist/crypto/bn')
+const point = require('../../dist/crypto/point')
 const should = require('chai').should()
 const vectors = require('../data/ecdsa')
 

@@ -4,7 +4,7 @@
 
 const assert = require('assert')
 const crypto = require('crypto')
-const Shamir = require('../../lib/crypto/shamir')
+const Shamir = require('../../dist/crypto/shamir')
 
 describe('Shamir Secret Sharing', function () {
   describe('split / combine round-trip', function () {

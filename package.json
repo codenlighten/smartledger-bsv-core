@@ -4,27 +4,37 @@
   "description": "Bitcoin SV primitives: keys, addresses, script, transactions, encoding, SPV, ECIES, mnemonics, 1Sat Ordinals and OP_PUSH_TX covenants.",
   "author": "SmartLedger Technology <hello@smartledger.technology> (https://smartledger.technology)",
   "license": "MIT",
-  "main": "index.js",
+  "main": "dist/index.js",
   "exports": {
-    ".": "./index.js",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
     "./package.json": "./package.json",
-    "./lib/*": "./lib/*.js"
+    "./lib/*": "./dist/*.js"
   },
   "engines": {
     "node": ">=20.19.0"
   },
   "scripts": {
+    "build": "tsc && npm run build:types",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run build",
     "test": "mocha",
     "lint": "standard",
+    "preconformance": "npm run build",
     "conformance": "node conformance/verify.js",
-    "conformance:generate": "node conformance/generate.js",
-    "check": "npm run lint && npm test && npm run conformance"
+    "conformance:generate": "npm run build && node conformance/generate.js",
+    "check": "npm run lint && npm test && npm run conformance",
+    "build:types": "tsc -p tsconfig.types.json || true"
   },
   "files": [
-    "index.js",
-    "lib/",
+    "dist/",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "CARVE.md"
   ],
   "keywords": [
     "bitcoin",
@@ -62,10 +72,12 @@
     "unorm": "1.6.0"
   },
   "devDependencies": {
+    "@types/node": "^22.20.1",
     "chai": "6.2.2",
     "mocha": "^11.8.0",
     "sinon": "22.1.0",
-    "standard": "^17.1.2"
+    "standard": "^17.1.2",
+    "typescript": "^5.9.3"
   },
   "standard": {
     "globals": [
@@ -76,5 +88,6 @@
       "describe",
       "it"
     ]
-  }
+  },
+  "types": "dist/index.d.ts"
 }

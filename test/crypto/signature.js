@@ -1,6 +1,6 @@
 'use strict'
 
-const _ = require('../../lib/util/_')
+const _ = require('../../dist/util/_')
 const should = require('chai').should()
 const expect = require('chai').expect
 const bsv = require('../..')

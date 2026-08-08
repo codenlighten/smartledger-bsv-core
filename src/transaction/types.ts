@@ -108,3 +108,46 @@ export interface OutputConstructor {
   fromObject: (data: Record<string, unknown>) => Output
   fromBufferReader: (br: unknown) => Output
 }
+
+/**
+ * A transaction input.
+ *
+ * `script` is an accessor: it parses `_scriptBuffer` lazily, and returns null
+ * for a null (coinbase) input rather than an empty Script.
+ */
+export interface Input {
+  prevTxId: Buffer
+  outputIndex: number
+  sequenceNumber: number
+  _script?: import('../script/script.types').Script | null
+  _scriptBuffer?: Buffer
+  output?: Output | undefined
+
+  readonly script: import('../script/script.types').Script | null
+
+  _fromObject: (params: Record<string, unknown>) => Input
+  toObject: () => Record<string, unknown>
+  toJSON: () => Record<string, unknown>
+  toBufferWriter: (writer?: unknown) => unknown
+  setScript: (script: unknown) => Input
+  getSignatures: (...args: unknown[]) => unknown[]
+  isFullySigned: () => boolean
+  isFinal: () => boolean
+  addSignature: (...args: unknown[]) => Input
+  clearSignatures: () => Input
+  isValidSignature: (transaction: unknown, signature: unknown) => boolean
+  isNull: () => boolean
+  _estimateSize: () => number
+}
+
+export interface InputConstructor {
+  new (params?: Record<string, unknown>): Input
+  (params?: Record<string, unknown>): Input
+  MAXINT: number
+  DEFAULT_SEQNUMBER: number
+  DEFAULT_LOCKTIME_SEQNUMBER: number
+  DEFAULT_RBF_SEQNUMBER: number
+  BASE_SIZE: number
+  fromObject: (obj: Record<string, unknown>) => Input
+  fromBufferReader: (br: unknown) => Input
+}

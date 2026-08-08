@@ -11,6 +11,7 @@
 export interface Script {
   /** Set by transaction/output when a script is parsed as a locking script. */
   _isOutput?: boolean
+  _isInput?: boolean
   chunks: Array<{ opcodenum: number, buf?: Buffer, len?: number }>
 
   toBuffer: () => Buffer

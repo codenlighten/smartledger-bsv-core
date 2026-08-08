@@ -15,14 +15,16 @@
  * lib/block/{block,merkleblock}.js. A node of '*' (or '' / null) means "duplicate the
  * working hash" — Bitcoin's odd-node rule, per the TSC Merkle Proof standard.
  */
-const BlockHeader = require('../block/blockheader')
-const Hash = require('../crypto/hash')
+import BlockHeader = require('../block/blockheader')
+import Hash = require('../crypto/hash')
+import type { MerkleProof, TxInclusionParams, TxInclusionResult } from './types'
+import type { BlockHeader as BlockHeaderType } from '../block/types'
 
 const HEX32 = /^[0-9a-fA-F]{64}$/
 
-function rev (buf) { return Buffer.from(buf).reverse() }
-function toInternal (hex) { return rev(Buffer.from(hex, 'hex')) } // display -> internal LE
-function toDisplay (buf) { return rev(buf).toString('hex') } // internal LE -> display
+function rev (buf: Buffer): Buffer { return Buffer.from(buf).reverse() }
+function toInternal (hex: string): Buffer { return rev(Buffer.from(hex, 'hex')) } // display -> internal LE
+function toDisplay (buf: Buffer): string { return rev(buf).toString('hex') } // internal LE -> display
 
 /**
  * Recompute the Merkle root from a branch proof.
@@ -31,15 +33,15 @@ function toDisplay (buf) { return rev(buf).toString('hex') } // internal LE -> d
  * @param {Array<string>} nodes sibling hashes, leaf->root (display hex; '*' = duplicate)
  * @returns {string} the computed merkle root (display-order hex)
  */
-function merkleRootFromBranch (txid, index, nodes) {
+function merkleRootFromBranch (txid: string, index: number, nodes?: string[]): string {
   if (!HEX32.test(String(txid))) throw new Error('txid must be 32-byte hex')
   if (!Number.isInteger(index) || index < 0) throw new Error('index must be a non-negative integer')
-  nodes = nodes || []
+  const ns = nodes ?? []
   let cur = toInternal(txid)
   let idx = index
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i]
-    var sib
+  for (let i = 0; i < ns.length; i++) {
+    const node = ns[i]
+    let sib: Buffer
     if (node === '*' || node === '' || node == null) {
       sib = cur // odd-node: the working hash is duplicated
     } else {
@@ -60,8 +62,8 @@ function merkleRootFromBranch (txid, index, nodes) {
  * @param {object} proof { txid, index, nodes, merkleRoot } (all display-order hex)
  * @returns {boolean}
  */
-function verifyMerkleProof (proof) {
-  if (!proof || !proof.merkleRoot) throw new Error('proof.merkleRoot is required')
+function verifyMerkleProof (proof: MerkleProof): boolean {
+  if (proof?.merkleRoot == null) throw new Error('proof.merkleRoot is required')
   const computed = merkleRootFromBranch(proof.txid, proof.index, proof.nodes)
   return computed.toLowerCase() === String(proof.merkleRoot).toLowerCase()
 }
@@ -78,31 +80,34 @@ function verifyMerkleProof (proof) {
  *   header: a bsv.BlockHeader, an 80-byte Buffer, or 80-byte hex.
  * @returns {{ valid:boolean, rootMatches:boolean, powValid:boolean, merkleRoot:string, blockHash:string }}
  */
-function verifyTxInclusion (params) {
-  let header = params.header
+function verifyTxInclusion (params: TxInclusionParams): TxInclusionResult {
+  let header: BlockHeaderType | Buffer | string = params.header
   if (Buffer.isBuffer(header) || typeof header === 'string') {
     header = BlockHeader.fromBuffer(Buffer.isBuffer(header) ? header : Buffer.from(header, 'hex'))
   }
-  if (!header || !header.merkleRoot) throw new Error('a valid block header is required')
+  const hdr = header as BlockHeaderType
+  if (hdr?.merkleRoot == null) throw new Error('a valid block header is required')
 
-  const headerRoot = toDisplay(header.merkleRoot) // header stores the root internal-LE
+  const headerRoot = toDisplay(hdr.merkleRoot) // header stores the root internal-LE
   const computed = merkleRootFromBranch(params.txid, params.index, params.nodes)
   const rootMatches = computed.toLowerCase() === headerRoot.toLowerCase()
 
   const requirePow = params.requirePow !== false
-  const powValid = header.validProofOfWork()
+  const powValid = hdr.validProofOfWork()
 
   return {
     valid: rootMatches && (!requirePow || powValid),
     rootMatches,
     powValid,
     merkleRoot: computed,
-    blockHash: header.id
+    blockHash: hdr.id
   }
 }
 
-module.exports = {
+const merkleproof = {
   merkleRootFromBranch,
   verifyMerkleProof,
   verifyTxInclusion
 }
+
+export = merkleproof

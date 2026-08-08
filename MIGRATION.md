@@ -91,11 +91,24 @@ library.
 Since these 19 are mutually recursive, converting any one of them breaks
 declaration emit for all of them.
 
-**Consequence to plan around:** during this conversion the type gate goes dark
-— `npm run build` still succeeds (the main config has `allowJs`), and the test
-suite and conformance corpus still run, but NO declarations are emitted until
-the last of the 19 lands. Tests + corpus are the only gate in that window, so
-convert in small commits and lean on them hard.
+**Consequence to plan around:** only DECLARATION EMIT waits for the last of the
+19. Type checking does not — `tsc --noEmit` uses the main config, which has
+`allowJs`, so every `.ts` file is fully checked while importing unconverted
+`.js` siblings. The conversion is therefore gated throughout by
+
+    npm run typecheck && npm test && npm run conformance \
+      && node scripts/check-cycle-safety.js
+
+which is a far better position than "tests only".
+
+**What makes the cycle tractable:** `import type` is erased. Type-level
+references across the cycle cost nothing at runtime and cannot create a
+temporal-dead-zone hazard, so only genuine RUNTIME edges need care. The
+pattern is:
+
+- cross-cycle TYPES -> `import type` from a `.types` module
+- cross-cycle RUNTIME -> a lazy accessor called at use time, e.g.
+  `const publicKeyCtor = () => require('../publickey')`
 
 The alternative — ambient `any` declarations to bridge the unconverted files —
 is rejected: it reintroduces exactly the `any`-riddled surface this migration

@@ -38,3 +38,73 @@ export interface TransactionSignatureConstructor {
   (arg: TransactionSignatureObj | TransactionSignature): TransactionSignature
   fromObject: (object: TransactionSignatureObj) => TransactionSignature
 }
+
+/** A spendable output, as accepted by Transaction#from(). */
+export interface UnspentOutput {
+  readonly address?: unknown
+  readonly txId: string
+  readonly outputIndex: number
+  readonly script: import('../script/script.types').Script
+  readonly satoshis: number
+
+  inspect: () => string
+  toString: () => string
+  toObject: () => Record<string, unknown>
+  toJSON: () => Record<string, unknown>
+}
+
+/** The loose object form UnspentOutput accepts; field names vary by source. */
+export interface UnspentOutputData {
+  address?: unknown
+  txid?: string
+  txId?: string
+  vout?: number
+  outputIndex?: number
+  scriptPubKey?: unknown
+  script?: unknown
+  amount?: number
+  satoshis?: number
+}
+
+export interface UnspentOutputConstructor {
+  new (data: UnspentOutputData): UnspentOutput
+  (data: UnspentOutputData): UnspentOutput
+  fromObject: (data: UnspentOutputData) => UnspentOutput
+}
+
+/**
+ * A transaction output.
+ *
+ * `script`, `satoshis` and `satoshisBN` are accessors, not data properties:
+ * the script is parsed lazily from `_scriptBuffer` on first read, and setting
+ * `satoshis` keeps `_satoshisBN` in sync (and vice versa). The private
+ * backing fields are part of the declared shape because the accessors and
+ * several methods read them directly.
+ */
+export interface Output {
+  // null (not undefined) when the buffer failed to parse — see setScriptFromBuffer.
+  _script?: import('../script/script.types').Script | null
+  _scriptBuffer?: Buffer
+  _satoshis?: number
+  _satoshisBN?: import('bn.js')
+
+  readonly script: import('../script/script.types').Script
+  satoshis: number | string | import('bn.js')
+  satoshisBN: import('bn.js')
+
+  invalidSatoshis: () => string | false
+  toObject: () => Record<string, unknown>
+  toJSON: () => Record<string, unknown>
+  setScriptFromBuffer: (buffer: Buffer) => void
+  setScript: (script: unknown) => Output
+  inspect: () => string
+  toBufferWriter: (writer?: unknown) => unknown
+  getSize: () => number
+}
+
+export interface OutputConstructor {
+  new (args: { satoshis?: unknown, script?: unknown }): Output
+  (args: { satoshis?: unknown, script?: unknown }): Output
+  fromObject: (data: Record<string, unknown>) => Output
+  fromBufferReader: (br: unknown) => Output
+}

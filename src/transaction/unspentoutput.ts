@@ -1,11 +1,15 @@
 'use strict'
 
-const _ = require('../util/_')
-const $ = require('../util/preconditions')
-const JSUtil = require('../util/js')
+import _ = require('../util/_')
+import $ = require('../util/preconditions')
+import JSUtil = require('../util/js')
+import type { ScriptConstructor } from '../script/script.types'
+import type { UnspentOutput, UnspentOutputData, UnspentOutputConstructor } from './types'
 
-const Script = require('../script')
-const Address = require('../address')
+// Runtime edges into the cycle: resolved lazily at call time so nothing is
+// dereferenced during module evaluation.
+const scriptCtor = (): ScriptConstructor => require('../script')
+const addressCtor = (): { fromString: (s: string) => unknown, fromObject: (o: unknown) => unknown } => require('../address')
 
 /**
  * Represents an unspent output information: its script, associated amount and address,
@@ -23,16 +27,19 @@ const Address = require('../address')
  * @param {number=} data.satoshis alias for `amount`, but expressed in satoshis (1 BSV = 1e8 satoshis)
  * @param {string|Address=} data.address the associated address to the script, if provided
  */
-function UnspentOutput (data) {
+const UnspentOutput = function UnspentOutput (this: UnspentOutput, data: UnspentOutputData) {
   if (!(this instanceof UnspentOutput)) {
-    return new UnspentOutput(data)
+    return new (UnspentOutput as UnspentOutputConstructor)(data)
   }
   $.checkArgument(_.isObject(data), 'Must provide an object from where to extract data')
-  const address = data.address ? new Address(data.address) : undefined
+  const address = data.address != null ? new (addressCtor() as unknown as new (a: unknown) => unknown)(data.address) : undefined
   const txId = data.txid ? data.txid : data.txId
   if (!txId || !JSUtil.isHexaString(txId) || txId.length > 64) {
     // TODO: Use the errors library
-    throw new Error('Invalid TXID in object', data)
+    // NOTE: Error's second argument is `options`, not extra data — this has
+            // never attached `data` to the error. Preserved as-is; changing it
+            // would alter what callers see.
+    throw new Error('Invalid TXID in object')
   }
   const outputIndex = _.isUndefined(data.vout) ? data.outputIndex : data.vout
   if (!_.isNumber(outputIndex)) {
@@ -40,10 +47,10 @@ function UnspentOutput (data) {
   }
   $.checkArgument(!_.isUndefined(data.scriptPubKey) || !_.isUndefined(data.script),
     'Must provide the scriptPubKey for that output!')
-  const script = new Script(data.scriptPubKey || data.script)
+  const script = new (scriptCtor())(data.scriptPubKey ?? data.script)
   $.checkArgument(!_.isUndefined(data.amount) || !_.isUndefined(data.satoshis),
     'Must provide an amount for the output')
-  const amount = !_.isUndefined(data.amount) ? Math.round(data.amount * 1e8) : data.satoshis
+  const amount = !_.isUndefined(data.amount) ? Math.round((data.amount as number) * 1e8) : data.satoshis
   $.checkArgument(_.isNumber(amount), 'Amount must be a number')
   JSUtil.defineImmutable(this, {
     address,
@@ -52,13 +59,13 @@ function UnspentOutput (data) {
     script,
     satoshis: amount
   })
-}
+} as unknown as UnspentOutputConstructor
 
 /**
  * Provide an informative output when displaying this object in the console
  * @returns string
  */
-UnspentOutput.prototype.inspect = function () {
+UnspentOutput.prototype.inspect = function (this: UnspentOutput): string {
   return '<UnspentOutput: ' + this.txId + ':' + this.outputIndex +
          ', satoshis: ' + this.satoshis + ', address: ' + this.address + '>'
 }
@@ -67,7 +74,7 @@ UnspentOutput.prototype.inspect = function () {
  * String representation: just "txid:index"
  * @returns string
  */
-UnspentOutput.prototype.toString = function () {
+UnspentOutput.prototype.toString = function (this: UnspentOutput): string {
   return this.txId + ':' + this.outputIndex
 }
 
@@ -76,15 +83,15 @@ UnspentOutput.prototype.toString = function () {
  * @param {object|string} data
  * @return UnspentOutput
  */
-UnspentOutput.fromObject = function (data) {
-  return new UnspentOutput(data)
+UnspentOutput.fromObject = function (data: UnspentOutputData): UnspentOutput {
+  return new (UnspentOutput as UnspentOutputConstructor)(data)
 }
 
 /**
  * Returns a plain object (no prototype or methods) with the associated info for this output
  * @return {object}
  */
-UnspentOutput.prototype.toObject = UnspentOutput.prototype.toJSON = function toObject () {
+UnspentOutput.prototype.toObject = UnspentOutput.prototype.toJSON = function toObject (this: UnspentOutput): Record<string, unknown> {
   return {
     address: this.address ? this.address.toString() : undefined,
     txid: this.txId,
@@ -94,4 +101,4 @@ UnspentOutput.prototype.toObject = UnspentOutput.prototype.toJSON = function toO
   }
 }
 
-module.exports = UnspentOutput
+export = UnspentOutput

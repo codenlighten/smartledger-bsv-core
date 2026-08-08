@@ -69,7 +69,6 @@ async function main () {
   }
 
   let totalCases = 0
-  let totalThrows = 0
   const summary = []
 
   for (const suite of suites) {
@@ -77,7 +76,6 @@ async function main () {
     const names = Object.keys(results)
     const throws = names.filter((n) => results[n].outcome === 'throws').length
     totalCases += names.length
-    totalThrows += throws
 
     writeFixture(suite.name, {
       suite: suite.name,

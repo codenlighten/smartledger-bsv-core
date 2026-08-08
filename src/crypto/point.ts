@@ -1,7 +1,8 @@
 'use strict'
 
-const BN = require('./bn')
-const { secp256k1 } = require('@noble/curves/secp256k1.js')
+import BN = require('./bn')
+import { secp256k1 } from '@noble/curves/secp256k1.js'
+import type { Point, PointConstructor, CoordLike, NoblePoint } from './point.types'
 
 // secp256k1 point + curve order from the audited @noble/curves implementation.
 // This module preserves the (elliptic-derived) Point API the rest of the
@@ -11,18 +12,18 @@ const { secp256k1 } = require('@noble/curves/secp256k1.js')
 const NoblePoint = secp256k1.Point
 const N_BIG = NoblePoint.Fn.ORDER
 
-function bnToBig (bn) {
+function bnToBig (bn: BN): bigint {
   // Coordinates and scalars in this codebase are always non-negative.
   return BigInt('0x' + (bn.toString(16) || '0'))
 }
 
-function bigToBN (big) {
+function bigToBN (big: bigint): BN {
   let h = big.toString(16)
-  if (h.length % 2) h = '0' + h
+  if (h.length % 2 !== 0) h = '0' + h
   return new BN(h, 16)
 }
 
-function toBig (v) {
+function toBig (v: CoordLike): bigint {
   if (v == null) throw new Error('Invalid Point')
   if (typeof v === 'bigint') return v
   if (typeof v === 'number') return BigInt(v)
@@ -33,8 +34,8 @@ function toBig (v) {
 
 // Wrap a raw @noble point as a Point instance without re-validating (used by
 // internal results of mul/add/getG/fromX which are already valid).
-function wrap (noblePoint) {
-  const p = Object.create(Point.prototype)
+function wrap (noblePoint: NoblePoint): Point {
+  const p = Object.create(Point.prototype) as Point
   p._p = noblePoint
   return p
 }
@@ -42,7 +43,7 @@ function wrap (noblePoint) {
 // Derive the on-curve @noble point at the given X with the requested Y parity.
 // Throws if X is not a valid curve x-coordinate. Low-level (no Point.validate),
 // so it is safe to call from validate() without recursion.
-function nobleFromX (odd, x) {
+function nobleFromX (odd: boolean, x: CoordLike): NoblePoint {
   // Build the compressed encoding via hex string padding (not BN.toBuffer) so we
   // don't perturb BN.toBuffer call counts the rest of the codebase may rely on.
   const xhex = toBig(x).toString(16).padStart(64, '0')
@@ -53,7 +54,7 @@ function nobleFromX (odd, x) {
 // the same error messages the previous (elliptic) implementation did. Operates
 // on raw coordinates so it works even for inputs @noble's fromAffine rejects
 // outright (e.g. y = 0).
-function checkOnCurve (xb, yb) {
+function checkOnCurve (xb: bigint, yb: bigint): void {
   let p2
   try {
     p2 = nobleFromX((yb & 1n) === 1n, xb)
@@ -72,11 +73,12 @@ function checkOnCurve (xb, yb) {
  * @returns {Point}
  * @constructor
  */
-function Point (x, y, isRed) {
+const Point = function Point (this: Point, x: CoordLike, y: CoordLike, isRed?: boolean) {
   if (!(this instanceof Point)) {
-    return new Point(x, y, isRed)
+    return new (Point as PointConstructor)(x, y, isRed)
   }
-  let xb, yb
+  let xb: bigint
+  let yb: bigint
   try {
     xb = toBig(x)
     yb = toBig(y)
@@ -92,7 +94,7 @@ function Point (x, y, isRed) {
     throw new Error('Invalid Point')
   }
   return this
-}
+} as unknown as PointConstructor
 
 /**
  * Instantiate a valid secp256k1 Point from only the X coordinate.
@@ -100,9 +102,13 @@ function Point (x, y, isRed) {
  * @param {BN|String} x - The X coordinate
  * @returns {Point}
  */
-Point.fromX = function fromX (odd, x) {
+Point.fromX = function fromX (odd: boolean, x: CoordLike): Point {
+  // Declared outside the try: the original used `var`, which is
+  // function-scoped, so `point` was visible below. `const` inside the block
+  // would not be.
+  let point: Point
   try {
-    var point = wrap(nobleFromX(odd, x))
+    point = wrap(nobleFromX(odd, x))
   } catch (e) {
     throw new Error('Invalid X')
   }
@@ -113,28 +119,28 @@ Point.fromX = function fromX (odd, x) {
 /**
  * @returns {Point} the secp256k1 base (generator) point.
  */
-Point.getG = function getG () {
+Point.getG = function getG (): Point {
   return wrap(NoblePoint.BASE)
 }
 
 /**
  * @returns {BN} the curve order n.
  */
-Point.getN = function getN () {
+Point.getN = function getN (): BN {
   return bigToBN(N_BIG)
 }
 
 /**
  * @returns {BN} the X coordinate of the Point.
  */
-Point.prototype.getX = function getX () {
+Point.prototype.getX = function getX (this: Point): BN {
   return bigToBN(this._p.toAffine().x)
 }
 
 /**
  * @returns {BN} the Y coordinate of the Point.
  */
-Point.prototype.getY = function getY () {
+Point.prototype.getY = function getY (this: Point): BN {
   return bigToBN(this._p.toAffine().y)
 }
 
@@ -159,7 +165,7 @@ Object.defineProperty(Point.prototype, 'y', {
  * @param {BN} k
  * @returns {Point}
  */
-Point.prototype.mul = function mul (k) {
+Point.prototype.mul = function mul (this: Point, k: BN | bigint | number): Point {
   const s = ((toBig(k) % N_BIG) + N_BIG) % N_BIG
   if (s === 0n || this._p.is0()) {
     return wrap(NoblePoint.ZERO)
@@ -171,14 +177,14 @@ Point.prototype.mul = function mul (k) {
  * @param {Point} p
  * @returns {Point} this + p
  */
-Point.prototype.add = function add (p) {
+Point.prototype.add = function add (this: Point, p: Point): Point {
   return wrap(this._p.add(p._p))
 }
 
 /**
  * @returns {Point} k1*this + k2*p2 (used by ECDSA verification).
  */
-Point.prototype.mulAdd = function mulAdd (k1, p2, k2) {
+Point.prototype.mulAdd = function mulAdd (this: Point, k1: BN | bigint | number, p2: Point, k2: BN | bigint | number): Point {
   return this.mul(k1).add(p2.mul(k2))
 }
 
@@ -186,14 +192,14 @@ Point.prototype.mulAdd = function mulAdd (k1, p2, k2) {
  * @param {Point} p
  * @returns {boolean}
  */
-Point.prototype.eq = function eq (p) {
+Point.prototype.eq = function eq (this: Point, p: Point): boolean {
   return this._p.equals(p._p)
 }
 
 /**
  * @returns {boolean}
  */
-Point.prototype.isInfinity = function isInfinity () {
+Point.prototype.isInfinity = function isInfinity (this: Point): boolean {
   return this._p.is0()
 }
 
@@ -201,7 +207,7 @@ Point.prototype.isInfinity = function isInfinity () {
  * Will determine if the point is valid.
  * @returns {Point} this
  */
-Point.prototype.validate = function validate () {
+Point.prototype.validate = function validate (this: Point): Point {
   if (this.isInfinity()) {
     throw new Error('Point cannot be equal to Infinity')
   }
@@ -217,13 +223,15 @@ Point.prototype.validate = function validate () {
  * @param {Point} point
  * @returns {Buffer}
  */
-Point.pointToCompressed = function pointToCompressed (point) {
+Point.pointToCompressed = function pointToCompressed (point: Point): Buffer {
   const xbuf = point.getX().toBuffer({ size: 32 })
   const ybuf = point.getY().toBuffer({ size: 32 })
 
-  let prefix
-  const odd = ybuf[ybuf.length - 1] % 2
-  if (odd) {
+  let prefix: Buffer
+  // ybuf is a fixed 32-byte buffer from toBuffer({ size: 32 }), so the last
+  // byte is always present.
+  const odd = (ybuf[ybuf.length - 1] as number) % 2
+  if (odd !== 0) {
     prefix = Buffer.from([0x03])
   } else {
     prefix = Buffer.from([0x02])
@@ -235,7 +243,7 @@ Point.pointToCompressed = function pointToCompressed (point) {
  * @param {Buffer} buf A compressed point.
  * @returns {Point}
  */
-Point.pointFromCompressed = function (buf) {
+Point.pointFromCompressed = function (buf: Buffer): Point {
   if (buf.length !== 33) {
     throw new Error('invalid buffer length')
   }
@@ -256,23 +264,23 @@ Point.pointFromCompressed = function (buf) {
 /**
  * @returns {Buffer} this point as a compressed buffer.
  */
-Point.prototype.toBuffer = function () {
+Point.prototype.toBuffer = function (this: Point): Buffer {
   return Point.pointToCompressed(this)
 }
 
 /**
  * @returns {string} this point as a compressed hex string.
  */
-Point.prototype.toHex = function () {
+Point.prototype.toHex = function (this: Point): string {
   return this.toBuffer().toString('hex')
 }
 
-Point.fromBuffer = function (buf) {
+Point.fromBuffer = function (buf: Buffer): Point {
   return Point.pointFromCompressed(buf)
 }
 
-Point.fromHex = function (hex) {
+Point.fromHex = function (hex: string): Point {
   return Point.fromBuffer(Buffer.from(hex, 'hex'))
 }
 
-module.exports = Point
+export = Point

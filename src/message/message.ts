@@ -1,16 +1,17 @@
 'use strict'
 
-const Hash = require('../crypto/hash')
-const _ = require('../util/_')
-const PrivateKey = require('../privatekey')
-const PublicKey = require('../publickey')
-const Address = require('../address')
-const BufferWriter = require('../encoding/bufferwriter')
-const ECDSA = require('../crypto/ecdsa')
-const Signature = require('../crypto/signature')
+import Hash = require('../crypto/hash')
+import _ = require('../util/_')
+import PrivateKey = require('../privatekey')
+import PublicKey = require('../publickey')
+import Address = require('../address')
+import BufferWriter = require('../encoding/bufferwriter')
+import ECDSA = require('../crypto/ecdsa')
+import Signature = require('../crypto/signature')
 const sha256sha256 = Hash.sha256sha256
-const JSUtil = require('../util/js')
-const $ = require('../util/preconditions')
+import JSUtil = require('../util/js')
+import $ = require('../util/preconditions')
+import type { Message, MessageConstructor } from './types'
 
 /**
  * constructs a new message to sign and verify.
@@ -18,9 +19,9 @@ const $ = require('../util/preconditions')
  * @param {String} message
  * @returns {Message}
  */
-const Message = function Message (message) {
+const Message = function Message (this: Message, message?: any): any {
   if (!(this instanceof Message)) {
-    return new Message(message)
+    return new (Message as unknown as MessageConstructor)(message)
   }
 
   $.checkArgument(_.isString(message) || Buffer.isBuffer(message), 'First argument should be a string or Buffer')
@@ -33,19 +34,19 @@ const Message = function Message (message) {
     this.messageBuffer = message
   }
   return this
-}
+} as unknown as MessageConstructor
 
-Message.sign = function (message, privateKey) {
+Message.sign = function (message: any, privateKey: any) {
   return new Message(message).sign(privateKey)
 }
 
-Message.verify = function (message, address, signature) {
+Message.verify = function (message: any, address: any, signature: any) {
   return new Message(message).verify(address, signature)
 }
 
 Message.MAGIC_BYTES = Buffer.from('Bitcoin Signed Message:\n')
 
-Message.prototype.magicHash = function magicHash () {
+Message.prototype.magicHash = function magicHash (this: Message) {
   const prefix1 = BufferWriter.varintBufNum(Message.MAGIC_BYTES.length)
   const prefix2 = BufferWriter.varintBufNum(this.messageBuffer.length)
   const buf = Buffer.concat([prefix1, Message.MAGIC_BYTES, prefix2, this.messageBuffer])
@@ -53,7 +54,7 @@ Message.prototype.magicHash = function magicHash () {
   return hash
 }
 
-Message.prototype._sign = function _sign (privateKey) {
+Message.prototype._sign = function _sign (this: Message, privateKey: any) {
   $.checkArgument(privateKey instanceof PrivateKey,
     'First argument should be an instance of PrivateKey')
   const hash = this.magicHash()
@@ -66,12 +67,12 @@ Message.prototype._sign = function _sign (privateKey) {
  * @param {PrivateKey} privateKey - An instance of PrivateKey
  * @returns {String} A base64 encoded compact signature
  */
-Message.prototype.sign = function sign (privateKey) {
+Message.prototype.sign = function sign (this: Message, privateKey: any) {
   const signature = this._sign(privateKey)
   return signature.toCompact().toString('base64')
 }
 
-Message.prototype._verify = function _verify (publicKey, signature) {
+Message.prototype._verify = function _verify (this: Message, publicKey: any, signature: any) {
   $.checkArgument(publicKey instanceof PublicKey, 'First argument should be an instance of PublicKey')
   $.checkArgument(signature instanceof Signature, 'Second argument should be an instance of Signature')
   const hash = this.magicHash()
@@ -90,7 +91,7 @@ Message.prototype._verify = function _verify (publicKey, signature) {
  * @param {String} signatureString - A base64 encoded compact signature
  * @returns {Boolean}
  */
-Message.prototype.verify = function verify (bitcoinAddress, signatureString) {
+Message.prototype.verify = function verify (this: Message, bitcoinAddress: any, signatureString: any) {
   $.checkArgument(bitcoinAddress)
   $.checkArgument(signatureString && _.isString(signatureString))
 
@@ -122,7 +123,7 @@ Message.prototype.verify = function verify (bitcoinAddress, signatureString) {
  * @param {String} str - A string of the message
  * @returns {Message} A new instance of a Message
  */
-Message.fromString = function (str) {
+Message.fromString = function (str: any) {
   return new Message(str)
 }
 
@@ -132,7 +133,7 @@ Message.fromString = function (str) {
  * @param {String} json - An JSON string or Object with keys: message
  * @returns {Message} A new instance of a Message
  */
-Message.fromJSON = function fromJSON (json) {
+Message.fromJSON = function fromJSON (json: any) {
   if (JSUtil.isValidJSON(json)) {
     json = JSON.parse(json)
   }
@@ -142,13 +143,13 @@ Message.fromJSON = function fromJSON (json) {
 /**
  * @returns {Object} A plain object with the message information
  */
-Message.prototype.toObject = function toObject () {
+Message.prototype.toObject = function toObject (this: Message) {
   return {
     messageHex: this.messageBuffer.toString('hex')
   }
 }
 
-Message.fromObject = function (obj) {
+Message.fromObject = function (obj: any) {
   const messageBuffer = Buffer.from(obj.messageHex, 'hex')
   return new Message(messageBuffer)
 }
@@ -156,7 +157,7 @@ Message.fromObject = function (obj) {
 /**
  * @returns {String} A JSON representation of the message information
  */
-Message.prototype.toJSON = function toJSON () {
+Message.prototype.toJSON = function toJSON (this: Message) {
   return JSON.stringify(this.toObject())
 }
 
@@ -165,7 +166,7 @@ Message.prototype.toJSON = function toJSON () {
  *
  * @returns {String} Message
  */
-Message.prototype.toString = function () {
+Message.prototype.toString = function (this: Message) {
   return this.messageBuffer.toString()
 }
 
@@ -174,8 +175,8 @@ Message.prototype.toString = function () {
  *
  * @returns {String} Message
  */
-Message.prototype.inspect = function () {
+Message.prototype.inspect = function (this: Message) {
   return '<Message: ' + this.toString() + '>'
 }
 
-module.exports = Message
+export = Message

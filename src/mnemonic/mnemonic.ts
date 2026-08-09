@@ -1,20 +1,35 @@
 'use strict'
 
-const HDPrivateKey = require('../hdprivatekey')
-const BN = require('../crypto/bn')
-const unorm = require('unorm')
-const _ = require('../util/_')
+import HDPrivateKey = require('../hdprivatekey')
+import BN = require('../crypto/bn')
+import unorm = require('unorm')
+import _ = require('../util/_')
 
-const pbkdf2 = require('./pbkdf2')
-const errors = require('./errors')
+import pbkdf2 = require('./pbkdf2')
+import errors = require('./errors')
 // Named bsvErrors, not errors: `errors` above is this module's OWN error set.
 // The library-wide errors module is a different object and must not shadow it.
-const bsvErrors = require('../errors')
+import bsvErrors = require('../errors')
 
-const Hash = require('../crypto/hash')
-const Random = require('../crypto/random')
+import Hash = require('../crypto/hash')
+import Random = require('../crypto/random')
 
-const $ = require('../util/preconditions')
+import $ = require('../util/preconditions')
+import type { Mnemonic, MnemonicConstructor, Wordlist } from './types'
+
+// TWO error trees, deliberately kept apart. `./errors` holds the BIP39-specific
+// ones (UnknownWordlist, InvalidMnemonic, InvalidEntropy); `../errors` holds the
+// library-wide ones (InvalidArgument). Both are built dynamically, so members
+// arrive via an index signature and need a cast.
+//
+// Routing all of them through one tree is a real bug, not a tidiness question:
+// the wrong tree yields undefined, and `new undefined(...)` throws a TypeError
+// from the line that was supposed to throw a meaningful error. Two helpers.
+type ErrCtor = new (...args: unknown[]) => Error
+const err = (path: string): ErrCtor =>
+  path.split('.').reduce<any>((o, k) => o[k], errors) as ErrCtor
+const bsvErr = (path: string): ErrCtor =>
+  path.split('.').reduce<any>((o, k) => o[k], bsvErrors) as ErrCtor
 
 /**
  * This is an immutable class that represents a BIP39 Mnemonic code.
@@ -37,9 +52,9 @@ const $ = require('../util/preconditions')
  * @returns {Mnemonic} A new instance of Mnemonic
  * @constructor
  */
-const Mnemonic = function (data, wordlist) {
+const Mnemonic = function Mnemonic (this: Mnemonic, data?: any, wordlist?: any): any {
   if (!(this instanceof Mnemonic)) {
-    return new Mnemonic(data, wordlist)
+    return new (Mnemonic as unknown as MnemonicConstructor)(data, wordlist)
   }
 
   if (_.isArray(data)) {
@@ -56,30 +71,30 @@ const Mnemonic = function (data, wordlist) {
   } else if (_.isNumber(data)) {
     ent = data
   } else if (data) {
-    throw new bsvErrors.InvalidArgument('data', 'Must be a Buffer, a string or an integer')
+    throw new (bsvErr('InvalidArgument'))('data', 'Must be a Buffer, a string or an integer')
   }
   ent = ent || 128
 
   // check and detect wordlist
-  wordlist = wordlist || Mnemonic._getDictionary(phrase)
+  wordlist = wordlist || (Mnemonic as unknown as MnemonicConstructor)._getDictionary(phrase)
   if (phrase && !wordlist) {
-    throw new errors.UnknownWordlist(phrase)
+    throw new (err('UnknownWordlist'))(phrase)
   }
-  wordlist = wordlist || Mnemonic.Words.ENGLISH
+  wordlist = wordlist || (Mnemonic as unknown as MnemonicConstructor).Words.ENGLISH
 
   if (seed) {
-    phrase = Mnemonic._entropy2mnemonic(seed, wordlist)
+    phrase = (Mnemonic as unknown as MnemonicConstructor)._entropy2mnemonic(seed, wordlist)
   }
 
   // validate phrase and ent
-  if (phrase && !Mnemonic.isValid(phrase, wordlist)) {
-    throw new errors.InvalidMnemonic(phrase)
+  if (phrase && !(Mnemonic as unknown as MnemonicConstructor).isValid(phrase, wordlist)) {
+    throw new (err('InvalidMnemonic'))(phrase)
   }
   if (ent % 32 !== 0 || ent < 128) {
-    throw new bsvErrors.InvalidArgument('ENT', 'Values must be ENT > 128 and ENT % 32 == 0')
+    throw new (bsvErr('InvalidArgument'))('ENT', 'Values must be ENT > 128 and ENT % 32 == 0')
   }
 
-  phrase = phrase || Mnemonic._mnemonic(ent, wordlist)
+  phrase = phrase || (Mnemonic as unknown as MnemonicConstructor)._mnemonic(ent, wordlist)
 
   Object.defineProperty(this, 'wordlist', {
     configurable: false,
@@ -90,7 +105,7 @@ const Mnemonic = function (data, wordlist) {
     configurable: false,
     value: phrase
   })
-}
+} as unknown as MnemonicConstructor
 
 /**
  * Generate a random Mnemonic with the given wordlist and entropy.
@@ -113,7 +128,7 @@ const Mnemonic = function (data, wordlist) {
  * @param {number|Array<string>} [ent] - entropy bits, or wordlist
  * @returns {Mnemonic}
  */
-Mnemonic.fromRandom = function (wordlist, ent) {
+Mnemonic.fromRandom = function (wordlist: any, ent: any) {
   // A number in the first position is the entropy; normalise so `ent` holds it
   // and `wordlist` holds the array (either argument order is accepted).
   if (_.isNumber(wordlist)) {
@@ -126,7 +141,7 @@ Mnemonic.fromRandom = function (wordlist, ent) {
   return new Mnemonic(ent, wordlist)
 }
 
-Mnemonic.fromString = function (mnemonic, wordlist = Mnemonic.Words.ENGLISH) {
+Mnemonic.fromString = function (mnemonic: any, wordlist: any = Mnemonic.Words.ENGLISH) {
   return new Mnemonic(mnemonic, wordlist)
 }
 
@@ -144,7 +159,7 @@ Mnemonic.Words = require('./words')
  * @param {String} [wordlist] - The wordlist used
  * @returns {boolean}
  */
-Mnemonic.isValid = function (mnemonic, wordlist) {
+Mnemonic.isValid = function (mnemonic: any, wordlist: any) {
   mnemonic = unorm.nfkd(mnemonic)
   wordlist = wordlist || Mnemonic._getDictionary(mnemonic)
 
@@ -178,7 +193,7 @@ Mnemonic.isValid = function (mnemonic, wordlist) {
  * @param {String} wordlist - The wordlist
  * @returns {boolean}
  */
-Mnemonic._belongsToWordlist = function (mnemonic, wordlist) {
+Mnemonic._belongsToWordlist = function (mnemonic: any, wordlist: any) {
   const words = unorm.nfkd(mnemonic).split(' ')
   for (let i = 0; i < words.length; i++) {
     const ind = wordlist.indexOf(words[i])
@@ -193,13 +208,13 @@ Mnemonic._belongsToWordlist = function (mnemonic, wordlist) {
  * @param {String} mnemonic - The mnemonic string
  * @returns {Array} the wordlist or null
  */
-Mnemonic._getDictionary = function (mnemonic) {
+Mnemonic._getDictionary = function (mnemonic: any) {
   if (!mnemonic) return null
 
   const dicts = Object.keys(Mnemonic.Words)
   for (let i = 0; i < dicts.length; i++) {
-    const key = dicts[i]
-    if (Mnemonic._belongsToWordlist(mnemonic, Mnemonic.Words[key])) {
+    const key = dicts[i]!
+    if (Mnemonic._belongsToWordlist(mnemonic, Mnemonic.Words[key]!)) {
       return Mnemonic.Words[key]
     }
   }
@@ -215,7 +230,7 @@ Mnemonic._getDictionary = function (mnemonic) {
  * @param {String} [passphrase]
  * @returns {Buffer}
  */
-Mnemonic.prototype.toSeed = function (passphrase) {
+Mnemonic.prototype.toSeed = function (this: Mnemonic, passphrase: any) {
   passphrase = passphrase || ''
   return pbkdf2(unorm.nfkd(this.phrase), unorm.nfkd('mnemonic' + passphrase), 2048, 64)
 }
@@ -227,7 +242,7 @@ Mnemonic.prototype.toSeed = function (passphrase) {
  * @param {string} [wordlist]
  * @returns {Mnemonic}
  */
-Mnemonic.fromSeed = function (seed, wordlist) {
+Mnemonic.fromSeed = function (seed: any, wordlist: any) {
   $.checkArgument(Buffer.isBuffer(seed), 'seed must be a Buffer.')
   $.checkArgument(_.isArray(wordlist) || _.isString(wordlist), 'wordlist must be a string or an array.')
   return new Mnemonic(seed, wordlist)
@@ -242,7 +257,7 @@ Mnemonic.fromSeed = function (seed, wordlist) {
  * @param {Network|String|number=} [network] - The network: 'livenet' or 'testnet'
  * @returns {HDPrivateKey}
  */
-Mnemonic.prototype.toHDPrivateKey = function (passphrase, network) {
+Mnemonic.prototype.toHDPrivateKey = function (this: Mnemonic, passphrase: any, network: any) {
   const seed = this.toSeed(passphrase)
   return HDPrivateKey.fromSeed(seed, network)
 }
@@ -252,7 +267,7 @@ Mnemonic.prototype.toHDPrivateKey = function (passphrase, network) {
  *
  * @returns {String} Mnemonic
  */
-Mnemonic.prototype.toString = function () {
+Mnemonic.prototype.toString = function (this: Mnemonic) {
   return this.phrase
 }
 
@@ -261,7 +276,7 @@ Mnemonic.prototype.toString = function () {
  *
  * @returns {String} Mnemonic
  */
-Mnemonic.prototype.inspect = function () {
+Mnemonic.prototype.inspect = function (this: Mnemonic) {
   return '<Mnemonic: ' + this.toString() + ' >'
 }
 
@@ -272,7 +287,7 @@ Mnemonic.prototype.inspect = function () {
  * @param {Array} wordlist - Array of words to generate the mnemonic
  * @returns {String} Mnemonic string
  */
-Mnemonic._mnemonic = function (ENT, wordlist) {
+Mnemonic._mnemonic = function (ENT: any, wordlist: any) {
   const buf = Random.getRandomBuffer(ENT / 8)
   return Mnemonic._entropy2mnemonic(buf, wordlist)
 }
@@ -284,7 +299,7 @@ Mnemonic._mnemonic = function (ENT, wordlist) {
  * @param {Array} wordlist - Array of words to generate the mnemonic
  * @returns {String} Mnemonic string
  */
-Mnemonic._entropy2mnemonic = function (entropy, wordlist) {
+Mnemonic._entropy2mnemonic = function (entropy: any, wordlist: any) {
   let bin = ''
   for (var i = 0; i < entropy.length; i++) {
     bin = bin + ('00000000' + entropy[i].toString(2)).slice(-8)
@@ -292,7 +307,7 @@ Mnemonic._entropy2mnemonic = function (entropy, wordlist) {
 
   bin = bin + Mnemonic._entropyChecksum(entropy)
   if (bin.length % 11 !== 0) {
-    throw new errors.InvalidEntropy(bin)
+    throw new (err('InvalidEntropy'))(bin)
   }
   const mnemonic = []
   for (i = 0; i < bin.length / 11; i++) {
@@ -315,7 +330,7 @@ Mnemonic._entropy2mnemonic = function (entropy, wordlist) {
  * @returns {string} Checksum of entropy length / 32
  * @private
  */
-Mnemonic._entropyChecksum = function (entropy) {
+Mnemonic._entropyChecksum = function (entropy: any) {
   const hash = Hash.sha256(entropy)
   const bits = entropy.length * 8
   const cs = bits / 32
@@ -332,4 +347,4 @@ Mnemonic._entropyChecksum = function (entropy) {
   return checksum
 }
 
-module.exports = Mnemonic
+export = Mnemonic

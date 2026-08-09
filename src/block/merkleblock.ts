@@ -1,13 +1,19 @@
 'use strict'
 
-const _ = require('../util/_')
-const BlockHeader = require('./blockheader')
-const BufferReader = require('../encoding/bufferreader')
-const BufferWriter = require('../encoding/bufferwriter')
-const Hash = require('../crypto/hash')
-const Transaction = require('../transaction')
-const errors = require('../errors')
-const $ = require('../util/preconditions')
+import _ = require('../util/_')
+import BlockHeader = require('./blockheader')
+import BufferReader = require('../encoding/bufferreader')
+import BufferWriter = require('../encoding/bufferwriter')
+import Hash = require('../crypto/hash')
+import Transaction = require('../transaction')
+import errors = require('../errors')
+import $ = require('../util/preconditions')
+import type { MerkleBlock, MerkleBlockConstructor } from './types'
+
+// The error tree is built dynamically; members arrive via an index signature.
+type ErrCtor = new (...args: unknown[]) => Error
+const err = (path: string): ErrCtor =>
+  path.split('.').reduce<any>((o, k) => o[k], errors) as ErrCtor
 
 /**
  * Instantiate a MerkleBlock from a Buffer, JSON object, or Object with
@@ -17,20 +23,20 @@ const $ = require('../util/preconditions')
  * @returns {MerkleBlock}
  * @constructor
  */
-function MerkleBlock (arg) {
+const MerkleBlock = function MerkleBlock (this: MerkleBlock, arg?: any): any {
   if (!(this instanceof MerkleBlock)) {
-    return new MerkleBlock(arg)
+    return new (MerkleBlock as unknown as MerkleBlockConstructor)(arg)
   }
 
   let info = {}
   if (Buffer.isBuffer(arg)) {
-    info = MerkleBlock._fromBufferReader(BufferReader(arg))
+    info = (MerkleBlock as unknown as MerkleBlockConstructor)._fromBufferReader(BufferReader(arg))
   } else if (_.isObject(arg)) {
     let header
-    if (arg.header instanceof BlockHeader) {
-      header = arg.header
+    if ((arg as any).header instanceof BlockHeader) {
+      header = (arg as any).header
     } else {
-      header = BlockHeader.fromObject(arg.header)
+      header = BlockHeader.fromObject((arg as any).header)
     }
     info = {
       /**
@@ -42,17 +48,17 @@ function MerkleBlock (arg) {
        * @name MerkleBlock#numTransactions
        * @type {Number}
        */
-      numTransactions: arg.numTransactions,
+      numTransactions: (arg as any).numTransactions,
       /**
        * @name MerkleBlock#hashes
        * @type {String[]}
        */
-      hashes: arg.hashes,
+      hashes: (arg as any).hashes,
       /**
        * @name MerkleBlock#flags
        * @type {Number[]}
        */
-      flags: arg.flags
+      flags: (arg as any).flags
     }
   } else {
     throw new TypeError('Unrecognized argument for MerkleBlock')
@@ -62,13 +68,13 @@ function MerkleBlock (arg) {
   this._hashesUsed = 0
 
   return this
-}
+} as unknown as MerkleBlockConstructor
 
 /**
  * @param {Buffer} - MerkleBlock data in a Buffer object
  * @returns {MerkleBlock} - A MerkleBlock object
  */
-MerkleBlock.fromBuffer = function fromBuffer (buf) {
+MerkleBlock.fromBuffer = function fromBuffer (buf: any) {
   return MerkleBlock.fromBufferReader(BufferReader(buf))
 }
 
@@ -76,14 +82,14 @@ MerkleBlock.fromBuffer = function fromBuffer (buf) {
  * @param {BufferReader} - MerkleBlock data in a BufferReader object
  * @returns {MerkleBlock} - A MerkleBlock object
  */
-MerkleBlock.fromBufferReader = function fromBufferReader (br) {
+MerkleBlock.fromBufferReader = function fromBufferReader (br: any) {
   return new MerkleBlock(MerkleBlock._fromBufferReader(br))
 }
 
 /**
  * @returns {Buffer} - A buffer of the block
  */
-MerkleBlock.prototype.toBuffer = function toBuffer () {
+MerkleBlock.prototype.toBuffer = function toBuffer (this: MerkleBlock) {
   return this.toBufferWriter().concat()
 }
 
@@ -91,7 +97,7 @@ MerkleBlock.prototype.toBuffer = function toBuffer () {
  * @param {BufferWriter} - An existing instance of BufferWriter
  * @returns {BufferWriter} - An instance of BufferWriter representation of the MerkleBlock
  */
-MerkleBlock.prototype.toBufferWriter = function toBufferWriter (bw) {
+MerkleBlock.prototype.toBufferWriter = function toBufferWriter (this: MerkleBlock, bw: any) {
   if (!bw) {
     bw = new BufferWriter()
   }
@@ -99,7 +105,7 @@ MerkleBlock.prototype.toBufferWriter = function toBufferWriter (bw) {
   bw.writeUInt32LE(this.numTransactions)
   bw.writeVarintNum(this.hashes.length)
   for (var i = 0; i < this.hashes.length; i++) {
-    bw.write(Buffer.from(this.hashes[i], 'hex'))
+    bw.write(Buffer.from(this.hashes[i]!, 'hex'))
   }
   bw.writeVarintNum(this.flags.length)
   for (i = 0; i < this.flags.length; i++) {
@@ -111,7 +117,7 @@ MerkleBlock.prototype.toBufferWriter = function toBufferWriter (bw) {
 /**
  * @returns {Object} - A plain object with the MerkleBlock properties
  */
-MerkleBlock.prototype.toObject = MerkleBlock.prototype.toJSON = function toObject () {
+MerkleBlock.prototype.toObject = MerkleBlock.prototype.toJSON = function toObject (this: MerkleBlock) {
   return {
     header: this.header.toObject(),
     numTransactions: this.numTransactions,
@@ -124,7 +130,7 @@ MerkleBlock.prototype.toObject = MerkleBlock.prototype.toJSON = function toObjec
  * Verify that the MerkleBlock is valid
  * @returns {Boolean} - True/False whether this MerkleBlock is Valid
  */
-MerkleBlock.prototype.validMerkleTree = function validMerkleTree () {
+MerkleBlock.prototype.validMerkleTree = function validMerkleTree (this: MerkleBlock) {
   $.checkState(_.isArray(this.flags), 'MerkleBlock flags is not an array')
   $.checkState(_.isArray(this.hashes), 'MerkleBlock hashes is not an array')
 
@@ -144,7 +150,7 @@ MerkleBlock.prototype.validMerkleTree = function validMerkleTree () {
   if (opts.hashesUsed !== this.hashes.length) {
     return false
   }
-  return root.equals(this.header.merkleRoot)
+  return (root as Buffer).equals(this.header.merkleRoot)
 }
 
 /**
@@ -153,7 +159,7 @@ MerkleBlock.prototype.validMerkleTree = function validMerkleTree () {
  * Return a list of all the txs hash that match the filter
  * @returns {Array} - txs hash that match the filter
  */
-MerkleBlock.prototype.filterdTxsHash = function filterdTxsHash () {
+MerkleBlock.prototype.filterdTxsHash = function filterdTxsHash (this: MerkleBlock) {
   throw new Error('filterdTxsHash has been deprecated. use filteredTxsHash.')
 }
 
@@ -161,18 +167,18 @@ MerkleBlock.prototype.filterdTxsHash = function filterdTxsHash () {
  * Return a list of all the txs hash that match the filter
  * @returns {Array} - txs hash that match the filter
  */
-MerkleBlock.prototype.filteredTxsHash = function filteredTxsHash () {
+MerkleBlock.prototype.filteredTxsHash = function filteredTxsHash (this: MerkleBlock) {
   $.checkState(_.isArray(this.flags), 'MerkleBlock flags is not an array')
   $.checkState(_.isArray(this.hashes), 'MerkleBlock hashes is not an array')
 
   // Can't have more hashes than numTransactions
   if (this.hashes.length > this.numTransactions) {
-    throw new errors.MerkleBlock.InvalidMerkleTree()
+    throw new (err('MerkleBlock.InvalidMerkleTree'))()
   }
 
   // Can't have more flag bits than num hashes
   if (this.flags.length * 8 < this.hashes.length) {
-    throw new errors.MerkleBlock.InvalidMerkleTree()
+    throw new (err('MerkleBlock.InvalidMerkleTree'))()
   }
 
   // If there is only one hash the filter do not match any txs in the block
@@ -184,7 +190,7 @@ MerkleBlock.prototype.filteredTxsHash = function filteredTxsHash () {
   const opts = { hashesUsed: 0, flagBitsUsed: 0 }
   const txs = this._traverseMerkleTree(height, 0, opts, true)
   if (opts.hashesUsed !== this.hashes.length) {
-    throw new errors.MerkleBlock.InvalidMerkleTree()
+    throw new (err('MerkleBlock.InvalidMerkleTree'))()
   }
   return txs
 }
@@ -203,7 +209,7 @@ MerkleBlock.prototype.filteredTxsHash = function filteredTxsHash () {
  * @returns {Array} - transactions found during traversal that match the filter
  * @private
  */
-MerkleBlock.prototype._traverseMerkleTree = function traverseMerkleTree (depth, pos, opts, checkForTxs) {
+MerkleBlock.prototype._traverseMerkleTree = function traverseMerkleTree (this: MerkleBlock, depth: any, pos: any, opts: any, checkForTxs: any) {
   opts = opts || {}
   opts.txs = opts.txs || []
   opts.flagBitsUsed = opts.flagBitsUsed || 0
@@ -213,7 +219,7 @@ MerkleBlock.prototype._traverseMerkleTree = function traverseMerkleTree (depth, 
   if (opts.flagBitsUsed > this.flags.length * 8) {
     return null
   }
-  const isParentOfMatch = (this.flags[opts.flagBitsUsed >> 3] >>> (opts.flagBitsUsed++ & 7)) & 1
+  const isParentOfMatch = (this.flags[opts.flagBitsUsed >> 3]! >>> (opts.flagBitsUsed++ & 7)) & 1
   if (depth === 0 || !isParentOfMatch) {
     if (opts.hashesUsed >= this.hashes.length) {
       return null
@@ -222,7 +228,7 @@ MerkleBlock.prototype._traverseMerkleTree = function traverseMerkleTree (depth, 
     if (depth === 0 && isParentOfMatch) {
       opts.txs.push(hash)
     }
-    return Buffer.from(hash, 'hex')
+    return Buffer.from(hash as string, 'hex')
   } else {
     const left = this._traverseMerkleTree(depth - 1, pos * 2, opts)
     let right = left
@@ -243,7 +249,7 @@ MerkleBlock.prototype._traverseMerkleTree = function traverseMerkleTree (depth, 
  * @returns {Number} - Width of the tree at a given height
  * @private
  */
-MerkleBlock.prototype._calcTreeWidth = function calcTreeWidth (height) {
+MerkleBlock.prototype._calcTreeWidth = function calcTreeWidth (this: MerkleBlock, height: any) {
   return (this.numTransactions + (1 << height) - 1) >> height
 }
 
@@ -252,7 +258,7 @@ MerkleBlock.prototype._calcTreeWidth = function calcTreeWidth (height) {
  * @returns {Number} - Height of the merkle tree in this MerkleBlock
  * @private
  */
-MerkleBlock.prototype._calcTreeHeight = function calcTreeHeight () {
+MerkleBlock.prototype._calcTreeHeight = function calcTreeHeight (this: MerkleBlock) {
   let height = 0
   while (this._calcTreeWidth(height) > 1) {
     height++
@@ -265,7 +271,7 @@ MerkleBlock.prototype._calcTreeHeight = function calcTreeHeight () {
  * @returns {Boolean} - return true/false if this MerkleBlock has the TX or not
  * @private
  */
-MerkleBlock.prototype.hasTransaction = function hasTransaction (tx) {
+MerkleBlock.prototype.hasTransaction = function hasTransaction (this: MerkleBlock, tx: any) {
   $.checkArgument(!_.isUndefined(tx), 'tx cannot be undefined')
   $.checkArgument(tx instanceof Transaction || typeof tx === 'string',
     'Invalid tx given, tx must be a "string" or "Transaction"')
@@ -276,7 +282,7 @@ MerkleBlock.prototype.hasTransaction = function hasTransaction (tx) {
     hash = Buffer.from(tx.id, 'hex').reverse().toString('hex')
   }
 
-  const txs = []
+  const txs: any[] = []
   const height = this._calcTreeHeight()
   this._traverseMerkleTree(height, 0, { txs })
   return txs.indexOf(hash) !== -1
@@ -287,9 +293,9 @@ MerkleBlock.prototype.hasTransaction = function hasTransaction (tx) {
  * @returns {Object} - An Object representing merkleblock data
  * @private
  */
-MerkleBlock._fromBufferReader = function _fromBufferReader (br) {
+MerkleBlock._fromBufferReader = function _fromBufferReader (br: any) {
   $.checkState(!br.finished(), 'No merkleblock data received')
-  const info = {}
+  const info: any = {}
   info.header = BlockHeader.fromBufferReader(br)
   info.numTransactions = br.readUInt32LE()
   const numHashes = br.readVarintNum()
@@ -309,8 +315,8 @@ MerkleBlock._fromBufferReader = function _fromBufferReader (br) {
  * @param {Object} - A plain JavaScript object
  * @returns {Block} - An instance of block
  */
-MerkleBlock.fromObject = function fromObject (obj) {
+MerkleBlock.fromObject = function fromObject (obj: any) {
   return new MerkleBlock(obj)
 }
 
-module.exports = MerkleBlock
+export = MerkleBlock

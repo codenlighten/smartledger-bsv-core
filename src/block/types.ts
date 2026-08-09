@@ -83,3 +83,93 @@ export interface BlockHeaderConstructor {
   fromBufferReader: (br: import('../encoding/types').BufferReader) => BlockHeader
   Constants: { START_OF_HEADER: number, MAX_TIME_OFFSET: number, LARGEST_HASH: BN }
 }
+
+/**
+ * Block and MerkleBlock.
+ *
+ * Both carry a header and a set of hashes, and both compute a merkle root —
+ * but they are not variants of one type. A Block holds every transaction; a
+ * MerkleBlock holds a PARTIAL tree plus a flag bitfield, and its `hashes` are
+ * the tree's interior and pruned nodes, not transaction ids. Conflating them
+ * would typecheck a caller that treats a partial tree as a complete one.
+ */
+import type BlockHeaderValue = require('./blockheader')
+import type TransactionValue = require('../transaction')
+
+export interface Block {
+  header: BlockHeaderValue
+  transactions: TransactionValue[]
+
+  /** Both are the same value: the header hash, big-endian hex. */
+  readonly id: string
+  readonly hash: string
+  /** Memoized by the id/hash accessor. */
+  _id?: string
+
+  toObject: () => Record<string, unknown>
+  toJSON: () => Record<string, unknown>
+  toBuffer: () => Buffer
+  toString: () => string
+  toBufferWriter: (bw?: any) => any
+  getTransactionHashes: () => Buffer[]
+  getMerkleTree: () => Buffer[]
+  getMerkleRoot: () => Buffer | undefined
+  validMerkleRoot: () => boolean
+  _getHash: () => Buffer
+  inspect: () => string
+}
+
+export interface BlockConstructor {
+  new (arg?: unknown): Block
+  (arg?: unknown): Block
+  prototype: Block
+
+  fromObject: (obj: any) => Block
+  fromBuffer: (buf: Buffer) => Block
+  fromString: (str: string) => Block
+  fromBufferReader: (br: unknown) => Block
+  fromRawBlock: (data: Buffer | string) => Block
+  _from: (arg: any) => Record<string, unknown>
+  _fromObject: (data: any) => Record<string, unknown>
+  _fromBufferReader: (br: unknown) => Record<string, unknown>
+
+  MAX_BLOCK_SIZE: number
+  /** Attached by ./index; absent when block.js is required directly. */
+  BlockHeader?: typeof import('./blockheader')
+  MerkleBlock?: typeof import('./merkleblock')
+  Values: { START_OF_BLOCK: number, NULL_HASH: Buffer }
+}
+
+export interface MerkleBlock {
+  header: BlockHeaderValue
+  numTransactions: number
+  /** Interior and pruned tree nodes — NOT transaction ids. */
+  hashes: string[]
+  flags: number[]
+  _flagBitsUsed?: number
+  _hashesUsed?: number
+
+  toBuffer: () => Buffer
+  toBufferWriter: (bw?: any) => any
+  toObject: () => Record<string, unknown>
+  toJSON: () => Record<string, unknown>
+  validMerkleTree: () => boolean
+  /** Misspelled in the shipped API; kept as an alias. */
+  filterdTxsHash: () => string[]
+  filteredTxsHash: () => string[]
+  _traverseMerkleTree: (depth: number, pos: number, opts?: any, checkForTxs?: boolean) => any
+  _calcTreeWidth: (height: number) => number
+  _calcTreeHeight: () => number
+  hasTransaction: (tx: TransactionValue | string) => boolean
+}
+
+export interface MerkleBlockConstructor {
+  new (arg?: unknown): MerkleBlock
+  (arg?: unknown): MerkleBlock
+  prototype: MerkleBlock
+
+  fromBuffer: (buf: Buffer) => MerkleBlock
+  fromBufferReader: (br: unknown) => MerkleBlock
+  fromObject: (obj: any) => MerkleBlock
+  _fromBufferReader: (br: unknown) => Record<string, unknown>
+}

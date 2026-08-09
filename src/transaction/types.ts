@@ -7,6 +7,41 @@
  */
 import type Signature = require('../crypto/signature')
 import type { PublicKey } from '../publickey.types'
+import type { Address } from '../address.types'
+import type { Script } from '../script/script.types'
+import type { PrivateKey } from '../privatekey.types'
+import type { BufferReader, BufferWriter } from '../encoding/types'
+import type BN = require('../crypto/bn')
+
+/**
+ * The serialization checks, each of which can be waived individually.
+ *
+ * `disableAll` is not one flag among five — it short-circuits before any of
+ * the others are read, so `{ disableAll: true, disableDustOutputs: false }`
+ * still skips the dust check.
+ */
+export interface SerializeOptions {
+  disableAll?: boolean
+  disableLargeFees?: boolean
+  disableIsFullySigned?: boolean
+  disableDustOutputs?: boolean
+  disableMoreOutputThanInput?: boolean
+}
+
+/** What toObject()/toJSON() emit and fromObject() accepts. */
+export interface TransactionObject {
+  hash?: string
+  version: number
+  inputs: unknown[]
+  outputs: unknown[]
+  nLockTime: number
+  changeScript?: string
+  changeIndex?: number
+  fee?: number
+}
+
+/** Anything `from()` accepts as a UTXO: an UnspentOutput or its plain form. */
+export type UnspentOutputLike = UnspentOutput | UnspentOutputData
 
 /** The plain-object form of a transaction signature. */
 export interface TransactionSignatureObj {
@@ -56,12 +91,20 @@ export interface UnspentOutput {
 /** The loose object form UnspentOutput accepts; field names vary by source. */
 export interface UnspentOutputData {
   address?: unknown
+  /**
+   * BOTH spellings are accepted, and so are both index spellings and both
+   * amount spellings — this shape absorbs the two competing UTXO conventions
+   * (bitcoind's `txid`/`vout`/`amount` in BTC, and this library's
+   * `txId`/`outputIndex`/`satoshis`). They are all optional because a given
+   * payload supplies one spelling of each, never both.
+   */
   txid?: string
   txId?: string
   vout?: number
   outputIndex?: number
-  scriptPubKey?: unknown
-  script?: unknown
+  scriptPubKey?: string | Script
+  script?: string | Script
+  /** BTC, not satoshis — multiplied by 1e8 on the way in. */
   amount?: number
   satoshis?: number
 }
@@ -130,7 +173,7 @@ export interface Input {
   toJSON: () => Record<string, unknown>
   toBufferWriter: (writer?: unknown) => unknown
   setScript: (script: unknown) => Input
-  getSignatures: (...args: unknown[]) => unknown[]
+  getSignatures: (...args: unknown[]) => TransactionSignature[]
   isFullySigned: () => boolean
   isFinal: () => boolean
   addSignature: (...args: unknown[]) => Input
@@ -169,7 +212,7 @@ export interface InputConstructor {
  * inventing a union that no caller uses.
  */
 export interface SigningInput extends Input {
-  getSignatures: (...args: unknown[]) => unknown[]
+  getSignatures: (...args: unknown[]) => TransactionSignature[]
   addSignature: (...args: unknown[]) => SigningInput
   /**
    * Return value is NOT uniform across the four subclasses: PublicKey and
@@ -253,75 +296,118 @@ export interface Transaction {
   readonly inputAmount: number
   readonly outputAmount: number
 
-  // Generated from the prototype assignments in transaction.ts. Typed loosely
-  // on purpose: this is the widest surface in the library, and inventing 64
-  // signatures during a behaviour-preserving conversion would mean 64 chances
-  // to be wrong about one. Tightening them, method by method against their
-  // tests, is API-pass work.
-  _addOutput: (...args: any[]) => any
-  _checkConsistency: (...args: any[]) => any
-  _clearSignatures: (...args: any[]) => any
-  _estimateFee: (...args: any[]) => any
-  _estimateSize: (...args: any[]) => any
-  _fromMultisigUtxo: (...args: any[]) => any
-  _fromNonP2SH: (...args: any[]) => any
-  _getHash: (...args: any[]) => any
-  _getInputAmount: (...args: any[]) => any
-  _getOutputAmount: (...args: any[]) => any
-  _getUnspentValue: (...args: any[]) => any
-  _hasDustOutputs: (...args: any[]) => any
-  _hasFeeError: (...args: any[]) => any
-  _isMissingSignatures: (...args: any[]) => any
-  _missingChange: (...args: any[]) => any
-  _newOutputOrder: (...args: any[]) => any
-  _newTransaction: (...args: any[]) => any
-  _removeOutput: (...args: any[]) => any
-  _updateChangeOutput: (...args: any[]) => any
-  addData: (...args: any[]) => any
-  addInput: (...args: any[]) => any
-  addOutput: (...args: any[]) => any
-  addSafeData: (...args: any[]) => any
-  applySignature: (...args: any[]) => any
-  change: (...args: any[]) => any
-  checkedSerialize: (...args: any[]) => any
-  clearOutputs: (...args: any[]) => any
-  fee: (...args: any[]) => any
-  feePerKb: (...args: any[]) => any
-  from: (...args: any[]) => any
-  fromBuffer: (...args: any[]) => any
-  fromBufferReader: (...args: any[]) => any
-  fromObject: (...args: any[]) => any
-  fromString: (...args: any[]) => any
-  getChangeOutput: (...args: any[]) => any
-  getFee: (...args: any[]) => any
-  getLockTime: (...args: any[]) => any
-  getSerializationError: (...args: any[]) => any
-  getSignatures: (...args: any[]) => any
-  hasAllUtxoInfo: (...args: any[]) => any
-  inspect: (...args: any[]) => any
-  invalidSatoshis: (...args: any[]) => any
-  isCoinbase: (...args: any[]) => any
-  isFullySigned: (...args: any[]) => any
-  isValidSignature: (...args: any[]) => any
-  lockUntilBlockHeight: (...args: any[]) => any
-  lockUntilDate: (...args: any[]) => any
-  removeInput: (...args: any[]) => any
-  removeOutput: (...args: any[]) => any
-  serialize: (...args: any[]) => any
-  shuffleOutputs: (...args: any[]) => any
-  sighash: (...args: any[]) => any
-  sign: (...args: any[]) => any
-  sort: (...args: any[]) => any
-  sortInputs: (...args: any[]) => any
-  sortOutputs: (...args: any[]) => any
-  to: (...args: any[]) => any
-  toBuffer: (...args: any[]) => any
-  toBufferWriter: (...args: any[]) => any
-  toObject: (...args: any[]) => any
-  uncheckedAddInput: (...args: any[]) => any
-  uncheckedSerialize: (...args: any[]) => any
-  verify: (...args: any[]) => any
-  verifySignature: (...args: any[]) => any
+  // ---- prototype -----------------------------------------------------------
+  //
+  // Signatures taken from the implementations, not guessed: every return type
+  // below was read off the actual `return` statements in transaction.ts, and
+  // the union types are unions because the function genuinely returns more
+  // than one shape.
+
+  _getHash: () => Buffer
+
+  /**
+   * `unsafe` is ALSO accepted as an options object, in which case it is passed
+   * to checkedSerialize as the opts — so `serialize({ disableDustOutputs: true })`
+   * runs the checks with that option, while `serialize(true)` skips them all.
+   * The two are not variations of one flag.
+   */
+  serialize: (unsafe?: boolean | SerializeOptions) => string
+  uncheckedSerialize: () => string
+  checkedSerialize: (opts?: SerializeOptions) => string
+  toString: () => string
+  inspect: () => string
+
+  invalidSatoshis: () => boolean
+
+  /** The first failing check, or undefined when the transaction serializes. */
+  getSerializationError: (opts?: SerializeOptions) => Error | undefined
+  _hasFeeError: (opts: SerializeOptions, unspent: number) => Error | undefined
+  _missingChange: () => boolean
+  _hasDustOutputs: (opts: SerializeOptions) => Error | undefined
+  _isMissingSignatures: (opts: SerializeOptions) => Error | undefined
+
+  toBuffer: () => Buffer
+  toBufferWriter: (writer: BufferWriter) => BufferWriter
+  fromBuffer: (buffer: Buffer) => Transaction
+  fromBufferReader: (reader: BufferReader) => Transaction
+  toObject: () => TransactionObject
+  toJSON: () => TransactionObject
+  fromObject: (arg: TransactionObject | Transaction) => Transaction
+  fromString: (string: string) => void
+  _checkConsistency: (arg?: TransactionObject | Transaction) => void
+  _newTransaction: () => void
+
+  lockUntilDate: (time: Date | number) => Transaction
+  lockUntilBlockHeight: (height: number) => Transaction
+
+  /**
+   * Three outcomes with three meanings: a Date when nLockTime is a timestamp
+   * (>= 5e8), a number when it is a block height, and null when nLockTime is 0
+   * — i.e. no lock at all, which is NOT "locked until block 0".
+   */
+  getLockTime: () => Date | number | null
+
+  from: (utxo: UnspentOutputLike | UnspentOutputLike[], pubkeys?: PublicKey[], threshold?: number) => Transaction
+  _fromNonP2SH: (utxo: UnspentOutputLike) => void
+  _fromMultisigUtxo: (utxo: UnspentOutputLike, pubkeys: PublicKey[], threshold: number) => void
+  addInput: (input: Input, outputScript?: Script | string, satoshis?: number) => Transaction
+  uncheckedAddInput: (input: Input) => Transaction
+  hasAllUtxoInfo: () => boolean
+  removeInput: (txId: string | number, outputIndex?: number) => void
+
+  fee: (amount: number) => Transaction
+  feePerKb: (amount: number) => Transaction
+  getFee: () => number
+  _estimateFee: () => number
+  _estimateSize: () => number
+  _getUnspentValue: () => number
+  _getOutputAmount: () => number
+  _getInputAmount: () => number
+
+  change: (address: Address | string) => Transaction
+  /** null when no change output is set — not an empty Output. */
+  getChangeOutput: () => Output | null
+  _updateChangeOutput: () => void
+
+  to: (address: Address | string, amount: number) => Transaction
+  addData: (value: string | Buffer | Array<string | Buffer>) => Transaction
+  addSafeData: (value: string | Buffer | Array<string | Buffer>) => Transaction
+  addOutput: (output: Output) => Transaction
+  _addOutput: (output: Output) => void
+  clearOutputs: () => Transaction
+  _removeOutput: (index: number) => void
+  removeOutput: (index: number) => void
+
+  sort: () => Transaction
+  shuffleOutputs: () => Transaction
+  sortOutputs: (sortingFunction: (outputs: Output[]) => Output[]) => Transaction
+  sortInputs: (sortingFunction: (inputs: Input[]) => Input[]) => Transaction
+  _newOutputOrder: (newOutputs: Output[]) => Transaction
+
+  /** Accepts one key or an array; the array form recurses. */
+  sign: (privateKey: PrivateKey | string | Array<PrivateKey | string>, sigtype?: number) => Transaction
+  getSignatures: (privKey: PrivateKey | string, sigtype?: number) => TransactionSignature[]
+  applySignature: (signature: TransactionSignature) => Transaction
+  isFullySigned: () => boolean
+  isValidSignature: (signature: TransactionSignature) => boolean
+  _clearSignatures: () => void
+  verifySignature: (sig: Signature, pubkey: PublicKey, nin: number, subscript: Script, satoshisBN: BN, flags?: number) => boolean
+  sighash: (inputIndex: number, sighashType: number, subscript: Script, satoshisBN?: BN, flags?: number) => Buffer
+
+  /**
+   * `true` when valid, otherwise a STRING describing the failure — so
+   * `if (tx.verify())` is truthy in BOTH cases and silently accepts an invalid
+   * transaction. Callers must compare against `true`.
+   *
+   * This is the same shape ECDSA.verify had until 7.0, where it was changed
+   * for exactly this reason (see crypto/ecdsa.ts). Transaction#verify was not
+   * changed with it. The union type is here so the compiler forces the
+   * comparison rather than letting the footgun stay invisible.
+   */
+  verify: () => true | string
+
+  isCoinbase: () => boolean
+
 }
 
 export interface TransactionConstructor {

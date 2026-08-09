@@ -22,7 +22,13 @@ import Input = require('./input')
 // They are read at their use sites instead (see _getInputFrom).
 import Output = require('./output')
 import type { Script as ScriptType, ScriptConstructor } from '../script/script.types'
-import type { Transaction, TransactionConstructor, Input as InputType, Output as OutputType } from './types'
+import type { Transaction, TransactionConstructor, Input as InputType, Output as OutputType, TransactionObject, SerializeOptions, UnspentOutputLike, TransactionSignature } from './types'
+import type { PrivateKey } from '../privatekey.types'
+import type { PublicKey } from '../publickey.types'
+import type { Address } from '../address.types'
+
+import type { Signature as SignatureType } from '../crypto/signature.types'
+import type { BufferWriter as BufferWriterType } from '../encoding/types'
 
 // The error tree is built dynamically; members arrive via an index signature.
 type ErrCtor = new (...args: unknown[]) => Error
@@ -63,11 +69,13 @@ const Transaction = function Transaction (this: Transaction, serialized?: unknow
     if (serialized instanceof (Transaction as unknown as new () => unknown)) {
       return (Transaction as unknown as TransactionConstructor).shallowCopy(serialized as Transaction)
     } else if (JSUtil.isHexa(serialized)) {
-      this.fromString(serialized)
+      // isHexa/isObject are the runtime narrowings; neither is a TS type
+      // guard, so the cast states what the branch has already established.
+      this.fromString(serialized as string)
     } else if (Buffer.isBuffer(serialized)) {
       this.fromBuffer(serialized)
     } else if (_.isObject(serialized)) {
-      this.fromObject(serialized)
+      this.fromObject(serialized as TransactionObject)
     } else {
       throw new (err('InvalidArgument'))('Must provide an object or string to deserialize a transaction')
     }
@@ -160,11 +168,15 @@ Transaction.prototype._getHash = function (this: Transaction) {
  * * `disableMoreOutputThanInput`: disable checking if the transaction spends more bitcoins than the sum of the input amounts
  * @return {string}
  */
-Transaction.prototype.serialize = function (this: Transaction, unsafe: any) {
+Transaction.prototype.serialize = function (this: Transaction, unsafe?: boolean | SerializeOptions) {
   if (unsafe === true || (unsafe && unsafe.disableAll)) {
     return this.uncheckedSerialize()
   } else {
-    return this.checkedSerialize(unsafe)
+    // `unsafe` is boolean|options; `true` was handled above, so what reaches
+    // here is either an options object or `false`. checkedSerialize defaults a
+    // falsy opts to {}, so the two are equivalent — say so rather than widen
+    // the parameter back out.
+    return this.checkedSerialize(unsafe === false ? undefined : unsafe)
   }
 }
 
@@ -179,7 +191,7 @@ Transaction.prototype.uncheckedSerialize = Transaction.prototype.toString = func
  * @param {Object} opts allows to skip certain tests. {@see Transaction#serialize}
  * @return {string}
  */
-Transaction.prototype.checkedSerialize = function (this: Transaction, opts: any) {
+Transaction.prototype.checkedSerialize = function (this: Transaction, opts?: SerializeOptions) {
   const serializationError = this.getSerializationError(opts)
   if (serializationError) {
     serializationError.message += ' - For more information please see: ' +
@@ -206,7 +218,7 @@ Transaction.prototype.invalidSatoshis = function (this: Transaction) {
  * @param {Object} opts allows to skip certain tests. {@see Transaction#serialize}
  * @return {bsv.Error}
  */
-Transaction.prototype.getSerializationError = function (this: Transaction, opts: any) {
+Transaction.prototype.getSerializationError = function (this: Transaction, opts?: SerializeOptions) {
   opts = opts || {}
 
   if (this.invalidSatoshis()) {
@@ -228,7 +240,7 @@ Transaction.prototype.getSerializationError = function (this: Transaction, opts:
     this._isMissingSignatures(opts)
 }
 
-Transaction.prototype._hasFeeError = function (this: Transaction, opts: any, unspent: any) {
+Transaction.prototype._hasFeeError = function (this: Transaction, opts: SerializeOptions, unspent: number) {
   if (!_.isUndefined(this._fee) && this._fee !== unspent) {
     return new (err('Transaction.FeeError.Different'))(
       'Unspent value is ' + unspent + ' but specified fee is ' + this._fee
@@ -254,7 +266,7 @@ Transaction.prototype._missingChange = function (this: Transaction) {
   return !this._changeScript
 }
 
-Transaction.prototype._hasDustOutputs = function (this: Transaction, opts: any) {
+Transaction.prototype._hasDustOutputs = function (this: Transaction, opts: SerializeOptions) {
   if (opts.disableDustOutputs) {
     return
   }
@@ -267,7 +279,7 @@ Transaction.prototype._hasDustOutputs = function (this: Transaction, opts: any) 
   }
 }
 
-Transaction.prototype._isMissingSignatures = function (this: Transaction, opts: any) {
+Transaction.prototype._isMissingSignatures = function (this: Transaction, opts: SerializeOptions) {
   if (opts.disableIsFullySigned) {
     return
   }
@@ -285,7 +297,7 @@ Transaction.prototype.toBuffer = function (this: Transaction) {
   return this.toBufferWriter(writer).toBuffer()
 }
 
-Transaction.prototype.toBufferWriter = function (this: Transaction, writer: any) {
+Transaction.prototype.toBufferWriter = function (this: Transaction, writer: BufferWriter) {
   writer.writeInt32LE(this.version)
   writer.writeVarintNum(this.inputs.length)
   _.each(this.inputs, function (input: any) {
@@ -299,12 +311,12 @@ Transaction.prototype.toBufferWriter = function (this: Transaction, writer: any)
   return writer
 }
 
-Transaction.prototype.fromBuffer = function (this: Transaction, buffer: any) {
+Transaction.prototype.fromBuffer = function (this: Transaction, buffer: Buffer) {
   const reader = new BufferReader(buffer)
   return this.fromBufferReader(reader)
 }
 
-Transaction.prototype.fromBufferReader = function (this: Transaction, reader: any) {
+Transaction.prototype.fromBufferReader = function (this: Transaction, reader: BufferReader) {
   $.checkArgument(!reader.finished(), 'No transaction data received')
   let i, sizeTxIns, sizeTxOuts
 
@@ -350,8 +362,8 @@ Transaction.prototype.toObject = Transaction.prototype.toJSON = function toObjec
   return obj
 }
 
-Transaction.prototype.fromObject = function fromObject (this: Transaction, arg: any) {
-  $.checkArgument(_.isObject(arg) || arg instanceof Transaction)
+Transaction.prototype.fromObject = function fromObject (this: Transaction, arg: TransactionObject | Transaction) {
+  $.checkArgument(_.isObject(arg) || (arg as unknown) instanceof Transaction)
   const self = this
   let transaction
   if (arg instanceof Transaction) {
@@ -361,7 +373,7 @@ Transaction.prototype.fromObject = function fromObject (this: Transaction, arg: 
     // `arg.toObject()`. Left as-is because this conversion preserves
     // behaviour; fixing it is an API-pass decision with a corpus rerun.
     // The cast is what lets the known-broken line compile.
-    transaction = (transaction as unknown as { toObject: () => unknown }).toObject()
+    transaction = (transaction as unknown as { toObject: () => TransactionObject }).toObject()
   } else {
     transaction = arg
   }
@@ -403,7 +415,7 @@ Transaction.prototype.fromObject = function fromObject (this: Transaction, arg: 
   return this
 }
 
-Transaction.prototype._checkConsistency = function (this: Transaction, arg: any) {
+Transaction.prototype._checkConsistency = function (this: Transaction, arg?: TransactionObject | Transaction) {
   if (!_.isUndefined(this._changeIndex)) {
     $.checkState(this._changeScript, 'Change script is expected.')
     $.checkState(this.outputs[this._changeIndex], 'Change index points to undefined output.')
@@ -422,7 +434,7 @@ Transaction.prototype._checkConsistency = function (this: Transaction, arg: any)
  * @param {Date | Number} time
  * @return {Transaction} this
  */
-Transaction.prototype.lockUntilDate = function (this: Transaction, time: any) {
+Transaction.prototype.lockUntilDate = function (this: Transaction, time: Date | number) {
   $.checkArgument(time)
   if (_.isNumber(time) && time < Transaction.NLOCKTIME_BLOCKHEIGHT_LIMIT) {
     throw new (err('Transaction.LockTimeTooEarly'))()
@@ -448,7 +460,7 @@ Transaction.prototype.lockUntilDate = function (this: Transaction, time: any) {
  * @param {Number} height
  * @return {Transaction} this
  */
-Transaction.prototype.lockUntilBlockHeight = function (this: Transaction, height: any) {
+Transaction.prototype.lockUntilBlockHeight = function (this: Transaction, height: number) {
   $.checkArgument(_.isNumber(height))
   if (height >= Transaction.NLOCKTIME_BLOCKHEIGHT_LIMIT) {
     throw new (err('Transaction.BlockHeightTooHigh'))()
@@ -484,7 +496,7 @@ Transaction.prototype.getLockTime = function (this: Transaction) {
   return new Date(1000 * this.nLockTime)
 }
 
-Transaction.prototype.fromString = function (this: Transaction, string: any) {
+Transaction.prototype.fromString = function (this: Transaction, string: string) {
   this.fromBuffer(Buffer.from(string, 'hex'))
 }
 
@@ -544,7 +556,7 @@ Transaction.prototype._newTransaction = function (this: Transaction) {
  * @param {Array=} pubkeys
  * @param {number=} threshold
  */
-Transaction.prototype.from = function (this: Transaction, utxo: any, pubkeys: any, threshold: any) {
+Transaction.prototype.from = function (this: Transaction, utxo: UnspentOutputLike | UnspentOutputLike[], pubkeys?: PublicKey[], threshold?: number) {
   if (_.isArray(utxo)) {
     const self = this
     _.each(utxo, function (utxo: any) {
@@ -567,50 +579,50 @@ Transaction.prototype.from = function (this: Transaction, utxo: any, pubkeys: an
   return this
 }
 
-Transaction.prototype._fromNonP2SH = function (this: Transaction, utxo: any) {
+Transaction.prototype._fromNonP2SH = function (this: Transaction, utxo: UnspentOutputLike) {
   let Clazz
-  utxo = new UnspentOutput(utxo)
+  const u = new UnspentOutput(utxo)
   // Use the loose P2PKH check so 1Sat Ordinal outputs (P2PKH + inscription
   // envelope) and other "P2PKH + trailing data" patterns dispatch to the
   // signing-capable subclass instead of falling through to the abstract
   // base Input. See Script.prototype.isPublicKeyHashOutPrefix.
-  if (utxo.script.isPublicKeyHashOutPrefix()) {
+  if (u.script.isPublicKeyHashOutPrefix()) {
     Clazz = Input.PublicKeyHash
-  } else if (utxo.script.isPublicKeyOut()) {
+  } else if (u.script.isPublicKeyOut()) {
     Clazz = Input.PublicKey
   } else {
     Clazz = Input
   }
   this.addInput(new Clazz({
     output: new Output({
-      script: utxo.script,
-      satoshis: utxo.satoshis
+      script: u.script,
+      satoshis: u.satoshis
     }),
-    prevTxId: utxo.txId,
-    outputIndex: utxo.outputIndex,
+    prevTxId: u.txId,
+    outputIndex: u.outputIndex,
     script: Script().empty()
   }))
 }
 
-Transaction.prototype._fromMultisigUtxo = function (this: Transaction, utxo: any, pubkeys: any, threshold: any) {
+Transaction.prototype._fromMultisigUtxo = function (this: Transaction, utxo: UnspentOutputLike, pubkeys: PublicKey[], threshold: number) {
   $.checkArgument(threshold <= pubkeys.length,
     'Number of required signatures must be greater than the number of public keys')
   let Clazz
-  utxo = new UnspentOutput(utxo)
-  if (utxo.script.isMultisigOut()) {
+  const u = new UnspentOutput(utxo)
+  if (u.script.isMultisigOut()) {
     Clazz = Input.MultiSig
-  } else if (utxo.script.isScriptHashOut()) {
+  } else if (u.script.isScriptHashOut()) {
     Clazz = Input.MultiSigScriptHash
   } else {
-    throw new (err('Transaction.Input.UnsupportedScript'))(utxo.script.toString())
+    throw new (err('Transaction.Input.UnsupportedScript'))(u.script.toString())
   }
   this.addInput(new Clazz({
     output: new Output({
-      script: utxo.script,
-      satoshis: utxo.satoshis
+      script: u.script,
+      satoshis: u.satoshis
     }),
-    prevTxId: utxo.txId,
-    outputIndex: utxo.outputIndex,
+    prevTxId: u.txId,
+    outputIndex: u.outputIndex,
     script: Script().empty()
   }, pubkeys, threshold))
 }
@@ -625,7 +637,7 @@ Transaction.prototype._fromMultisigUtxo = function (this: Transaction, utxo: any
  * @param {number} satoshis
  * @return Transaction this, for chaining
  */
-Transaction.prototype.addInput = function (this: Transaction, input: any, outputScript: any, satoshis: any) {
+Transaction.prototype.addInput = function (this: Transaction, input: Input, outputScript?: ScriptType | string, satoshis?: number) {
   $.checkArgumentType(input, Input, 'input')
   if (!input.output && (_.isUndefined(outputScript) || _.isUndefined(satoshis))) {
     throw new (err('Transaction.NeedMoreInfo'))('Need information about the UTXO script and satoshis')
@@ -648,7 +660,7 @@ Transaction.prototype.addInput = function (this: Transaction, input: any, output
  * @param {Input} input
  * @return Transaction this, for chaining
  */
-Transaction.prototype.uncheckedAddInput = function (this: Transaction, input: any) {
+Transaction.prototype.uncheckedAddInput = function (this: Transaction, input: Input) {
   $.checkArgumentType(input, Input, 'input')
   this.inputs.push(input)
   this._inputAmount = undefined
@@ -675,7 +687,7 @@ Transaction.prototype.hasAllUtxoInfo = function (this: Transaction) {
  * @param {number} amount satoshis to be sent
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.fee = function (this: Transaction, amount: any) {
+Transaction.prototype.fee = function (this: Transaction, amount: number) {
   $.checkArgument(_.isNumber(amount), 'amount must be a number')
   this._fee = amount
   this._updateChangeOutput()
@@ -690,7 +702,7 @@ Transaction.prototype.fee = function (this: Transaction, amount: any) {
  * @param {number} amount satoshis per KB to be sent
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.feePerKb = function (this: Transaction, amount: any) {
+Transaction.prototype.feePerKb = function (this: Transaction, amount: number) {
   $.checkArgument(_.isNumber(amount), 'amount must be a number')
   this._feePerKb = amount
   this._updateChangeOutput()
@@ -708,7 +720,7 @@ Transaction.prototype.feePerKb = function (this: Transaction, amount: any) {
  * @param {Address} address An address for change to be sent to.
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.change = function (this: Transaction, address: any) {
+Transaction.prototype.change = function (this: Transaction, address: Address | string) {
   $.checkArgument(address, 'address is required')
   this._changeScript = Script().fromAddress(address)
   this._updateChangeOutput()
@@ -741,7 +753,7 @@ Transaction.prototype.getChangeOutput = function (this: Transaction) {
  * @param {number} amount in satoshis
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.to = function (this: Transaction, address: any, amount: any) {
+Transaction.prototype.to = function (this: Transaction, address: Address | string, amount: number) {
   if (_.isArray(address)) {
     const self = this
     _.each(address, function (to: any) {
@@ -771,7 +783,7 @@ Transaction.prototype.to = function (this: Transaction, address: any, amount: an
  *    In case of a string, the UTF-8 representation will be stored
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.addData = function (this: Transaction, value: any) {
+Transaction.prototype.addData = function (this: Transaction, value: string | Buffer | Array<string | Buffer>) {
   this.addOutput(new Output({
     script: Script().buildDataOut(value),
     satoshis: 0
@@ -789,7 +801,7 @@ Transaction.prototype.addData = function (this: Transaction, value: any) {
  *    In case of a string, the UTF-8 representation will be stored
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.addSafeData = function (this: Transaction, value: any) {
+Transaction.prototype.addSafeData = function (this: Transaction, value: string | Buffer | Array<string | Buffer>) {
   this.addOutput(new Output({
     script: Script().buildSafeDataOut(value),
     satoshis: 0
@@ -803,7 +815,7 @@ Transaction.prototype.addSafeData = function (this: Transaction, value: any) {
  * @param {Output} output the output to add.
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.addOutput = function (this: Transaction, output: any) {
+Transaction.prototype.addOutput = function (this: Transaction, output: Output) {
   $.checkArgumentType(output, Output, 'output')
   this._addOutput(output)
   this._updateChangeOutput()
@@ -824,7 +836,7 @@ Transaction.prototype.clearOutputs = function (this: Transaction) {
   return this
 }
 
-Transaction.prototype._addOutput = function (this: Transaction, output: any) {
+Transaction.prototype._addOutput = function (this: Transaction, output: Output) {
   this.outputs.push(output)
   this._outputAmount = undefined
 }
@@ -971,13 +983,13 @@ Transaction.prototype._estimateSize = function (this: Transaction) {
   return result
 }
 
-Transaction.prototype._removeOutput = function (this: Transaction, index: any) {
+Transaction.prototype._removeOutput = function (this: Transaction, index: number) {
   const output = this.outputs[index]
   this.outputs = _.without(this.outputs, output) as OutputType[]
   this._outputAmount = undefined
 }
 
-Transaction.prototype.removeOutput = function (this: Transaction, index: any) {
+Transaction.prototype.removeOutput = function (this: Transaction, index: number) {
   this._removeOutput(index)
   this._updateChangeOutput()
 }
@@ -1027,7 +1039,7 @@ Transaction.prototype.shuffleOutputs = function (this: Transaction) {
  * @param {Function} sortingFunction
  * @return {Transaction} this
  */
-Transaction.prototype.sortOutputs = function (this: Transaction, sortingFunction: any) {
+Transaction.prototype.sortOutputs = function (this: Transaction, sortingFunction: (outputs: OutputType[]) => OutputType[]) {
   const outs = sortingFunction(this.outputs)
   return this._newOutputOrder(outs)
 }
@@ -1040,13 +1052,13 @@ Transaction.prototype.sortOutputs = function (this: Transaction, sortingFunction
  * @param {Function} sortingFunction
  * @return {Transaction} this
  */
-Transaction.prototype.sortInputs = function (this: Transaction, sortingFunction: any) {
+Transaction.prototype.sortInputs = function (this: Transaction, sortingFunction: (inputs: InputType[]) => InputType[]) {
   this.inputs = sortingFunction(this.inputs)
   this._clearSignatures()
   return this
 }
 
-Transaction.prototype._newOutputOrder = function (this: Transaction, newOutputs: any) {
+Transaction.prototype._newOutputOrder = function (this: Transaction, newOutputs: Output[]) {
   const isInvalidSorting = (this.outputs.length !== newOutputs.length ||
                           _.difference(this.outputs, newOutputs).length !== 0)
   if (isInvalidSorting) {
@@ -1054,7 +1066,8 @@ Transaction.prototype._newOutputOrder = function (this: Transaction, newOutputs:
   }
 
   if (!_.isUndefined(this._changeIndex)) {
-    const changeOutput = this.outputs[this._changeIndex]
+    // _changeIndex is defined here (the guard above), so the lookup hits.
+    const changeOutput = this.outputs[this._changeIndex]!
     this._changeIndex = newOutputs.indexOf(changeOutput)
   }
 
@@ -1062,7 +1075,7 @@ Transaction.prototype._newOutputOrder = function (this: Transaction, newOutputs:
   return this
 }
 
-Transaction.prototype.removeInput = function (this: Transaction, txId: any, outputIndex: any) {
+Transaction.prototype.removeInput = function (this: Transaction, txId: string | number, outputIndex?: number) {
   let index
   if (!outputIndex && _.isNumber(txId)) {
     index = txId
@@ -1092,7 +1105,7 @@ Transaction.prototype.removeInput = function (this: Transaction, txId: any, outp
  * @param {number} sigtype
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.sign = function (this: Transaction, privateKey: any, sigtype: any) {
+Transaction.prototype.sign = function (this: Transaction, privateKey: PrivateKey | string | Array<PrivateKey | string>, sigtype?: number) {
   $.checkState(this.hasAllUtxoInfo(), 'Not all utxo information is available to sign the transaction.')
   const self = this
   if (_.isArray(privateKey)) {
@@ -1107,15 +1120,17 @@ Transaction.prototype.sign = function (this: Transaction, privateKey: any, sigty
   return this
 }
 
-Transaction.prototype.getSignatures = function (this: Transaction, privKey: any, sigtype: any) {
-  privKey = new (PrivateKey())(privKey)
+Transaction.prototype.getSignatures = function (this: Transaction, privKey: PrivateKey | string, sigtype?: number) {
+  // Normalize first: a WIF string is accepted, but everything below reads
+  // key material off the object. Its own binding, so the type follows.
+  const key: PrivateKey = new (PrivateKey())(privKey)
   // By default, signs using ALL|FORKID
   sigtype = sigtype || (Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID)
   const transaction = this
-  const results: unknown[] = []
-  const hashData = Hash.sha256ripemd160(privKey.publicKey.toBuffer())
+  const results: TransactionSignature[] = []
+  const hashData = Hash.sha256ripemd160(key.publicKey.toBuffer())
   _.each(this.inputs, function forEachInput (input, index) {
-    _.each(input.getSignatures(transaction, privKey, index, sigtype, hashData), function (signature) {
+    _.each(input.getSignatures(transaction, key, index, sigtype, hashData), function (signature: TransactionSignature) {
       results.push(signature)
     })
   })
@@ -1132,7 +1147,7 @@ Transaction.prototype.getSignatures = function (this: Transaction, privKey: any,
  * @param {Signature} signature.signature
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.applySignature = function (this: Transaction, signature: any) {
+Transaction.prototype.applySignature = function (this: Transaction, signature: TransactionSignature) {
   (this.inputs[signature.inputIndex] as InputType).addSignature(this, signature)
   return this
 }
@@ -1151,7 +1166,7 @@ Transaction.prototype.isFullySigned = function (this: Transaction) {
   }))
 }
 
-Transaction.prototype.isValidSignature = function (this: Transaction, signature: any) {
+Transaction.prototype.isValidSignature = function (this: Transaction, signature: TransactionSignature) {
   const self = this
   if ((this.inputs[signature.inputIndex] as InputType).isValidSignature === Input.prototype.isValidSignature) {
     throw new (err('Transaction.UnableToVerifySignature'))(
@@ -1165,7 +1180,7 @@ Transaction.prototype.isValidSignature = function (this: Transaction, signature:
 /**
  * @returns {bool} whether the signature is valid for this transaction input
  */
-Transaction.prototype.verifySignature = function (this: Transaction, sig: any, pubkey: any, nin: any, subscript: any, satoshisBN: any, flags: any) {
+Transaction.prototype.verifySignature = function (this: Transaction, sig: Signature, pubkey: PublicKey, nin: number, subscript: ScriptType, satoshisBN: BN, flags?: number) {
   return Sighash.verify(this, sig, pubkey, nin, subscript, satoshisBN, flags)
 }
 
@@ -1251,7 +1266,7 @@ Transaction.prototype.isCoinbase = function (this: Transaction) {
  * @param {number} flags - Script verification flags (optional)
  * @return {Buffer} The signature hash for this input
  */
-Transaction.prototype.sighash = function (this: Transaction, inputIndex: any, sighashType: any, subscript: any, satoshisBN: any, flags: any) {
+Transaction.prototype.sighash = function (this: Transaction, inputIndex: number, sighashType: number, subscript: ScriptType, satoshisBN?: BN, flags?: number) {
   sighashType = sighashType || (Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID)
 
   // Get the input we're signing for

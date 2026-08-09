@@ -165,15 +165,46 @@ script/index; transaction/transaction, then transaction/index.
 
 | # | File | Lines | Note |
 |---|---|---|---|
-| 1 | `script/script` | 1172 | 84 top-level members. Unblocks script/index and much of transaction. |
+| 1 | `script/script` | 1172 | 84 top-level members. Unblocks script/index and much of transaction. **Attempted once and reverted — see below.** |
 | 2 | `script/interpreter` | 1932 | The largest. Consensus-critical; the 1329 Core script_tests in the corpus are the gate. |
 | 3 | `script/index` | 3 | barrel, after 1 and 2 |
 | 4 | `transaction/transaction` | 1264 | Depends on script being typed |
 | 5 | `transaction/index` | 7 | barrel, after 4 |
 | 6 | `transaction/input/index` | 6 | barrel; its targets are already converted, so it can go any time |
 
-`transaction/input/index` is the one barrel that could be done now — all four
-subclasses and the base are already TypeScript.
+`transaction/input/index` is done; the other two barrels wait on their targets.
+
+### Notes from the first attempt at script/script
+
+Reverted, but the groundwork is worth reusing:
+
+- **Generate the opcode constants.** `OpcodeConstructor` reached the ~150
+  `OP_*` names through an index signature, which has to be `unknown` because
+  the constructor also carries functions and objects. That makes every
+  `Opcode.OP_X` unusable without a cast — dozens of them in script/script
+  alone, on consensus-critical comparisons. Generating
+  `interface OpcodeConstants { readonly OP_DUP: number; ... }` from
+  `Opcode.map` removed 19 errors at a stroke and cannot drift, since the list
+  is derived from the implementation.
+
+- **The classification predicates all read `chunks.length === N && chunks[0]...`.**
+  The length check guards every index, but TypeScript will not carry that
+  through `&&` into a later operand, so `noUncheckedIndexedAccess` flags each
+  one. A blanket `as ScriptChunk` on guarded indexing is correct and erased —
+  the predicate still short-circuits on the length check — and it accounted for
+  roughly half the remaining errors.
+
+- **The constructor body needs explicit casts.** `const Script = function
+  ... } as unknown as ScriptConstructor` types the binding, but INSIDE the
+  function body TypeScript still sees the raw function, so `Script.fromBuffer`
+  there needs `(Script as unknown as ScriptConstructor)`. Outside the body it
+  does not — adding casts everywhere breaks ASI after `Script.types = {}`,
+  because the next line then begins with `(`.
+
+Error count went 119 -> 30 along those lines. The remainder were individual
+`buf`/`len` narrowings inside push-opcode branches. Do this one with line-
+addressed edits rather than string matching; the indentation varies enough
+that whole-string replacement silently misses.
 
 #### SCC-2 — `hdprivatekey ↔ hdpublickey`
 

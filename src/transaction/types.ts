@@ -230,3 +230,122 @@ export interface MultiSigInputConstructor {
   PUBKEY_SIZE?: number
   normalizeSignatures?: (transaction: unknown, input: unknown, inputIndex: number, signatures: unknown[], publicKeys: unknown[]) => unknown[]
 }
+
+/** A transaction. */
+export interface Transaction {
+  inputs: Input[]
+  outputs: Output[]
+  version: number
+  nLockTime: number
+  // All optional-and-explicitly-undefined: the constructor and the fee
+  // machinery clear them by assignment, which exactOptionalPropertyTypes
+  // distinguishes from absence.
+  _inputAmount?: number | undefined
+  _outputAmount?: number | undefined
+  _changeScript?: import('../script/script.types').Script | undefined
+  _changeIndex?: number | undefined
+  _fee?: number | undefined
+  _feePerKb?: number | undefined
+  _hash?: string | undefined
+
+  readonly hash: string
+  readonly id: string
+  readonly inputAmount: number
+  readonly outputAmount: number
+
+  // Generated from the prototype assignments in transaction.ts. Typed loosely
+  // on purpose: this is the widest surface in the library, and inventing 64
+  // signatures during a behaviour-preserving conversion would mean 64 chances
+  // to be wrong about one. Tightening them, method by method against their
+  // tests, is API-pass work.
+  _addOutput: (...args: any[]) => any
+  _checkConsistency: (...args: any[]) => any
+  _clearSignatures: (...args: any[]) => any
+  _estimateFee: (...args: any[]) => any
+  _estimateSize: (...args: any[]) => any
+  _fromMultisigUtxo: (...args: any[]) => any
+  _fromNonP2SH: (...args: any[]) => any
+  _getHash: (...args: any[]) => any
+  _getInputAmount: (...args: any[]) => any
+  _getOutputAmount: (...args: any[]) => any
+  _getUnspentValue: (...args: any[]) => any
+  _hasDustOutputs: (...args: any[]) => any
+  _hasFeeError: (...args: any[]) => any
+  _isMissingSignatures: (...args: any[]) => any
+  _missingChange: (...args: any[]) => any
+  _newOutputOrder: (...args: any[]) => any
+  _newTransaction: (...args: any[]) => any
+  _removeOutput: (...args: any[]) => any
+  _updateChangeOutput: (...args: any[]) => any
+  addData: (...args: any[]) => any
+  addInput: (...args: any[]) => any
+  addOutput: (...args: any[]) => any
+  addSafeData: (...args: any[]) => any
+  applySignature: (...args: any[]) => any
+  change: (...args: any[]) => any
+  checkedSerialize: (...args: any[]) => any
+  clearOutputs: (...args: any[]) => any
+  fee: (...args: any[]) => any
+  feePerKb: (...args: any[]) => any
+  from: (...args: any[]) => any
+  fromBuffer: (...args: any[]) => any
+  fromBufferReader: (...args: any[]) => any
+  fromObject: (...args: any[]) => any
+  fromString: (...args: any[]) => any
+  getChangeOutput: (...args: any[]) => any
+  getFee: (...args: any[]) => any
+  getLockTime: (...args: any[]) => any
+  getSerializationError: (...args: any[]) => any
+  getSignatures: (...args: any[]) => any
+  hasAllUtxoInfo: (...args: any[]) => any
+  inspect: (...args: any[]) => any
+  invalidSatoshis: (...args: any[]) => any
+  isCoinbase: (...args: any[]) => any
+  isFullySigned: (...args: any[]) => any
+  isValidSignature: (...args: any[]) => any
+  lockUntilBlockHeight: (...args: any[]) => any
+  lockUntilDate: (...args: any[]) => any
+  removeInput: (...args: any[]) => any
+  removeOutput: (...args: any[]) => any
+  serialize: (...args: any[]) => any
+  shuffleOutputs: (...args: any[]) => any
+  sighash: (...args: any[]) => any
+  sign: (...args: any[]) => any
+  sort: (...args: any[]) => any
+  sortInputs: (...args: any[]) => any
+  sortOutputs: (...args: any[]) => any
+  to: (...args: any[]) => any
+  toBuffer: (...args: any[]) => any
+  toBufferWriter: (...args: any[]) => any
+  toObject: (...args: any[]) => any
+  uncheckedAddInput: (...args: any[]) => any
+  uncheckedSerialize: (...args: any[]) => any
+  verify: (...args: any[]) => any
+  verifySignature: (...args: any[]) => any
+}
+
+export interface TransactionConstructor {
+  new (serialized?: unknown): Transaction
+  (serialized?: unknown): Transaction
+
+  // Enumerated rather than reached through an index signature: an index
+  // signature would have to be `unknown` (the constructor carries both numbers
+  // and functions), which forces a cast at every use — including the fee and
+  // dust thresholds, where a wrong value is a real-money bug.
+  shallowCopy: (tx: Transaction) => Transaction
+  DUST_AMOUNT: number
+  FEE_SECURITY_MARGIN: number
+  MAX_MONEY: number
+  NLOCKTIME_BLOCKHEIGHT_LIMIT: number
+  NLOCKTIME_MAX_VALUE: number
+  FEE_PER_KB: number
+  CHANGE_OUTPUT_MAX_SIZE: number
+
+  /** Attached by transaction/index, not by transaction/transaction itself. */
+  Input?: unknown
+  Output?: unknown
+  UnspentOutput?: unknown
+  Signature?: unknown
+  Sighash?: unknown
+  sighash?: unknown
+}

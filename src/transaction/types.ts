@@ -151,6 +151,12 @@ export interface InputConstructor {
   BASE_SIZE: number
   fromObject: (obj: Record<string, unknown>) => Input
   fromBufferReader: (br: unknown) => Input
+
+  // Attached by transaction/input/index, not by input/input itself.
+  PublicKey: SigningInputConstructor
+  PublicKeyHash: SigningInputConstructor
+  MultiSig: MultiSigInputConstructor
+  MultiSigScriptHash: MultiSigInputConstructor
 }
 
 /**

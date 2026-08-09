@@ -136,17 +136,44 @@ The alternative — ambient `any` declarations to bridge the unconverted files �
 is rejected: it reintroduces exactly the `any`-riddled surface this migration
 exists to eliminate, and it would typecheck while being wrong.
 
-**One pattern needing a decision, not a rewrite:** the three barrel files
-assign and then mutate their exports:
+**The three barrel files go LAST, not first.** They assign and then mutate
+their exports:
 
 ```js
 module.exports = require('./script')
 module.exports.Interpreter = require('./interpreter')
 ```
 
-`export =` does not express "assign then augment". Options are a merged object
-literal, or `Object.assign`, and the choice affects the emitted type surface —
-worth settling deliberately before starting.
+Two things follow. First, `export =` does not express "assign then augment";
+the workable form is to import both, mutate the constructor, and export it —
+the augmented member (`Interpreter`) is already declared on `ScriptConstructor`
+in script.types.ts, so the mutation typechecks:
+
+```ts
+import Script = require('./script')
+import Interpreter = require('./interpreter')
+Script.Interpreter = Interpreter   // what the JS did, made explicit
+export = Script
+```
+
+Second, and easy to get wrong: a barrel cannot be converted before its target.
+`tsconfig.types.json` sets `allowJs: false`, so `script/index.ts` importing an
+unconverted `script/script.js` fails. Convert script/script, then
+script/index; transaction/transaction, then transaction/index.
+
+### Remaining six, in order
+
+| # | File | Lines | Note |
+|---|---|---|---|
+| 1 | `script/script` | 1172 | 84 top-level members. Unblocks script/index and much of transaction. |
+| 2 | `script/interpreter` | 1932 | The largest. Consensus-critical; the 1329 Core script_tests in the corpus are the gate. |
+| 3 | `script/index` | 3 | barrel, after 1 and 2 |
+| 4 | `transaction/transaction` | 1264 | Depends on script being typed |
+| 5 | `transaction/index` | 7 | barrel, after 4 |
+| 6 | `transaction/input/index` | 6 | barrel; its targets are already converted, so it can go any time |
+
+`transaction/input/index` is the one barrel that could be done now — all four
+subclasses and the base are already TypeScript.
 
 #### SCC-2 — `hdprivatekey ↔ hdpublickey`
 

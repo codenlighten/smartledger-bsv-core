@@ -20,24 +20,29 @@ const { sha512, sha256 } = require('@noble/hashes/sha2.js')
 const { hmac } = require('@noble/hashes/hmac.js')
 const { cbc } = require('@noble/ciphers/aes.js')
 
-const PublicKey = require('../publickey')
-const $ = require('../util/preconditions')
-const Random = require('../crypto/random')
+import PublicKey = require('../publickey')
+import $ = require('../util/preconditions')
+import Random = require('../crypto/random')
+import type { BitcoreECIES, BitcoreECIESConstructor, ECIESOptions, AESCBCStatic } from './types'
 
-function buf (u8) { return Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength) }
-function hmacSha256 (key, data) { return buf(hmac(sha256, key, data)) }
+function buf (u8: Uint8Array): Buffer { return Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength) }
+function hmacSha256 (key: Uint8Array, data: Uint8Array): Buffer { return buf(hmac(sha256, key, data)) }
 
 // Constant-time buffer comparison (see bitcore-ecies for rationale).
-function constantTimeEqual (a, b) {
+function constantTimeEqual (a: Buffer, b: Buffer): boolean {
   if (a.length !== b.length) return false
   let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i]
+  // Non-null assertions, not bounds checks: this loop is a constant-time
+  // comparison, and the assertions erase at compile time. A real guard here
+  // would introduce a data-dependent branch, which is the whole point of the
+  // function.
+  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!
   return diff === 0
 }
 
-const AESCBC = function AESCBC () {}
+const AESCBC = function AESCBC () {} as unknown as AESCBCStatic
 
-AESCBC.encrypt = function (messagebuf, cipherkeybuf, ivbuf) {
+AESCBC.encrypt = function (messagebuf: Buffer, cipherkeybuf: Buffer, ivbuf: Buffer) {
   $.checkArgument(messagebuf)
   $.checkArgument(cipherkeybuf)
   $.checkArgument(ivbuf)
@@ -46,7 +51,7 @@ AESCBC.encrypt = function (messagebuf, cipherkeybuf, ivbuf) {
   return Buffer.concat([Buffer.from(ivbuf), buf(ct)])
 }
 
-AESCBC.decrypt = function (encbuf, cipherkeybuf) {
+AESCBC.decrypt = function (encbuf: Buffer, cipherkeybuf: Buffer) {
   $.checkArgument(encbuf)
   $.checkArgument(cipherkeybuf)
   const ivbuf = encbuf.slice(0, 128 / 8)
@@ -55,32 +60,32 @@ AESCBC.decrypt = function (encbuf, cipherkeybuf) {
   return buf(msg)
 }
 
-const ECIES = function ECIES (opts) {
+const ECIES = function ECIES (this: BitcoreECIES, opts?: ECIESOptions) {
   // Forward opts through the no-`new` guard; dropping it (the pre-7.0.2
   // `new ECIES()`) silently ignored { noKey, shortTag } when called as a
   // factory, changing the wire format (e.g. leaking the 33-byte sender pubkey).
-  if (!(this instanceof ECIES)) return new ECIES(opts)
+  if (!(this instanceof ECIES)) return new (ECIES as unknown as BitcoreECIESConstructor)(opts)
   this.opts = opts || {}
 }
 
-ECIES.prototype.privateKey = function (privateKey) {
+ECIES.prototype.privateKey = function (this: BitcoreECIES, privateKey: any) {
   $.checkArgument(privateKey, 'no private key provided')
   this._privateKey = privateKey || null
   return this
 }
 
-ECIES.prototype.publicKey = function (publicKey) {
+ECIES.prototype.publicKey = function (this: BitcoreECIES, publicKey: any) {
   $.checkArgument(publicKey, 'no public key provided')
   this._publicKey = publicKey || null
   return this
 }
 
-const cachedProperty = function (name, getter) {
+const cachedProperty = function (name: string, getter: (this: BitcoreECIES) => Buffer) {
   const cachedName = '_' + name
   Object.defineProperty(ECIES.prototype, name, {
     configurable: false,
     enumerable: true,
-    get: function () {
+    get: function (this: any) {
       let value = this[cachedName]
       if (!value) value = this[cachedName] = getter.apply(this)
       return value
@@ -89,27 +94,27 @@ const cachedProperty = function (name, getter) {
 }
 
 // Sender's compressed public key (R), via @noble from the raw private scalar.
-cachedProperty('Rbuf', function () {
-  const priv = this._privateKey.bn.toBuffer({ size: 32 })
+cachedProperty('Rbuf', function (this: BitcoreECIES) {
+  const priv = this._privateKey!.bn.toBuffer({ size: 32 })
   return buf(secp256k1.getPublicKey(Uint8Array.from(priv), true))
 })
 
 // ECDH + KDF: S = X(priv * pub); kE||kM = SHA-512(S).
-cachedProperty('kEkM', function () {
-  const priv = this._privateKey.bn.toBuffer({ size: 32 })
-  const pub = this._publicKey.toDER() // SEC-encoded; @noble accepts either form
+cachedProperty('kEkM', function (this: BitcoreECIES) {
+  const priv = this._privateKey!.bn.toBuffer({ size: 32 })
+  const pub = this._publicKey!.toDER() // SEC-encoded; @noble accepts either form
   const shared = secp256k1.getSharedSecret(Uint8Array.from(priv), Uint8Array.from(pub), true)
   const Sbuf = shared.slice(1) // drop the 02/03 prefix -> 32-byte X coordinate
   return buf(sha512(Sbuf))
 })
 
-cachedProperty('kE', function () { return this.kEkM.slice(0, 32) })
-cachedProperty('kM', function () { return this.kEkM.slice(32, 64) })
+cachedProperty('kE', function (this: BitcoreECIES) { return this.kEkM.slice(0, 32) })
+cachedProperty('kM', function (this: BitcoreECIES) { return this.kEkM.slice(32, 64) })
 
-ECIES.prototype.encrypt = function (message, ivbuf) {
+ECIES.prototype.encrypt = function (this: BitcoreECIES, message: any, ivbuf: any) {
   if (!Buffer.isBuffer(message)) message = Buffer.from(message)
   if (ivbuf === undefined) {
-    ivbuf = hmacSha256(this._privateKey.toBuffer(), message).slice(0, 16)
+    ivbuf = hmacSha256(this._privateKey!.toBuffer(), message).slice(0, 16)
   }
   const c = AESCBC.encrypt(message, this.kE, ivbuf)
   let d = hmacSha256(this.kM, c)
@@ -118,7 +123,7 @@ ECIES.prototype.encrypt = function (message, ivbuf) {
   return Buffer.concat([this.Rbuf, c, d])
 }
 
-ECIES.prototype.decrypt = function (encbuf) {
+ECIES.prototype.decrypt = function (this: BitcoreECIES, encbuf: any) {
   $.checkArgument(encbuf)
   let offset = 0
   const tagLength = this.opts.shortTag ? 4 : 32
@@ -144,4 +149,4 @@ ECIES.prototype.decrypt = function (encbuf) {
   return AESCBC.decrypt(c, this.kE)
 }
 
-module.exports = ECIES
+export = ECIES as unknown as BitcoreECIESConstructor

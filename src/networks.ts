@@ -26,7 +26,7 @@ Network.prototype.toString = function toString (this: Network): string {
  * @param {string|Array} keys - if set, only check if the magic number associated with this name matches
  * @return Network
  */
-function get (arg: string | number | Network, keys?: string | string[]): Network | undefined {
+function get (arg?: string | number | Network, keys?: string | string[]): Network | undefined {
   if (~networks.indexOf(arg as Network)) {
     return arg as Network
   }

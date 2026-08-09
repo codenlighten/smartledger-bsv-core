@@ -10,7 +10,9 @@ import $ = require('../util/preconditions')
 import _ = require('../util/_')
 import errors = require('../errors')
 import JSUtil = require('../util/js')
-import type { Script, ScriptConstructor, ScriptChunk, ScriptAddressInfo } from './script.types'
+import type { Script, ScriptConstructor, ScriptChunk, ScriptAddressInfo, ScriptAddable, AddressLike, PublicKeyLike, NetworkLike, MultisigOpts } from './script.types'
+import type { PublicKey } from '../publickey.types'
+import type { Address } from '../address.types'
 
 // address and publickey are in this cycle, so both resolve on demand.
 const addressClass = (): any => require('../address')
@@ -47,7 +49,7 @@ const Script = function Script (this: Script, from?: unknown) {
   if (Buffer.isBuffer(from)) {
     return (Script as unknown as ScriptConstructor).fromBuffer(from)
   } else if (from instanceof (addressClass() as new () => unknown)) {
-    return (Script as unknown as ScriptConstructor).fromAddress(from)
+    return (Script as unknown as ScriptConstructor).fromAddress(from as AddressLike)
   } else if (from instanceof (Script as unknown as new () => unknown)) {
     return (Script as unknown as ScriptConstructor).fromBuffer((from as Script).toBuffer())
   } else if (_.isString(from)) {
@@ -57,14 +59,14 @@ const Script = function Script (this: Script, from?: unknown) {
   }
 } as unknown as ScriptConstructor
 
-Script.prototype.set = function (this: Script, obj: any) {
+Script.prototype.set = function (this: Script, obj: { chunks: ScriptChunk[] }) {
   $.checkArgument(_.isObject(obj))
   $.checkArgument(_.isArray(obj.chunks))
   this.chunks = obj.chunks
   return this
 }
 
-Script.fromBuffer = function (buffer: any) {
+Script.fromBuffer = function (buffer: Buffer) {
   const script = new Script()
   script.chunks = []
 
@@ -147,7 +149,7 @@ Script.prototype.toBuffer = function (this: Script) {
   return bw.concat()
 }
 
-Script.fromASM = function (str: any) {
+Script.fromASM = function (str: string) {
   const script = new Script()
   script.chunks = []
 
@@ -155,7 +157,7 @@ Script.fromASM = function (str: any) {
   let i = 0
   while (i < tokens.length) {
     const token = tokens[i]
-    const opcode = Opcode(token)
+    const opcode = Opcode(token!)
     let opcodenum = opcode.toNumber()
 
     // we start with two special cases, 0 and -1, which are handled specially in
@@ -173,8 +175,8 @@ Script.fromASM = function (str: any) {
       })
       i = i + 1
     } else if (_.isUndefined(opcodenum)) {
-      const buf = Buffer.from(tokens[i], 'hex')
-      if (buf.toString('hex') !== tokens[i]) {
+      const buf = Buffer.from(tokens[i]!, 'hex')
+      if (buf.toString('hex') !== tokens[i]!) {
         throw new Error('invalid hex string in script')
       }
       const len = buf.length
@@ -203,11 +205,11 @@ Script.fromASM = function (str: any) {
   return script
 }
 
-Script.fromHex = function (str: any) {
+Script.fromHex = function (str: string) {
   return new Script(Buffer.from(str, 'hex'))
 }
 
-Script.fromString = function (str: any) {
+Script.fromString = function (str: string) {
   if (JSUtil.isHexa(str) || str.length === 0) {
     return new Script(Buffer.from(str, 'hex'))
   }
@@ -218,14 +220,14 @@ Script.fromString = function (str: any) {
   let i = 0
   while (i < tokens.length) {
     const token = tokens[i]
-    const opcode = Opcode(token)
+    const opcode = Opcode(token!)
     let opcodenum = opcode.toNumber()
 
     if (_.isUndefined(opcodenum)) {
-      opcodenum = parseInt(token)
+      opcodenum = parseInt(token!)
       if (opcodenum > 0 && opcodenum < Opcode.OP_PUSHDATA1) {
         script.chunks.push({
-          buf: Buffer.from(tokens[i + 1].slice(2), 'hex'),
+          buf: Buffer.from(tokens[i + 1]!.slice(2), 'hex'),
           len: opcodenum,
           opcodenum
         })
@@ -236,12 +238,12 @@ Script.fromString = function (str: any) {
     } else if (opcodenum === Opcode.OP_PUSHDATA1 ||
       opcodenum === Opcode.OP_PUSHDATA2 ||
       opcodenum === Opcode.OP_PUSHDATA4) {
-      if (tokens[i + 2].slice(0, 2) !== '0x') {
+      if (tokens[i + 2]!.slice(0, 2) !== '0x') {
         throw new Error('Pushdata data must start with 0x')
       }
       script.chunks.push({
-        buf: Buffer.from(tokens[i + 2].slice(2), 'hex'),
-        len: parseInt(tokens[i + 1]),
+        buf: Buffer.from(tokens[i + 2]!.slice(2), 'hex'),
+        len: parseInt(tokens[i + 1]!),
         opcodenum
       })
       i = i + 3
@@ -255,7 +257,7 @@ Script.fromString = function (str: any) {
   return script
 }
 
-Script.prototype._chunkToString = function (this: Script, chunk: any, type: any) {
+Script.prototype._chunkToString = function (this: Script, chunk: ScriptChunk, type?: string) {
   const opcodenum = chunk.opcodenum
   const asm = (type === 'asm')
   let str = ''
@@ -295,7 +297,7 @@ Script.prototype._chunkToString = function (this: Script, chunk: any, type: any)
       opcodenum === Opcode.OP_PUSHDATA4)) {
       str = str + ' ' + Opcode(opcodenum).toString()
     }
-    if (chunk.len > 0) {
+    if (chunk.len != null && chunk.len > 0) {
       if (asm) {
         str = str + ' ' + chunk.buf.toString('hex')
       } else {
@@ -656,7 +658,7 @@ Script.prototype.isStandard = function (this: Script) {
  * @param {*} obj a string, number, Opcode, Buffer, or object to add
  * @returns {Script} this script instance
  */
-Script.prototype.prepend = function (this: Script, obj: any) {
+Script.prototype.prepend = function (this: Script, obj: ScriptAddable) {
   this._addByType(obj, true)
   return this
 }
@@ -664,7 +666,7 @@ Script.prototype.prepend = function (this: Script, obj: any) {
 /**
  * Compares a script with another script
  */
-Script.prototype.equals = function (this: Script, script: any) {
+Script.prototype.equals = function (this: Script, script: Script) {
   $.checkState(script instanceof Script, 'Must provide another script')
   if (this.chunks.length !== script.chunks.length) {
     return false
@@ -690,12 +692,12 @@ Script.prototype.equals = function (this: Script, script: any) {
  * @returns {Script} this script instance
  *
  */
-Script.prototype.add = function (this: Script, obj: any) {
+Script.prototype.add = function (this: Script, obj: ScriptAddable) {
   this._addByType(obj, false)
   return this
 }
 
-Script.prototype._addByType = function (this: Script, obj: any, prepend: any) {
+Script.prototype._addByType = function (this: Script, obj: ScriptAddable, prepend: boolean) {
   if (typeof obj === 'string') {
     this._addOpcode(obj, prepend)
   } else if (typeof obj === 'number') {
@@ -713,7 +715,7 @@ Script.prototype._addByType = function (this: Script, obj: any, prepend: any) {
   }
 }
 
-Script.prototype._insertAtPosition = function (this: Script, op: any, prepend: any) {
+Script.prototype._insertAtPosition = function (this: Script, op: ScriptChunk, prepend: boolean) {
   if (prepend) {
     this.chunks.unshift(op)
   } else {
@@ -721,7 +723,7 @@ Script.prototype._insertAtPosition = function (this: Script, op: any, prepend: a
   }
 }
 
-Script.prototype._addOpcode = function (this: Script, opcode: any, prepend: any) {
+Script.prototype._addOpcode = function (this: Script, opcode: number | string | Opcode, prepend: boolean) {
   let op
   if (typeof opcode === 'number') {
     op = opcode
@@ -736,7 +738,7 @@ Script.prototype._addOpcode = function (this: Script, opcode: any, prepend: any)
   return this
 }
 
-Script.prototype._addBuffer = function (this: Script, buf: any, prepend: any) {
+Script.prototype._addBuffer = function (this: Script, buf: Buffer, prepend: boolean) {
   let opcodenum
   const len = buf.length
   if (len >= 0 && len < Opcode.OP_PUSHDATA1) {
@@ -780,22 +782,24 @@ Script.prototype.removeCodeseparators = function (this: Script) {
  *        - noSorting: defaults to false, if true, don't sort the given
  *                      public keys before creating the script
  */
-Script.buildMultisigOut = function (publicKeys: any, threshold: any, opts: any) {
+Script.buildMultisigOut = function (publicKeys: PublicKeyLike[], threshold: number, opts?: MultisigOpts) {
   $.checkArgument(threshold <= publicKeys.length,
     'Number of required signatures must be less than or equal to the number of public keys')
   opts = opts || {}
   const script = new Script()
   script.add(Opcode.smallInt(threshold))
-  publicKeys = _.map(publicKeys, (k: unknown) => new (publicKeyClass())(k))
-  let sorted = publicKeys
+  // Normalized to PublicKey once, under its own name, so the type follows the
+  // value instead of the parameter's looser input shape.
+  const keys: PublicKey[] = _.map(publicKeys, (k: PublicKeyLike) => new (publicKeyClass())(k))
+  let sorted = keys
   if (!opts.noSorting) {
-    sorted = publicKeys.map((k: any) => k.toString('hex')).sort().map((k: any) => new (publicKeyClass())(k))
+    // NOT cosmetic: the sort decides the script, and therefore the address.
+    sorted = keys.map((k) => k.toString()).sort().map((k) => new (publicKeyClass())(k))
   }
   for (let i = 0; i < sorted.length; i++) {
-    const publicKey = sorted[i]
-    script.add(publicKey.toBuffer())
+    script.add(sorted[i]!.toBuffer())
   }
-  script.add(Opcode.smallInt(publicKeys.length))
+  script.add(Opcode.smallInt(keys.length))
   script.add(Opcode.OP_CHECKMULTISIG)
   return script
 }
@@ -812,7 +816,7 @@ Script.buildMultisigOut = function (publicKeys: any, threshold: any, opts: any) 
  *
  * @returns {Script}
  */
-Script.buildMultisigIn = function (pubkeys: any, threshold: any, signatures: any, opts: any) {
+Script.buildMultisigIn = function (pubkeys: PublicKeyLike[], threshold: number, signatures: Array<Buffer | Signature>, opts?: MultisigOpts) {
   $.checkArgument(_.isArray(pubkeys))
   $.checkArgument(_.isNumber(threshold))
   $.checkArgument(_.isArray(signatures))
@@ -822,7 +826,7 @@ Script.buildMultisigIn = function (pubkeys: any, threshold: any, signatures: any
   _.each(signatures, function (signature) {
     $.checkArgument(Buffer.isBuffer(signature), 'Signatures must be an array of Buffers')
     // TODO: allow signatures to be an array of Signature objects
-    s.add(signature)
+    s.add(signature as Buffer)
   })
   return s
 }
@@ -839,7 +843,7 @@ Script.buildMultisigIn = function (pubkeys: any, threshold: any, signatures: any
  *
  * @returns {Script}
  */
-Script.buildP2SHMultisigIn = function (pubkeys: any, threshold: any, signatures: any, opts: any) {
+Script.buildP2SHMultisigIn = function (pubkeys: PublicKeyLike[], threshold: number, signatures: Array<Buffer | Signature>, opts?: MultisigOpts) {
   $.checkArgument(_.isArray(pubkeys))
   $.checkArgument(_.isNumber(threshold))
   $.checkArgument(_.isArray(signatures))
@@ -849,7 +853,7 @@ Script.buildP2SHMultisigIn = function (pubkeys: any, threshold: any, signatures:
   _.each(signatures, function (signature) {
     $.checkArgument(Buffer.isBuffer(signature), 'Signatures must be an array of Buffers')
     // TODO: allow signatures to be an array of Signature objects
-    s.add(signature)
+    s.add(signature as Buffer)
   })
   s.add((opts.cachedMultisig || Script.buildMultisigOut(pubkeys, threshold, opts)).toBuffer())
   return s
@@ -860,21 +864,26 @@ Script.buildP2SHMultisigIn = function (pubkeys: any, threshold: any, signatures:
  * address or public key
  * @param {(Address|PublicKey)} to - destination address or public key
  */
-Script.buildPublicKeyHashOut = function (to: any) {
+Script.buildPublicKeyHashOut = function (to: AddressLike) {
   $.checkArgument(!_.isUndefined(to))
   $.checkArgument(to instanceof (publicKeyClass() as new () => unknown) || to instanceof (addressClass() as new () => unknown) || _.isString(to))
+  // Three accepted inputs, one internal form. The Address gets its own binding
+  // rather than being written back over the parameter.
+  let addr: Address
   if (to instanceof (publicKeyClass() as new () => unknown)) {
-    to = (to as { toAddress: () => unknown }).toAddress()
+    addr = (to as PublicKey).toAddress() as Address
   } else if (_.isString(to)) {
-    to = new (addressClass())(to)
+    addr = new (addressClass())(to)
+  } else {
+    addr = to as Address
   }
   const s = new Script()
   s.add(Opcode.OP_DUP)
     .add(Opcode.OP_HASH160)
-    .add(to.hashBuffer)
+    .add(addr.hashBuffer)
     .add(Opcode.OP_EQUALVERIFY)
     .add(Opcode.OP_CHECKSIG)
-  s._network = to.network
+  s._network = addr.network
   return s
 }
 
@@ -882,7 +891,7 @@ Script.buildPublicKeyHashOut = function (to: any) {
  * @returns {Script} a new pay to public key output for the given
  *  public key
  */
-Script.buildPublicKeyOut = function (pubkey: any) {
+Script.buildPublicKeyOut = function (pubkey: PublicKey) {
   $.checkArgument(pubkey instanceof (publicKeyClass() as new () => unknown))
   const s = new Script()
   s.add(pubkey.toBuffer())
@@ -895,12 +904,10 @@ Script.buildPublicKeyOut = function (pubkey: any) {
  * @param {(string|Buffer|Array)} data - the data to embed in the output - it is a string, buffer, or array of strings or buffers
  * @param {(string)} encoding - the type of encoding of the string(s)
  */
-Script.buildDataOut = function (data: any, encoding: any) {
+Script.buildDataOut = function (data?: string | Buffer | Array<string | Buffer | undefined>, encoding?: BufferEncoding) {
   $.checkArgument(_.isUndefined(data) || _.isString(data) || _.isArray(data) || Buffer.isBuffer(data))
-  let datas = data
-  if (!_.isArray(datas)) {
-    datas = [data]
-  }
+  // One value or many; normalize to the array form under its own name.
+  const datas: Array<string | Buffer | undefined> = _.isArray(data) ? data : [data]
   const s = new Script()
   s.add(Opcode.OP_RETURN)
   for (let data of datas) {
@@ -920,7 +927,7 @@ Script.buildDataOut = function (data: any, encoding: any) {
  * @param {(string|Buffer|Array)} data - the data to embed in the output - it is a string, buffer, or array of strings or buffers
  * @param {(string)} encoding - the type of encoding of the string(s)
  */
-Script.buildSafeDataOut = function (data: any, encoding: any) {
+Script.buildSafeDataOut = function (data?: string | Buffer | Array<string | Buffer | undefined>, encoding?: BufferEncoding) {
   const s2 = Script.buildDataOut(data, encoding)
   const s1 = new Script()
   s1.add(Opcode.OP_FALSE)
@@ -933,7 +940,7 @@ Script.buildSafeDataOut = function (data: any, encoding: any) {
  *    It can also be a p2sh address
  * @returns {Script} new pay to script hash script for given script
  */
-Script.buildScriptHashOut = function (script: any) {
+Script.buildScriptHashOut = function (script: Script | Address) {
   $.checkArgument(script instanceof Script ||
     (script instanceof (addressClass() as new () => unknown) && (script as { isPayToScriptHash: () => boolean }).isPayToScriptHash()))
   const s = new Script()
@@ -941,7 +948,7 @@ Script.buildScriptHashOut = function (script: any) {
     .add(script instanceof (addressClass() as new () => unknown) ? (script as { hashBuffer: Buffer }).hashBuffer : Hash.sha256ripemd160(script.toBuffer()))
     .add(Opcode.OP_EQUAL)
 
-  s._network = script._network || script.network
+  s._network = (script as Script)._network ?? (script as Address).network
   return s
 }
 
@@ -951,7 +958,7 @@ Script.buildScriptHashOut = function (script: any) {
  * @param {Signature|Buffer} signature - a Signature object, or the signature in DER canonical encoding
  * @param {number=} sigtype - the type of the signature (defaults to SIGHASH_ALL)
  */
-Script.buildPublicKeyIn = function (signature: any, sigtype: any) {
+Script.buildPublicKeyIn = function (signature: Buffer | Signature, sigtype?: number) {
   $.checkArgument(signature instanceof Signature || Buffer.isBuffer(signature))
   $.checkArgument(_.isUndefined(sigtype) || _.isNumber(sigtype))
   if (signature instanceof Signature) {
@@ -973,7 +980,7 @@ Script.buildPublicKeyIn = function (signature: any, sigtype: any) {
  * @param {Signature|Buffer} signature - a Signature object, or the signature in DER canonical encoding
  * @param {number=} sigtype - the type of the signature (defaults to SIGHASH_ALL)
  */
-Script.buildPublicKeyHashIn = function (publicKey: any, signature: any, sigtype: any) {
+Script.buildPublicKeyHashIn = function (publicKey: PublicKeyLike, signature: Buffer | Signature, sigtype?: number) {
   $.checkArgument(signature instanceof Signature || Buffer.isBuffer(signature))
   $.checkArgument(_.isUndefined(sigtype) || _.isNumber(sigtype))
   if (signature instanceof Signature) {
@@ -1005,21 +1012,21 @@ Script.prototype.toScriptHashOut = function (this: Script) {
 /**
  * @return {Script} an output script built from the address
  */
-Script.fromAddress = function (address: any) {
-  address = addressClass()(address)
-  if (address.isPayToScriptHash()) {
-    return Script.buildScriptHashOut(address)
-  } else if (address.isPayToPublicKeyHash()) {
-    return Script.buildPublicKeyHashOut(address)
+Script.fromAddress = function (address: AddressLike) {
+  const addr: Address = addressClass()(address)
+  if (addr.isPayToScriptHash()) {
+    return Script.buildScriptHashOut(addr)
+  } else if (addr.isPayToPublicKeyHash()) {
+    return Script.buildPublicKeyHashOut(addr)
   }
-  throw new (scriptErr('UnrecognizedAddress'))(address)
+  throw new (scriptErr('UnrecognizedAddress'))(addr)
 }
 
 /**
  * Will return the associated address information object
  * @return {Address|boolean}
  */
-Script.prototype.getAddressInfo = function (this: Script, opts: any) {
+Script.prototype.getAddressInfo = function (this: Script, opts?: { network?: NetworkLike }) {
   if (this._isInput) {
     return this._getInputAddressInfo()
   } else if (this._isOutput) {
@@ -1077,7 +1084,7 @@ Script.prototype._getInputAddressInfo = function (this: Script) {
  * @param {Network=} network
  * @return {Address|boolean} the associated address for this script if possible, or false
  */
-Script.prototype.toAddress = function (this: Script, network: any) {
+Script.prototype.toAddress = function (this: Script, network?: NetworkLike) {
   const info = this.getAddressInfo()
   if (!info) {
     return false
@@ -1094,7 +1101,7 @@ Script.prototype.toAddress = function (this: Script, network: any) {
  * pushdata op, then when you try to remove the data it is pushing, it will not
  * be removed, because they do not use the same pushdata op.
  */
-Script.prototype.findAndDelete = function (this: Script, script: any) {
+Script.prototype.findAndDelete = function (this: Script, script: Script) {
   const buf = script.toBuffer()
   const hex = buf.toString('hex')
   for (let i = 0; i < this.chunks.length; i++) {
@@ -1114,7 +1121,7 @@ Script.prototype.findAndDelete = function (this: Script, script: any) {
  * Comes from bitcoind's script interpreter CheckMinimalPush function
  * @returns {boolean} if the chunk {i} is the smallest way to push that particular data.
  */
-Script.prototype.checkMinimalPush = function (this: Script, i: any) {
+Script.prototype.checkMinimalPush = function (this: Script, i: number) {
   const chunk = this.chunks[i] as ScriptChunk
   const buf = chunk.buf
   const opcodenum = chunk.opcodenum
@@ -1148,7 +1155,7 @@ Script.prototype.checkMinimalPush = function (this: Script, i: any) {
  * @param {number} opcode
  * @returns {number} numeric value in range of 0 to 16
  */
-Script.prototype._decodeOP_N = function (this: Script, opcode: any) {
+Script.prototype._decodeOP_N = function (this: Script, opcode: number) {
   if (opcode === Opcode.OP_0) {
     return 0
   } else if (opcode >= Opcode.OP_1 && opcode <= Opcode.OP_16) {
@@ -1163,7 +1170,7 @@ Script.prototype._decodeOP_N = function (this: Script, opcode: any) {
  * @param {boolean} use current (true) or pre-version-0.6 (false) logic
  * @returns {number} number of signature operations required by this script
  */
-Script.prototype.getSignatureOperationsCount = function (this: Script, accurate: any) {
+Script.prototype.getSignatureOperationsCount = function (this: Script, accurate?: boolean) {
   accurate = (_.isUndefined(accurate) ? true : accurate)
   const self = this
   let n = 0

@@ -1,22 +1,31 @@
 'use strict'
 
-const assert = require('assert')
-const buffer = require('buffer')
-const _ = require('./util/_')
-const $ = require('./util/preconditions')
+import type { HDPrivateKey, HDPrivateKeyConstructor, HDBuffers } from './hdprivatekey.types'
+import type { HDPublicKey } from './hdpublickey.types'
 
-const BN = require('./crypto/bn')
-const Base58 = require('./encoding/base58')
-const Base58Check = require('./encoding/base58check')
-const Hash = require('./crypto/hash')
-const Network = require('./networks')
-const Point = require('./crypto/point')
-const PrivateKey = require('./privatekey')
-const Random = require('./crypto/random')
+import assert = require('assert')
+import buffer = require('buffer')
+import _ = require('./util/_')
+import $ = require('./util/preconditions')
 
-const errors = require('./errors')
+import BN = require('./crypto/bn')
+import Base58 = require('./encoding/base58')
+import Base58Check = require('./encoding/base58check')
+import Hash = require('./crypto/hash')
+import Network = require('./networks')
+import Point = require('./crypto/point')
+import PrivateKey = require('./privatekey')
+import Random = require('./crypto/random')
+
+import errors = require('./errors')
 const hdErrors = errors.HDPrivateKey
-const JSUtil = require('./util/js')
+import JSUtil = require('./util/js')
+
+// The error tree is built dynamically; members arrive via an index signature.
+type ErrCtor = new (...args: unknown[]) => Error
+const err = (path: string): ErrCtor =>
+  path.split('.').reduce<any>((o, k) => o[k], errors) as ErrCtor
+
 
 const MINIMUM_ENTROPY_BITS = 128
 const BITS_TO_BYTES = 1 / 8
@@ -30,12 +39,12 @@ const MAXIMUM_ENTROPY_BITS = 512
  * @constructor
  * @param {string|Buffer|Object} arg
  */
-function HDPrivateKey (arg) {
+const HDPrivateKey = function HDPrivateKey (this: HDPrivateKey, arg?: any): any {
   if (arg instanceof HDPrivateKey) {
     return arg
   }
   if (!(this instanceof HDPrivateKey)) {
-    return new HDPrivateKey(arg)
+    return new (HDPrivateKey as unknown as HDPrivateKeyConstructor)(arg)
   }
   if (!arg) {
     return this._generateRandomly()
@@ -44,27 +53,27 @@ function HDPrivateKey (arg) {
   if (Network.get(arg)) {
     return this._generateRandomly(arg)
   } else if (_.isString(arg) || Buffer.isBuffer(arg)) {
-    if (HDPrivateKey.isValidSerialized(arg)) {
+    if ((HDPrivateKey as unknown as HDPrivateKeyConstructor).isValidSerialized(arg)) {
       this._buildFromSerialized(arg)
     } else if (JSUtil.isValidJSON(arg)) {
       this._buildFromJSON(arg)
-    } else if (Buffer.isBuffer(arg) && HDPrivateKey.isValidSerialized(arg.toString())) {
+    } else if (Buffer.isBuffer(arg) && (HDPrivateKey as unknown as HDPrivateKeyConstructor).isValidSerialized(arg.toString())) {
       this._buildFromSerialized(arg.toString())
     } else {
-      throw HDPrivateKey.getSerializedError(arg)
+      throw (HDPrivateKey as unknown as HDPrivateKeyConstructor).getSerializedError(arg)
     }
   } else if (_.isObject(arg)) {
     this._buildFromObject(arg)
   } else {
-    throw new hdErrors.UnrecognizedArgument(arg)
+    throw new (err('HDPrivateKey.UnrecognizedArgument'))(arg)
   }
-}
+} as unknown as HDPrivateKeyConstructor
 
 // Forward the network so `fromRandom('testnet')` generates a testnet key. The
 // constructor routes a network arg to _generateRandomly(network); dropping it
 // (the pre-7.0.2 `new HDPrivateKey()`) silently produced a mainnet key on a
 // testnet request, with no error.
-HDPrivateKey.fromRandom = function (network) {
+HDPrivateKey.fromRandom = function (network: any) {
   return new HDPrivateKey(network)
 }
 
@@ -75,10 +84,10 @@ HDPrivateKey.fromRandom = function (network) {
  * @param {boolean?} hardened
  * @return {boolean}
  */
-HDPrivateKey.isValidPath = function (arg, hardened) {
+HDPrivateKey.isValidPath = function (arg: any, hardened: any) {
   if (_.isString(arg)) {
     const indexes = HDPrivateKey._getDerivationIndexes(arg)
-    return indexes !== null && _.every(indexes, HDPrivateKey.isValidPath)
+    return indexes !== null && _.every(indexes, (i: number) => (HDPrivateKey as unknown as HDPrivateKeyConstructor).isValidPath(i))
   }
 
   if (_.isNumber(arg)) {
@@ -99,7 +108,7 @@ HDPrivateKey.isValidPath = function (arg, hardened) {
  * @param {string} path
  * @return {Array}
  */
-HDPrivateKey._getDerivationIndexes = function (path) {
+HDPrivateKey._getDerivationIndexes = function (path: any) {
   const steps = path.split('/')
 
   // Special cases:
@@ -111,7 +120,7 @@ HDPrivateKey._getDerivationIndexes = function (path) {
     return null
   }
 
-  const indexes = steps.slice(1).map(function (step) {
+  const indexes = steps.slice(1).map(function (step: any) {
     const isHardened = step.slice(-1) === '\''
     if (isHardened) {
       step = step.slice(0, -1)
@@ -156,7 +165,7 @@ HDPrivateKey._getDerivationIndexes = function (path) {
  * @param {string|number} arg
  * @param {boolean?} hardened
  */
-HDPrivateKey.prototype.derive = function () {
+HDPrivateKey.prototype.derive = function (this: HDPrivateKey) {
   throw new Error('derive has been deprecated. use deriveChild or, for the old way, deriveNonCompliantChild.')
 }
 
@@ -189,13 +198,13 @@ HDPrivateKey.prototype.derive = function () {
  * @param {string|number} arg
  * @param {boolean?} hardened
  */
-HDPrivateKey.prototype.deriveChild = function (arg, hardened) {
+HDPrivateKey.prototype.deriveChild = function (this: HDPrivateKey, arg: any, hardened: any) {
   if (_.isNumber(arg)) {
     return this._deriveWithNumber(arg, hardened)
   } else if (_.isString(arg)) {
     return this._deriveFromString(arg)
   } else {
-    throw new hdErrors.InvalidDerivationArgument(arg)
+    throw new (err('HDPrivateKey.InvalidDerivationArgument'))(arg)
   }
 }
 
@@ -215,19 +224,19 @@ HDPrivateKey.prototype.deriveChild = function (arg, hardened) {
  * @param {string|number} arg
  * @param {boolean?} hardened
  */
-HDPrivateKey.prototype.deriveNonCompliantChild = function (arg, hardened) {
+HDPrivateKey.prototype.deriveNonCompliantChild = function (this: HDPrivateKey, arg: any, hardened: any) {
   if (_.isNumber(arg)) {
     return this._deriveWithNumber(arg, hardened, true)
   } else if (_.isString(arg)) {
     return this._deriveFromString(arg, true)
   } else {
-    throw new hdErrors.InvalidDerivationArgument(arg)
+    throw new (err('HDPrivateKey.InvalidDerivationArgument'))(arg)
   }
 }
 
-HDPrivateKey.prototype._deriveWithNumber = function (index, hardened, nonCompliant) {
+HDPrivateKey.prototype._deriveWithNumber = function (this: HDPrivateKey, index: any, hardened: any, nonCompliant: any) {
   if (!HDPrivateKey.isValidPath(index, hardened)) {
-    throw new hdErrors.InvalidPath(index)
+    throw new (err('HDPrivateKey.InvalidPath'))(index)
   }
 
   hardened = index >= HDPrivateKey.Hardened ? true : hardened
@@ -277,13 +286,13 @@ HDPrivateKey.prototype._deriveWithNumber = function (index, hardened, nonComplia
   return derived
 }
 
-HDPrivateKey.prototype._deriveFromString = function (path, nonCompliant) {
+HDPrivateKey.prototype._deriveFromString = function (this: HDPrivateKey, path: any, nonCompliant: any) {
   if (!HDPrivateKey.isValidPath(path)) {
-    throw new hdErrors.InvalidPath(path)
+    throw new (err('HDPrivateKey.InvalidPath'))(path)
   }
 
   const indexes = HDPrivateKey._getDerivationIndexes(path)
-  const derived = indexes.reduce(function (prev, index) {
+  const derived = indexes!.reduce(function (prev: any, index: any) {
     return prev._deriveWithNumber(index, null, nonCompliant)
   }, this)
 
@@ -299,7 +308,7 @@ HDPrivateKey.prototype._deriveFromString = function (path, nonCompliant) {
  *     network provided matches the network serialized.
  * @return {boolean}
  */
-HDPrivateKey.isValidSerialized = function (data, network) {
+HDPrivateKey.isValidSerialized = function (data: any, network: any) {
   return !HDPrivateKey.getSerializedError(data, network)
 }
 
@@ -312,20 +321,20 @@ HDPrivateKey.isValidSerialized = function (data, network) {
  *     network provided matches the network serialized.
  * @return {errors.InvalidArgument|null}
  */
-HDPrivateKey.getSerializedError = function (data, network) {
+HDPrivateKey.getSerializedError = function (data: any, network: any) {
   if (!(_.isString(data) || Buffer.isBuffer(data))) {
-    return new hdErrors.UnrecognizedArgument('Expected string or buffer')
+    return new (err('HDPrivateKey.UnrecognizedArgument'))('Expected string or buffer')
   }
   if (!Base58.validCharacters(data)) {
-    return new errors.InvalidB58Char('(unknown)', data)
+    return new (err('InvalidB58Char'))('(unknown)', data)
   }
   try {
-    data = Base58Check.decode(data)
+    data = Base58Check.decode(data as string)
   } catch (e) {
-    return new errors.InvalidB58Checksum(data)
+    return new (err('InvalidB58Checksum'))(data)
   }
   if (data.length !== HDPrivateKey.DataLength) {
-    return new hdErrors.InvalidLength(data)
+    return new (err('HDPrivateKey.InvalidLength'))(data)
   }
   if (!_.isUndefined(network)) {
     const error = HDPrivateKey._validateNetwork(data, network)
@@ -336,36 +345,36 @@ HDPrivateKey.getSerializedError = function (data, network) {
   return null
 }
 
-HDPrivateKey._validateNetwork = function (data, networkArg) {
+HDPrivateKey._validateNetwork = function (data: any, networkArg: any) {
   const network = Network.get(networkArg)
   if (!network) {
-    return new errors.InvalidNetworkArgument(networkArg)
+    return new (err('InvalidNetworkArgument'))(networkArg)
   }
   const version = data.slice(0, 4)
   if (version.readUInt32BE(0) !== network.xprivkey) {
-    return new errors.InvalidNetwork(version)
+    return new (err('InvalidNetwork'))(version)
   }
   return null
 }
 
-HDPrivateKey.fromString = function (arg) {
+HDPrivateKey.fromString = function (arg: any) {
   $.checkArgument(_.isString(arg), 'No valid string was provided')
   return new HDPrivateKey(arg)
 }
 
-HDPrivateKey.fromObject = function (arg) {
+HDPrivateKey.fromObject = function (arg: any) {
   $.checkArgument(_.isObject(arg), 'No valid argument was provided')
   return new HDPrivateKey(arg)
 }
 
-HDPrivateKey.prototype._buildFromJSON = function (arg) {
+HDPrivateKey.prototype._buildFromJSON = function (this: HDPrivateKey, arg: any) {
   return this._buildFromObject(JSON.parse(arg))
 }
 
-HDPrivateKey.prototype._buildFromObject = function (arg) {
+HDPrivateKey.prototype._buildFromObject = function (this: HDPrivateKey, arg: any) {
   // TODO: Type validation
-  const buffers = {
-    version: arg.network ? JSUtil.integerAsBuffer(Network.get(arg.network).xprivkey) : arg.version,
+  const buffers: HDBuffers = {
+    version: arg.network ? JSUtil.integerAsBuffer(Network.get(arg.network)!.xprivkey) : arg.version,
     depth: _.isNumber(arg.depth) ? Buffer.from([arg.depth & 0xff]) : arg.depth,
     parentFingerPrint: _.isNumber(arg.parentFingerPrint) ? JSUtil.integerAsBuffer(arg.parentFingerPrint) : arg.parentFingerPrint,
     childIndex: _.isNumber(arg.childIndex) ? JSUtil.integerAsBuffer(arg.childIndex) : arg.childIndex,
@@ -376,9 +385,9 @@ HDPrivateKey.prototype._buildFromObject = function (arg) {
   return this._buildFromBuffers(buffers)
 }
 
-HDPrivateKey.prototype._buildFromSerialized = function (arg) {
+HDPrivateKey.prototype._buildFromSerialized = function (this: HDPrivateKey, arg: any) {
   const decoded = Base58Check.decode(arg)
-  const buffers = {
+  const buffers: HDBuffers = {
     version: decoded.slice(HDPrivateKey.VersionStart, HDPrivateKey.VersionEnd),
     depth: decoded.slice(HDPrivateKey.DepthStart, HDPrivateKey.DepthEnd),
     parentFingerPrint: decoded.slice(HDPrivateKey.ParentFingerPrintStart,
@@ -392,7 +401,7 @@ HDPrivateKey.prototype._buildFromSerialized = function (arg) {
   return this._buildFromBuffers(buffers)
 }
 
-HDPrivateKey.prototype._generateRandomly = function (network) {
+HDPrivateKey.prototype._generateRandomly = function (this: HDPrivateKey, network: any) {
   return HDPrivateKey.fromSeed(Random.getRandomBuffer(64), network)
 }
 
@@ -403,18 +412,18 @@ HDPrivateKey.prototype._generateRandomly = function (network) {
  * @param {*} network
  * @return HDPrivateKey
  */
-HDPrivateKey.fromSeed = function (hexa, network) {
+HDPrivateKey.fromSeed = function (hexa: any, network: any) {
   if (JSUtil.isHexaString(hexa)) {
     hexa = Buffer.from(hexa, 'hex')
   }
   if (!Buffer.isBuffer(hexa)) {
-    throw new hdErrors.InvalidEntropyArgument(hexa)
+    throw new (err('HDPrivateKey.InvalidEntropyArgument'))(hexa)
   }
   if (hexa.length < MINIMUM_ENTROPY_BITS * BITS_TO_BYTES) {
-    throw new hdErrors.InvalidEntropyArgument.NotEnoughEntropy(hexa)
+    throw new (err('HDPrivateKey.InvalidEntropyArgument.NotEnoughEntropy'))(hexa)
   }
   if (hexa.length > MAXIMUM_ENTROPY_BITS * BITS_TO_BYTES) {
-    throw new hdErrors.InvalidEntropyArgument.TooMuchEntropy(hexa)
+    throw new (err('HDPrivateKey.InvalidEntropyArgument.TooMuchEntropy'))(hexa)
   }
   const hash = Hash.sha512hmac(hexa, buffer.Buffer.from('Bitcoin seed'))
 
@@ -428,7 +437,7 @@ HDPrivateKey.fromSeed = function (hexa, network) {
   })
 }
 
-HDPrivateKey.prototype._calcHDPublicKey = function () {
+HDPrivateKey.prototype._calcHDPublicKey = function (this: HDPrivateKey) {
   if (!this._hdPublicKey) {
     const HDPublicKey = require('./hdpublickey')
     this._hdPublicKey = new HDPublicKey(this)
@@ -451,7 +460,7 @@ HDPrivateKey.prototype._calcHDPublicKey = function () {
  *      representation
  * @return {HDPrivateKey} this
  */
-HDPrivateKey.prototype._buildFromBuffers = function (arg) {
+HDPrivateKey.prototype._buildFromBuffers = function (this: HDPrivateKey, arg: any) {
   HDPrivateKey._validateBufferArguments(arg)
 
   JSUtil.defineImmutable(this, {
@@ -467,7 +476,7 @@ HDPrivateKey.prototype._buildFromBuffers = function (arg) {
     arg.checksum = Base58Check.checksum(concat)
   } else {
     if (arg.checksum.toString() !== Base58Check.checksum(concat).toString()) {
-      throw new errors.InvalidB58Checksum(concat)
+      throw new (err('InvalidB58Checksum'))(concat)
     }
   }
 
@@ -511,8 +520,8 @@ HDPrivateKey.prototype._buildFromBuffers = function (arg) {
   return this
 }
 
-HDPrivateKey._validateBufferArguments = function (arg) {
-  const checkBuffer = function (name, size) {
+HDPrivateKey._validateBufferArguments = function (arg: any) {
+  const checkBuffer = function (name: any, size: any) {
     const buff = arg[name]
     assert(Buffer.isBuffer(buff), name + ' argument is not a buffer')
     assert(
@@ -537,7 +546,7 @@ HDPrivateKey._validateBufferArguments = function (arg) {
  *
  * @return string
  */
-HDPrivateKey.prototype.toString = function () {
+HDPrivateKey.prototype.toString = function (this: HDPrivateKey) {
   return this.xprivkey
 }
 
@@ -545,7 +554,7 @@ HDPrivateKey.prototype.toString = function () {
  * Returns the console representation of this extended private key.
  * @return string
  */
-HDPrivateKey.prototype.inspect = function () {
+HDPrivateKey.prototype.inspect = function (this: HDPrivateKey) {
   return '<HDPrivateKey: ' + this.xprivkey + '>'
 }
 
@@ -568,16 +577,16 @@ HDPrivateKey.prototype.inspect = function () {
  * </ul>
  *  @return {Object}
  */
-HDPrivateKey.prototype.toObject = HDPrivateKey.prototype.toJSON = function toObject () {
+HDPrivateKey.prototype.toObject = HDPrivateKey.prototype.toJSON = function toObject (this: HDPrivateKey) {
   return {
-    network: Network.get(this._buffers.version.readUInt32BE(0), 'xprivkey').name,
+    network: Network.get(this._buffers.version.readUInt32BE(0), 'xprivkey')!.name,
     depth: this._buffers.depth[0],
     fingerPrint: this.fingerPrint.readUInt32BE(0),
     parentFingerPrint: this._buffers.parentFingerPrint.readUInt32BE(0),
     childIndex: this._buffers.childIndex.readUInt32BE(0),
     chainCode: this._buffers.chainCode.toString('hex'),
     privateKey: this.privateKey.toBuffer().toString('hex'),
-    checksum: this._buffers.checksum.readUInt32BE(0),
+    checksum: this._buffers.checksum!.readUInt32BE(0),
     xprivkey: this.xprivkey
   }
 }
@@ -588,7 +597,7 @@ HDPrivateKey.prototype.toObject = HDPrivateKey.prototype.toJSON = function toObj
  * @param {Buffer} arg
  * @return {HDPrivateKey}
  */
-HDPrivateKey.fromBuffer = function (buf) {
+HDPrivateKey.fromBuffer = function (buf: any) {
   return new HDPrivateKey(buf.toString())
 }
 
@@ -598,7 +607,7 @@ HDPrivateKey.fromBuffer = function (buf) {
  * @param {string} hex
  * @return {HDPrivateKey}
  */
-HDPrivateKey.fromHex = function (hex) {
+HDPrivateKey.fromHex = function (hex: any) {
   return HDPrivateKey.fromBuffer(Buffer.from(hex, 'hex'))
 }
 
@@ -607,7 +616,7 @@ HDPrivateKey.fromHex = function (hex) {
  *
  * @return {string}
  */
-HDPrivateKey.prototype.toBuffer = function () {
+HDPrivateKey.prototype.toBuffer = function (this: HDPrivateKey) {
   return Buffer.from(this.toString())
 }
 
@@ -616,7 +625,7 @@ HDPrivateKey.prototype.toBuffer = function () {
  *
  * @return {string}
  */
-HDPrivateKey.prototype.toHex = function () {
+HDPrivateKey.prototype.toHex = function (this: HDPrivateKey) {
   return this.toBuffer().toString('hex')
 }
 
@@ -656,4 +665,4 @@ HDPrivateKey.ChecksumEnd = HDPrivateKey.ChecksumStart + HDPrivateKey.CheckSumSiz
 
 assert(HDPrivateKey.ChecksumEnd === HDPrivateKey.SerializedByteSize)
 
-module.exports = HDPrivateKey
+export = HDPrivateKey

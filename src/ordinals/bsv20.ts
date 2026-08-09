@@ -19,6 +19,7 @@
 import inscription = require('./inscription')
 import Script = require('../script')
 import Output = require('../transaction/output')
+import type { Bsv20Payload, Bsv20Params, Bsv20Input } from './types'
 
 const CONTENT_TYPE = 'application/bsv-20'
 const MAX_DEC = 18
@@ -28,15 +29,15 @@ const MAX_DEC = 18
 const MAX_UINT64 = '18446744073709551615'
 
 /** A non-negative integer string (no sign, no decimal point). */
-function isIntString (v: any) { return typeof v === 'string' && /^\d+$/.test(v) }
+function isIntString (v: unknown): v is string { return typeof v === 'string' && /^\d+$/.test(v) }
 
 /** True if the CANONICAL decimal string `s` is greater than 2^64-1. */
-function exceedsUint64 (s: any) {
+function exceedsUint64 (s: string) {
   return s.length > MAX_UINT64.length || (s.length === MAX_UINT64.length && s > MAX_UINT64)
 }
 
 /** Normalize an amount-like field to a CANONICAL non-negative integer string (no leading zeros). */
-function normInt (v: any, name: any) {
+function normInt (v: unknown, name: string) {
   let s
   if (typeof v === 'number') {
     if (!Number.isInteger(v) || v < 0) throw new Error(name + ' must be a non-negative integer')
@@ -61,22 +62,22 @@ function normInt (v: any, name: any) {
 }
 
 /** Normalize a strictly-positive amount (mint/transfer/supply must move > 0). */
-function normPositive (v: any, name: any) {
+function normPositive (v: unknown, name: string) {
   const s = normInt(v, name)
   if (!/[1-9]/.test(s)) throw new Error(name + ' must be greater than zero')
   return s
 }
 
 /** Validate a v1 ticker: 1–4 UTF-8 bytes. */
-function assertTick (tick: any) {
+function assertTick (tick: unknown) {
   if (typeof tick !== 'string' || !tick.length) throw new Error('tick is required')
   if (Buffer.byteLength(tick, 'utf8') > 4) throw new Error('tick must be 1–4 UTF-8 bytes')
   return tick
 }
 
 /** Normalize `dec` (decimals) to a string in 0…18. */
-function normDec (dec: any) {
-  const d = typeof dec === 'string' ? Number(dec) : dec
+function normDec (dec: unknown) {
+  const d: number = typeof dec === 'string' ? Number(dec) : (dec as number)
   if (!Number.isInteger(d) || d < 0 || d > MAX_DEC) throw new Error('dec must be an integer 0…' + MAX_DEC)
   return String(d)
 }
@@ -84,7 +85,7 @@ function normDec (dec: any) {
 const OUTPOINT_RE = /^[0-9a-fA-F]{64}_\d+$/
 
 /** Validate a BSV-21 token id: `<64-hex-txid>_<vout>`. */
-function assertId (id: any) {
+function assertId (id: unknown) {
   if (typeof id !== 'string' || !OUTPOINT_RE.test(id)) {
     throw new Error('id must be "<txid>_<vout>" (64-hex txid, underscore, output index)')
   }
@@ -95,7 +96,7 @@ function assertId (id: any) {
  * Validate a free-text field (`sym`). Rejects non-strings rather than running them through
  * `String()`, which wrote the literal text `[object Object]` into a permanent payload.
  */
-function assertText (v: any, name: any) {
+function assertText (v: unknown, name: string) {
   if (typeof v !== 'string') {
     const t = v === null ? 'null' : Array.isArray(v) ? 'an array' : (typeof v === 'object' ? 'an ' : 'a ') + typeof v
     throw new Error(name + ' must be a string, got ' + t)
@@ -105,17 +106,17 @@ function assertText (v: any, name: any) {
 }
 
 /** Validate `icon`, which the spec defines as an outpoint reference (`<txid>_<vout>`). */
-function assertIcon (v: any) {
-  assertText(v, 'icon')
-  if (!OUTPOINT_RE.test(v)) {
+function assertIcon (v: unknown) {
+  const icon = assertText(v, 'icon')
+  if (!OUTPOINT_RE.test(icon)) {
     throw new Error('icon must be an outpoint reference "<txid>_<vout>" (64-hex txid, ' +
       'underscore, output index)')
   }
-  return v
+  return icon
 }
 
 /** Wrap a BSV-20 JSON payload in an inscription locking script (P2PKH owner by default). */
-function buildBsv20 (payload: any, params: any) {
+function buildBsv20 (payload: Bsv20Payload, params?: Bsv20Params) {
   params = params || {}
   return inscription.buildInscription({
     lock: params.lock,
@@ -130,9 +131,9 @@ function buildBsv20 (payload: any, params: any) {
  * @param {object} params { tick, max, lim?, dec?, address|lock, contentType? }
  * @returns {Script}
  */
-function buildDeploy (params: any) {
+function buildDeploy (params?: Bsv20Params) {
   params = params || {}
-  const p: Record<string, any> = { p: 'bsv-20', op: 'deploy', tick: assertTick(params.tick), max: normPositive(params.max, 'max') }
+  const p: Bsv20Payload = { p: 'bsv-20', op: 'deploy', tick: assertTick(params.tick), max: normPositive(params.max, 'max') }
   // `lim` is "0 or omitted = unlimited" per the spec, so 0 is a meaningful value here and
   // must not be rejected the way a zero `max`/`amt` is.
   if (params.lim != null) p.lim = normInt(params.lim, 'lim')
@@ -149,7 +150,7 @@ function buildDeploy (params: any) {
  * Name the token an operation acts on: `tick` (v1) or `id` (BSV-21), never both.
  * Passing both used to silently drop the `tick`, which is the wrong token, not a preference.
  */
-function assignToken (p: any, params: any, op: any) {
+function assignToken (p: Bsv20Payload, params: Bsv20Params, op: string) {
   const hasTick = params.tick != null
   const hasId = params.id != null
   if (hasTick && hasId) {
@@ -164,17 +165,17 @@ function assignToken (p: any, params: any, op: any) {
 }
 
 /** Reject `amt` on the operations the spec says must not carry one. */
-function assertNoAmt (params: any, op: any) {
+function assertNoAmt (params: Bsv20Params, op: string) {
   if (params.amt != null) {
     throw new Error(op + ' must not carry an amt — the specification forbids it, and a ' +
       'payload that does is discarded')
   }
 }
 
-function buildMint (params: any) {
+function buildMint (params?: Bsv20Params) {
   params = params || {}
   // `{p, op, tick|id, amt}` — the token first, then the amount.
-  const p: Record<string, any> = { p: 'bsv-20', op: 'mint' }
+  const p: Bsv20Payload = { p: 'bsv-20', op: 'mint' }
   assignToken(p, params, 'mint')
   p.amt = normPositive(params.amt, 'amt')
   return buildBsv20(p, params)
@@ -185,9 +186,9 @@ function buildMint (params: any) {
  * @param {object} params { tick?|id?, amt, address|lock, contentType? }
  * @returns {Script}
  */
-function buildTransfer (params: any) {
+function buildTransfer (params?: Bsv20Params) {
   params = params || {}
-  const p: Record<string, any> = { p: 'bsv-20', op: 'transfer', amt: normPositive(params.amt, 'amt') }
+  const p: Bsv20Payload = { p: 'bsv-20', op: 'transfer', amt: normPositive(params.amt, 'amt') }
   assignToken(p, params, 'transfer')
   return buildBsv20(p, params)
 }
@@ -201,13 +202,13 @@ function buildTransfer (params: any) {
  * @param {object} params { id, amt, address|lock, contentType? }
  * @returns {Script}
  */
-function buildBurn (params: any) {
+function buildBurn (params?: Bsv20Params) {
   params = params || {}
   if (params.tick != null) {
     throw new Error('burn is a BSV-21 operation and names its token by `id` (<txid>_<vout>), ' +
       'not `tick`')
   }
-  const p: Record<string, any> = { p: 'bsv-20', op: 'burn', id: assertId(params.id), amt: normPositive(params.amt, 'amt') }
+  const p: Bsv20Payload = { p: 'bsv-20', op: 'burn', id: assertId(params.id), amt: normPositive(params.amt, 'amt') }
   return buildBsv20(p, params)
 }
 
@@ -222,10 +223,10 @@ function buildBurn (params: any) {
  * @param {object} params { sym?, dec?, icon?, address|lock, contentType? }
  * @returns {Script}
  */
-function buildDeployAuth (params: any) {
+function buildDeployAuth (params?: Bsv20Params) {
   params = params || {}
   assertNoAmt(params, 'deploy+auth')
-  const p: Record<string, any> = { p: 'bsv-20', op: 'deploy+auth' }
+  const p: Bsv20Payload = { p: 'bsv-20', op: 'deploy+auth' }
   if (params.dec != null) p.dec = normDec(params.dec)
   if (params.sym != null) p.sym = assertText(params.sym, 'sym')
   if (params.icon != null) p.icon = assertIcon(params.icon)
@@ -241,10 +242,10 @@ function buildDeployAuth (params: any) {
  * @param {object} params { id, address|lock, contentType? }
  * @returns {Script}
  */
-function buildAuth (params: any) {
+function buildAuth (params?: Bsv20Params) {
   params = params || {}
   assertNoAmt(params, 'auth')
-  const p: Record<string, any> = { p: 'bsv-20', op: 'auth', id: assertId(params.id) }
+  const p: Bsv20Payload = { p: 'bsv-20', op: 'auth', id: assertId(params.id) }
   return buildBsv20(p, params)
 }
 
@@ -253,30 +254,30 @@ function buildAuth (params: any) {
  * @param {object} params { amt, dec?, sym?, icon?, address|lock, contentType? }
  * @returns {Script}
  */
-function buildDeployMint (params: any) {
+function buildDeployMint (params?: Bsv20Params) {
   params = params || {}
-  const p: Record<string, any> = { p: 'bsv-20', op: 'deploy+mint', amt: normPositive(params.amt, 'amt') }
+  const p: Bsv20Payload = { p: 'bsv-20', op: 'deploy+mint', amt: normPositive(params.amt, 'amt') }
   if (params.dec != null) p.dec = normDec(params.dec)
   if (params.sym != null) p.sym = assertText(params.sym, 'sym')
   if (params.icon != null) p.icon = assertIcon(params.icon)
   return buildBsv20(p, params)
 }
 
-function outputFor (script: any, satoshis: any) {
+function outputFor (script: Script, satoshis?: number) {
   return new Output({ script, satoshis: satoshis != null ? satoshis : 1 })
 }
 
 /** 1-sat Output helpers mirroring the builders. */
-function createDeployOutput (params: any) { return outputFor(buildDeploy(params), params && params.satoshis) }
-function createMintOutput (params: any) { return outputFor(buildMint(params), params && params.satoshis) }
-function createTransferOutput (params: any) { return outputFor(buildTransfer(params), params && params.satoshis) }
-function createDeployMintOutput (params: any) { return outputFor(buildDeployMint(params), params && params.satoshis) }
-function createBurnOutput (params: any) { return outputFor(buildBurn(params), params && params.satoshis) }
-function createDeployAuthOutput (params: any) { return outputFor(buildDeployAuth(params), params && params.satoshis) }
-function createAuthOutput (params: any) { return outputFor(buildAuth(params), params && params.satoshis) }
+function createDeployOutput (params?: Bsv20Params) { return outputFor(buildDeploy(params), params && params.satoshis) }
+function createMintOutput (params?: Bsv20Params) { return outputFor(buildMint(params), params && params.satoshis) }
+function createTransferOutput (params?: Bsv20Params) { return outputFor(buildTransfer(params), params && params.satoshis) }
+function createDeployMintOutput (params?: Bsv20Params) { return outputFor(buildDeployMint(params), params && params.satoshis) }
+function createBurnOutput (params?: Bsv20Params) { return outputFor(buildBurn(params), params && params.satoshis) }
+function createDeployAuthOutput (params?: Bsv20Params) { return outputFor(buildDeployAuth(params), params && params.satoshis) }
+function createAuthOutput (params?: Bsv20Params) { return outputFor(buildAuth(params), params && params.satoshis) }
 
 /** Extract the JSON body from a locking script, a JSON string, a Buffer, or an object. */
-function bodyOf (input: any) {
+function bodyOf (input: Bsv20Input) {
   if (input && typeof input === 'object' && !Buffer.isBuffer(input) && !(input instanceof Script)) {
     return input // already a parsed object
   }
@@ -306,14 +307,14 @@ const OP_RULES: Record<string, any> = {
  * though the builder emits canonical values: this reads other people's payloads, and a
  * non-canonical amount is still an amount.
  */
-function isParsedAmount (v: any) {
+function isParsedAmount (v: unknown) {
   const s = typeof v === 'number' ? (Number.isInteger(v) && v >= 0 ? String(v) : null) : (isIntString(v) ? v : null)
   if (s == null) return false
   return !exceedsUint64(s.replace(/^0+(?=\d)/, ''))
 }
 
 /** Validate a parsed payload against the spec's per-operation field rules. */
-function isValidPayload (obj: any) {
+function isValidPayload (obj: Bsv20Payload) {
   if (!obj || obj.p !== 'bsv-20' || typeof obj.op !== 'string') return false
   const rule = OP_RULES[obj.op]
   if (!rule) return false // unknown operation: we cannot vouch for it
@@ -350,7 +351,7 @@ function isValidPayload (obj: any) {
  *
  * @returns {null|{ p:'bsv-20', op:string, tick?:string, id?:string, amt?:string, max?:string, lim?:string, dec?:string, sym?:string, icon?:string }}
  */
-function parseBsv20 (input: any) {
+function parseBsv20 (input: Bsv20Input) {
   try {
     const body = bodyOf(input)
     if (body == null) return null
@@ -362,7 +363,7 @@ function parseBsv20 (input: any) {
 }
 
 /** True if the input carries a valid BSV-20 inscription (see parseBsv20 for what that means). */
-function isBsv20 (input: any) { return parseBsv20(input) !== null }
+function isBsv20 (input: Bsv20Input) { return parseBsv20(input) !== null }
 
 export = {
   CONTENT_TYPE,

@@ -20,11 +20,13 @@ import Script = require('../script')
 import Opcode = require('../opcode')
 import Address = require('../address')
 import Output = require('../transaction/output')
+import type { InscriptionParams, InscriptionOutputParams } from './types'
+import type { ScriptChunk } from '../script/script.types'
 
 const ORD = Buffer.from('ord', 'utf8')
 
 /** Describe a rejected value for an error message, without dumping its contents. */
-function typeName (v: any) {
+function typeName (v: unknown) {
   if (v === null) return 'null'
   if (v === undefined) return 'undefined'
   if (Array.isArray(v)) return 'an array'
@@ -39,7 +41,7 @@ function typeName (v: any) {
  * through `String(v)`: an inscription is permanent, and stringifying an object writes
  * the literal text `[object Object]` to the chain, which is never what the caller meant.
  */
-function toBuf (v: any, name: any) {
+function toBuf (v: string | Buffer, name: string) {
   if (Buffer.isBuffer(v)) return v
   if (typeof v === 'string') return Buffer.from(v, 'utf8')
   throw new Error(name + ' must be a string or Buffer, got ' + typeName(v))
@@ -49,7 +51,7 @@ function toBuf (v: any, name: any) {
 const CONTENT_ALIASES = ['data', 'body', 'payload', 'text', 'message']
 
 /** Resolve a base locking script from a Script, an Address, or an address string. */
-function resolveLock (params: any) {
+function resolveLock (params: InscriptionParams) {
   const hasLock = params.lock != null
   const hasAddress = params.address != null
 
@@ -108,8 +110,7 @@ function resolveLock (params: any) {
  * @param {boolean} [params.allowEmptyLock]     permit an empty base lock; see resolveLock
  * @returns {Script} the full inscription locking script
  */
-function buildInscription (params: any) {
-  params = params || {}
+function buildInscription (params: InscriptionParams = {}) {
   const lock = resolveLock(params)
 
   if (params.content == null) {
@@ -147,7 +148,7 @@ function buildInscription (params: any) {
   return s
 }
 
-function chunkIsOp (chunk: any, opcodenum: any) {
+function chunkIsOp (chunk: ScriptChunk | undefined, opcodenum: number) {
   return chunk && chunk.opcodenum === opcodenum && (chunk.buf == null)
 }
 
@@ -165,7 +166,7 @@ function chunkIsOp (chunk: any, opcodenum: any) {
  * @returns {null|{ contentType: string, content: Buffer, contentText: string, lock: Script }}
  *   null if the script carries no inscription envelope.
  */
-function parseInscription (script: any) {
+function parseInscription (script: Script | Buffer | string) {
   const s = (script instanceof Script)
     ? script
     : Buffer.isBuffer(script)
@@ -215,7 +216,7 @@ function parseInscription (script: any) {
 }
 
 /** True if the script carries an inscription envelope. */
-function isInscription (script: any) {
+function isInscription (script: Script | Buffer | string) {
   try { return parseInscription(script) !== null } catch (e) { return false }
 }
 
@@ -225,8 +226,7 @@ function isInscription (script: any) {
  * @param {number} [params.satoshis]  defaults to 1 (the 1Sat Ordinals convention)
  * @returns {Transaction.Output}
  */
-function createInscriptionOutput (params: any) {
-  params = params || {}
+function createInscriptionOutput (params: InscriptionOutputParams = {}) {
   const satoshis = params.satoshis != null ? params.satoshis : 1
   // Output rejects negatives and fractions, but 0 and the string '1' slipped through:
   // a 0-sat output carries no ordinal at all.

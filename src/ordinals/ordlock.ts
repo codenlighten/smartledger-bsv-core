@@ -50,19 +50,23 @@ import Transaction = require('../transaction')
 import Input = require('../transaction/input')
 import Output = require('../transaction/output')
 import BufferReader = require('../encoding/bufferreader')
+import type { OrdLockParams, PayOutputSpec, UnlockParams, ListingTxParams, PurchaseTxParams, ParseOrdLockOptions, FundingCoin, OutpointLike, LockLike, AddressLike, PayeeLike, OwnerLike, PayOutputLike } from './types'
+import type { ScriptChunk } from '../script/script.types'
+import type { PrivateKey } from '../privatekey.types'
+
 
 // OrdLock commits to the FULL output set (so payments can be pinned) but leaves the
 // input set open for the buyer's funding — SIGHASH_ALL|ANYONECANPAY|FORKID (0xc1).
 const ORDLOCK_SIGHASH = P.SIGHASH_ALL_ANYONECANPAY_FORKID
 
 /** Push a possibly-empty buffer MINIMALDATA-cleanly (empty => OP_0, i.e. empty vector). */
-function pushData (s: any, buf: any) { return (buf && buf.length) ? s.add(Buffer.from(buf)) : s.add(Opcode.OP_0) }
+function pushData (s: Script, buf?: Buffer) { return (buf && buf.length) ? s.add(Buffer.from(buf)) : s.add(Opcode.OP_0) }
 
 /** Serialize a Transaction.Output to its on-wire bytes (8-byte value || varint || script). */
-function serializeOutput (out: any) { return out.toBufferWriter().toBuffer() }
+function serializeOutput (out: Output) { return out.toBufferWriter().toBuffer() }
 
 /** Assert a value is a non-negative integer satoshi amount; return it. */
-function assertSats (v: any, label: any) {
+function assertSats (v: unknown, label: string) {
   if (typeof v !== 'number' || !isFinite(v) || v < 0 || Math.floor(v) !== v) {
     throw new Error(label + ' must be a non-negative integer number of satoshis (got ' + v + ')')
   }
@@ -70,21 +74,24 @@ function assertSats (v: any, label: any) {
 }
 
 /** Coerce a Script, Buffer, or hex string to a Script. */
-function coerceScript (v: any) {
+function coerceScript (v: LockLike) {
   if (v instanceof Script) return v
   if (Buffer.isBuffer(v)) return Script.fromBuffer(v)
   return Script.fromHex(v)
 }
 
 /** Coerce an Address, PublicKey, PrivateKey, or address string to an Address. */
-function toAddress (v: any) {
+function toAddress (v: PayeeLike): Address {
   if (v instanceof Address) return v
-  if (v && typeof v.toAddress === 'function') return v.toAddress() // PublicKey / PrivateKey
+  // PublicKey and PrivateKey both carry toAddress(); a string does not. The
+  // duck-typed check is what the runtime does, so probe the same way.
+  const maybe = v as { toAddress?: () => Address }
+  if (v != null && typeof maybe.toAddress === 'function') return maybe.toAddress!()
   return Address.fromString(String(v))
 }
 
 /** Resolve a 20-byte HASH160 owner commitment from an Address/PublicKey/key or 20-byte Buffer. */
-function resolvePubKeyHash (owner: any) {
+function resolvePubKeyHash (owner: OwnerLike) {
   if (Buffer.isBuffer(owner)) {
     if (owner.length !== 20) throw new Error('seller pubkeyhash buffer must be 20 bytes (HASH160)')
     return owner
@@ -98,7 +105,7 @@ function resolvePubKeyHash (owner: any) {
  * A pre-built Transaction.Output is NOT accepted here — use it directly (or pass it as a
  * `payOutputs`/`payTo` spec) — so that `price` is never silently ignored.
  */
-function payOutputFor (payTo: any, price: any) {
+function payOutputFor (payTo: PayeeLike, price: number) {
   assertSats(price, 'payment price')
   return new Output({
     script: Script.buildPublicKeyHashOut(toAddress(payTo)), satoshis: price
@@ -106,7 +113,7 @@ function payOutputFor (payTo: any, price: any) {
 }
 
 /** Coerce one payment spec to a Transaction.Output. */
-function outputFromSpec (spec: any) {
+function outputFromSpec (spec: PayOutputLike) {
   if (spec instanceof Output) return spec
   if (Buffer.isBuffer(spec)) return Output.fromBufferReader(new BufferReader(spec))
   const to = spec.payTo != null ? spec.payTo : spec.address
@@ -121,7 +128,7 @@ function outputFromSpec (spec: any) {
  * a single `payOutput`, or `price`+`payTo` (defaulting the recipient to `seller`) with
  * optional `royalties` appended.
  */
-function resolvePayOutputs (params: any) {
+function resolvePayOutputs (params: OrdLockParams) {
   if (params.payOutputs) {
     if (!params.payOutputs.length) throw new Error('payOutputs must be a non-empty array')
     return params.payOutputs.map(outputFromSpec)
@@ -130,7 +137,7 @@ function resolvePayOutputs (params: any) {
   if (params.price != null) {
     const payTo = params.payTo != null ? params.payTo : params.seller
     // A pre-built Output as payTo is used verbatim (its own value); otherwise build P2PKH(price).
-    const first = (payTo instanceof Output) ? payTo : payOutputFor(payTo, params.price)
+    const first = (payTo instanceof Output) ? payTo : payOutputFor(payTo as PayeeLike, params.price)
     const arr = [first]
     if (params.royalties) params.royalties.forEach(function (r: any) { arr.push(outputFromSpec(r)) })
     return arr
@@ -139,7 +146,7 @@ function resolvePayOutputs (params: any) {
 }
 
 /** The pinned payment bytes = concatenation of every required output's serialization. */
-function payBlobFrom (outputs: any) { return Buffer.concat(outputs.map(serializeOutput)) }
+function payBlobFrom (outputs: Output[]) { return Buffer.concat(outputs.map(serializeOutput)) }
 
 /**
  * Build an OrdLock listing (locking) script.
@@ -159,7 +166,7 @@ function payBlobFrom (outputs: any) { return Buffer.concat(outputs.map(serialize
  *   envelope is appended so a fresh inscribe+list share one output.
  * @returns {Script} the OrdLock locking script.
  */
-function buildOrdLock (params: any) {
+function buildOrdLock (params?: OrdLockParams) {
   params = params || {}
   if (params.seller == null) throw new Error('buildOrdLock requires a seller')
   const sellerPKH = resolvePubKeyHash(params.seller)
@@ -196,12 +203,12 @@ function buildOrdLock (params: any) {
   return s
 }
 
-function chunkIsOp (chunk: any, opcodenum: any) {
+function chunkIsOp (chunk: ScriptChunk | undefined, opcodenum: number) {
   return chunk && chunk.opcodenum === opcodenum && (chunk.buf == null)
 }
 
 /** Split a pinned payBlob back into its constituent Transaction.Outputs. */
-function splitPayBlob (blob: any) {
+function splitPayBlob (blob: Buffer) {
   const br = new BufferReader(blob)
   const outs: any[] = []
   while (!br.eof()) outs.push(Output.fromBufferReader(br))
@@ -236,7 +243,7 @@ function splitPayBlob (blob: any) {
  *   inscription: null|{ contentType: string, content: Buffer, contentText: string }
  * }}
  */
-function parseOrdLock (script: any, opts?: any) {
+function parseOrdLock (script: Script | Buffer | string, opts?: ParseOrdLockOptions) {
   const network = opts && opts.network
   try {
     const s = coerceScript(script)
@@ -313,13 +320,13 @@ function parseOrdLock (script: any, opts?: any) {
 }
 
 /** True if `script` is a recognizable OrdLock listing. */
-function isOrdLock (script: any, opts: any) { return parseOrdLock(script, opts) !== null }
+function isOrdLock (script: Script | Buffer | string, opts?: ParseOrdLockOptions) { return parseOrdLock(script, opts) !== null }
 
 /**
  * Build the 1-sat Transaction.Output that lists an ordinal for sale under an OrdLock.
  * @returns {Transaction.Output}
  */
-function listInscriptionOutput (params: any) {
+function listInscriptionOutput (params?: UnlockParams & OrdLockParams) {
   params = params || {}
   const satoshis = params.satoshis != null ? params.satoshis : 1
   return new Output({ script: buildOrdLock(params), satoshis })
@@ -352,7 +359,7 @@ function listInscriptionOutput (params: any) {
  * @param {object}      [params.grind]        options forwarded to PushTx.grind.
  * @returns {Script} the unlocking script (also assigned onto the input).
  */
-function purchase (params: any) {
+function purchase (params?: UnlockParams) {
   params = params || {}
   const spend = params.spend
   const lockingScript = params.lockingScript
@@ -392,7 +399,7 @@ function purchase (params: any) {
   pushData(us, buyerOuts)
   us.add(Buffer.from(g.preimage))
   us.add(Opcode.OP_FALSE) // select the OP_ELSE (purchase) branch
-  spend.inputs[inputIndex].setScript(us)
+  spend.inputs[inputIndex]!.setScript(us)
   return us
 }
 
@@ -409,7 +416,7 @@ function purchase (params: any) {
  * @param {number}      [params.sighashType] signature flag (default SIGHASH_ALL|FORKID).
  * @returns {Script} the unlocking script (also assigned onto the input).
  */
-function cancel (params: any) {
+function cancel (params?: UnlockParams) {
   params = params || {}
   const privateKey = params.privateKey
   const spend = params.spend
@@ -424,14 +431,14 @@ function cancel (params: any) {
   const sig = H.signInput(spend, privateKey, inputIndex, lockingScript, satoshis, sighashType)
   const us = new Script()
   us.add(Buffer.from(sig))
-  us.add(privateKey.toPublicKey().toBuffer())
+  us.add((privateKey as PrivateKey).toPublicKey().toBuffer())
   us.add(Opcode.OP_TRUE) // select the OP_IF (cancel) branch
-  spend.inputs[inputIndex].setScript(us)
+  spend.inputs[inputIndex]!.setScript(us)
   return us
 }
 
 /** Add an input spending `outpoint` under `script` worth `satoshis`, script-sig empty. */
-function addSpendInput (tx: any, outpoint: any, script: any, satoshis: any) {
+function addSpendInput (tx: Transaction, outpoint: OutpointLike, script: LockLike, satoshis: number) {
   tx.addInput(new Input({
     prevTxId: outpoint.txid || outpoint.prevTxId,
     outputIndex: outpoint.outputIndex != null ? outpoint.outputIndex : outpoint.vout,
@@ -440,7 +447,7 @@ function addSpendInput (tx: any, outpoint: any, script: any, satoshis: any) {
 }
 
 /** Sign input `idx` as P2PKH with `coin.privateKey` over the finalized tx (ALL|FORKID). */
-function signP2PKHInput (tx: any, idx: any, coin: any) {
+function signP2PKHInput (tx: Transaction, idx: number, coin: FundingCoin) {
   // The satoshi amount is part of the BIP-143 preimage — a missing/NaN value silently
   // produces a signature over the wrong amount that fails on-chain, so require it explicitly.
   assertSats(coin.satoshis, 'input ' + idx + ' satoshis')
@@ -449,7 +456,7 @@ function signP2PKHInput (tx: any, idx: any, coin: any) {
   const us = new Script()
   us.add(Buffer.from(sig))
   us.add(coin.privateKey.toPublicKey().toBuffer())
-  tx.inputs[idx].setScript(us)
+  tx.inputs[idx]!.setScript(us)
 }
 
 /**
@@ -468,7 +475,7 @@ function signP2PKHInput (tx: any, idx: any, coin: any) {
  *                                  (default: the ordinal owner's address).
  * @returns {{ tx: Transaction, listingScript: Script, listingOutpoint: {txid,outputIndex} }}
  */
-function buildListingTx (params: any) {
+function buildListingTx (params?: ListingTxParams & OrdLockParams) {
   params = params || {}
   const ordinal = params.ordinal
   if (!ordinal || !ordinal.script || !ordinal.privateKey) {
@@ -491,7 +498,7 @@ function buildListingTx (params: any) {
 
   tx.addOutput(new Output({ script: lock, satoshis: ordSats })) // output 0 = listing
   if (change > 0) {
-    tx.addOutput(payOutputFor(params.changeAddress || ordinal.privateKey.toAddress(), change))
+    tx.addOutput(payOutputFor(params.changeAddress ?? (ordinal.privateKey as PrivateKey).toAddress(), change))
   }
 
   // Sign the ordinal input with the RESOLVED value (ordSats), not the raw (maybe-omitted)
@@ -524,7 +531,7 @@ function buildListingTx (params: any) {
  * @param {object} [params.grind]   options forwarded to PushTx.grind.
  * @returns {Transaction} the fully-built, signed purchase transaction.
  */
-function buildPurchaseTx (params: any) {
+function buildPurchaseTx (params?: PurchaseTxParams) {
   params = params || {}
   const listing = params.listing
   if (!listing || !listing.script) throw new Error('buildPurchaseTx requires listing.script')

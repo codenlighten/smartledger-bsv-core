@@ -29,7 +29,7 @@ export interface PrivateKey {
   toBuffer: () => Buffer
   toHex: () => string
   toPublicKey: () => PublicKey
-  toAddress: (network?: unknown) => unknown
+  toAddress: (network?: unknown) => import('./address.types').Address
   toObject: () => Record<string, unknown>
   toJSON: () => Record<string, unknown>
   inspect: () => string

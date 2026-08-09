@@ -141,7 +141,7 @@ export interface Output {
   setScriptFromBuffer: (buffer: Buffer) => void
   setScript: (script: unknown) => Output
   inspect: () => string
-  toBufferWriter: (writer?: unknown) => unknown
+  toBufferWriter: (writer?: BufferWriter) => BufferWriter
   getSize: () => number
 }
 
@@ -171,7 +171,7 @@ export interface Input {
   _fromObject: (params: Record<string, unknown>) => Input
   toObject: () => Record<string, unknown>
   toJSON: () => Record<string, unknown>
-  toBufferWriter: (writer?: unknown) => unknown
+  toBufferWriter: (writer?: BufferWriter) => BufferWriter
   setScript: (script: unknown) => Input
   getSignatures: (...args: unknown[]) => TransactionSignature[]
   isFullySigned: () => boolean

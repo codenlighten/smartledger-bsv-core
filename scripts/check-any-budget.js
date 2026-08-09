@@ -25,7 +25,7 @@ const path = require('path')
 const SRC = path.join(__dirname, '..', 'src')
 
 // Lower this when you remove some. Raising it needs a reason.
-const BUDGET = Number(process.env.ANY_BUDGET ?? 419)
+const BUDGET = Number(process.env.ANY_BUDGET ?? 329)
 
 function walk (dir) {
   const out = []

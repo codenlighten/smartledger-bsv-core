@@ -134,7 +134,8 @@ export interface Input {
   isFullySigned: () => boolean
   isFinal: () => boolean
   addSignature: (...args: unknown[]) => Input
-  clearSignatures: () => Input
+  /** See SigningInput: the return value is not uniform across subclasses. */
+  clearSignatures: () => Input | void
   isValidSignature: (transaction: unknown, signature: unknown) => boolean
   isNull: () => boolean
   _estimateSize: () => number
@@ -164,7 +165,13 @@ export interface InputConstructor {
 export interface SigningInput extends Input {
   getSignatures: (...args: unknown[]) => unknown[]
   addSignature: (...args: unknown[]) => SigningInput
-  clearSignatures: () => SigningInput
+  /**
+   * Return value is NOT uniform across the four subclasses: PublicKey and
+   * PublicKeyHash return `this`, the two MultiSig variants return undefined.
+   * Declared as the union rather than picking one, because that is what the
+   * implementations actually do. Unifying them would be an API change.
+   */
+  clearSignatures: () => SigningInput | void
   isFullySigned: () => boolean
   _estimateSize: () => number
 }
@@ -173,4 +180,47 @@ export interface SigningInputConstructor {
   new (params?: Record<string, unknown>): SigningInput
   (params?: Record<string, unknown>): SigningInput
   SCRIPT_MAX_SIZE?: number
+}
+
+/**
+ * A multisig signing input.
+ *
+ * Extends SigningInput with the m-of-n bookkeeping: the sorted public keys,
+ * an index from key string to position, the threshold, and a sparse
+ * signatures array whose slots line up with publicKeys by index.
+ */
+export interface MultiSigInput extends SigningInput {
+  publicKeys: Array<import('../publickey.types').PublicKey>
+  publicKeyIndex: Record<string, number>
+  threshold: number
+  /** Sparse: index i holds the signature for publicKeys[i], or is empty. */
+  signatures: Array<unknown | undefined>
+
+  _deserializeSignatures: (signatures: unknown[]) => Array<unknown | undefined>
+  _serializeSignatures: () => Array<unknown | undefined>
+  /** Returns undefined, unlike the PublicKey/PublicKeyHash inputs. */
+  clearSignatures: () => void
+  _updateScript: () => MultiSigInput
+  _createSignatures: () => Buffer[]
+  countMissingSignatures: () => number
+  countSignatures: () => number
+  publicKeysWithoutSignature: () => Array<import('../publickey.types').PublicKey>
+  isValidSignature: (transaction: unknown, signature: unknown) => boolean
+}
+
+/**
+ * The P2SH variant additionally carries the redeem script whose hash the
+ * output commits to.
+ */
+export interface MultiSigScriptHashInput extends MultiSigInput {
+  redeemScript: import('../script/script.types').Script
+}
+
+export interface MultiSigInputConstructor {
+  new (input: Record<string, unknown>, pubkeys?: unknown[], threshold?: number, signatures?: unknown[]): MultiSigInput
+  (input: Record<string, unknown>, pubkeys?: unknown[], threshold?: number, signatures?: unknown[]): MultiSigInput
+  SIGNATURE_SIZE?: number
+  OPCODES_SIZE?: number
+  PUBKEY_SIZE?: number
+  normalizeSignatures?: (transaction: unknown, input: unknown, inputIndex: number, signatures: unknown[], publicKeys: unknown[]) => unknown[]
 }

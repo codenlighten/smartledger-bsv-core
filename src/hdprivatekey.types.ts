@@ -14,6 +14,11 @@ import type { PrivateKey } from './privatekey.types'
 import type { PublicKey } from './publickey.types'
 import type { HDPublicKey } from './hdpublickey.types'
 
+import type { Network } from './networks.types'
+
+/** A network, or the name/version-byte that Networks.get() resolves to one. */
+export type NetworkLike = Network | string | number
+
 /** The per-field buffer view a serialized key is decomposed into. */
 export interface HDBuffers {
   version: Buffer
@@ -48,9 +53,9 @@ export interface HDPrivateKey {
 
   _buildFromJSON: (arg: any) => HDPrivateKey
   _buildFromObject: (arg: any) => HDPrivateKey
-  _buildFromSerialized: (arg: string | Buffer) => HDPrivateKey
+  _buildFromSerialized: (arg: string) => HDPrivateKey
   _buildFromBuffers: (arg: HDBuffers) => HDPrivateKey
-  _generateRandomly: (network?: unknown) => HDPrivateKey
+  _generateRandomly: (network?: NetworkLike) => HDPrivateKey
   _calcHDPublicKey: () => void
 
   toString: () => string
@@ -73,18 +78,20 @@ export interface HDPrivateKeyConstructor {
   new (arg?: unknown): HDPrivateKey
   prototype: HDPrivateKey
 
-  fromRandom: (network?: unknown) => HDPrivateKey
+  fromRandom: (network?: NetworkLike) => HDPrivateKey
   fromString: (arg: string) => HDPrivateKey
   fromObject: (arg: any) => HDPrivateKey
-  fromSeed: (hexa: string | Buffer, network?: unknown) => HDPrivateKey
+  fromSeed: (hexa: string | Buffer, network?: NetworkLike) => HDPrivateKey
   fromBuffer: (buf: Buffer) => HDPrivateKey
   fromHex: (hex: string) => HDPrivateKey
 
-  isValidPath: (arg: string | number, hardened?: boolean) => boolean
-  isValidSerialized: (data: string | Buffer, network?: unknown) => boolean
-  getSerializedError: (data: string | Buffer, network?: unknown) => Error | null
+  /** `hardened` is passed as null by the derivation helpers, meaning
+   *  "not specified" rather than "not hardened". */
+  isValidPath: (arg: string | number, hardened?: boolean | null) => boolean
+  isValidSerialized: (data: string | Buffer, network?: NetworkLike) => boolean
+  getSerializedError: (data: string | Buffer, network?: NetworkLike) => Error | null
   _getDerivationIndexes: (path: string) => number[] | null
-  _validateNetwork: (data: unknown, networkArg?: unknown) => Error | null
+  _validateNetwork: (data: Buffer, networkArg?: NetworkLike) => Error | null
   _validateBufferArguments: (arg: HDBuffers) => void
 
   DefaultDepth: number

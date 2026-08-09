@@ -11,6 +11,21 @@
  */
 import type { PublicKey } from './publickey.types'
 
+import type { Network } from './networks.types'
+
+/** A network, or the name/version-byte that Networks.get() resolves to one. */
+export type NetworkLike = Network | string | number
+
+/**
+ * What _buildFromPrivate accepts: an HDPrivateKey, seen structurally so this
+ * module does not take a type dependency on the other side of the cycle.
+ */
+export interface HDPrivateKeyLike {
+  _buffers: { version: Buffer, depth: Buffer, parentFingerPrint: Buffer, childIndex: Buffer, chainCode: Buffer, privateKey: Buffer, checksum?: Buffer | undefined }
+  privateKey: { publicKey: { toBuffer: () => Buffer } }
+  network: { xpubkey: number }
+}
+
 /** The per-field buffer view a serialized key is decomposed into. */
 export interface HDPublicBuffers {
   version: Buffer
@@ -22,6 +37,20 @@ export interface HDPublicBuffers {
   checksum?: Buffer | undefined
   xpubkey?: Buffer | string | undefined
 }
+
+/**
+ * The transitional shape inside _buildFromPrivate: a clone of the PRIVATE
+ * key's buffers, being rewritten field by field into the public ones. It is
+ * neither shape while that is happening — privateKey and xprivkey are cleared
+ * to undefined rather than deleted — so it gets its own name instead of a cast
+ * that would claim the object is already an HDPublicBuffers.
+ */
+export type HDPrivateToPublicBuffers =
+  Omit<HDPublicBuffers, 'publicKey'> & {
+    publicKey?: Buffer
+    privateKey?: Buffer | undefined
+    xprivkey?: unknown
+  }
 
 export interface HDPublicKey {
   readonly _buffers: HDPublicBuffers
@@ -36,9 +65,9 @@ export interface HDPublicKey {
   _deriveWithNumber: (index: number, hardened?: boolean) => HDPublicKey
   _deriveFromString: (path: string) => HDPublicKey
 
-  _buildFromPrivate: (arg: unknown) => HDPublicKey
+  _buildFromPrivate: (arg: HDPrivateKeyLike) => HDPublicKey
   _buildFromObject: (arg: any) => HDPublicKey
-  _buildFromSerialized: (arg: string | Buffer) => HDPublicKey
+  _buildFromSerialized: (arg: string) => HDPublicKey
   _buildFromBuffers: (arg: HDPublicBuffers) => HDPublicKey
 
   toString: () => string
@@ -55,16 +84,16 @@ export interface HDPublicKeyConstructor {
   new (arg?: unknown): HDPublicKey
   prototype: HDPublicKey
 
-  fromHDPrivateKey: (hdPrivateKey: unknown) => HDPublicKey
+  fromHDPrivateKey: (hdPrivateKey: HDPrivateKeyLike) => HDPublicKey
   fromString: (arg: string) => HDPublicKey
   fromObject: (arg: any) => HDPublicKey
   fromBuffer: (arg: Buffer) => HDPublicKey
   fromHex: (hex: string) => HDPublicKey
 
   isValidPath: (arg: string | number) => boolean
-  isValidSerialized: (data: string | Buffer, network?: unknown) => boolean
-  getSerializedError: (data: string | Buffer, network?: unknown) => Error | null
-  _validateNetwork: (data: unknown, networkArg?: unknown) => Error | null
+  isValidSerialized: (data: string | Buffer, network?: NetworkLike) => boolean
+  getSerializedError: (data: string | Buffer, network?: NetworkLike) => Error | null
+  _validateNetwork: (data: Buffer, networkArg?: NetworkLike) => Error | null
   _validateBufferArguments: (arg: HDPublicBuffers) => void
 
   Hardened: number

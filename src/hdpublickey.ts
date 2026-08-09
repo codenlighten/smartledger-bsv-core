@@ -1,6 +1,6 @@
 'use strict'
 
-import type { HDPublicKey, HDPublicKeyConstructor, HDPublicBuffers } from './hdpublickey.types'
+import type { HDPublicKey, HDPublicKeyConstructor, HDPublicBuffers, NetworkLike, HDPrivateKeyLike, HDPrivateToPublicBuffers } from './hdpublickey.types'
 
 import _ = require('./util/_')
 import $ = require('./util/preconditions')
@@ -50,7 +50,7 @@ const HDPublicKey = function HDPublicKey (this: HDPublicKey, arg?: any): any {
     if (_.isString(arg) || Buffer.isBuffer(arg)) {
       const error = (HDPublicKey as unknown as HDPublicKeyConstructor).getSerializedError(arg)
       if (!error) {
-        return this._buildFromSerialized(arg)
+        return this._buildFromSerialized(arg as string)
       } else if (Buffer.isBuffer(arg) && !(HDPublicKey as unknown as HDPublicKeyConstructor).getSerializedError(arg.toString())) {
         return this._buildFromSerialized(arg.toString())
       } else {
@@ -62,7 +62,7 @@ const HDPublicKey = function HDPublicKey (this: HDPublicKey, arg?: any): any {
     } else {
       if (_.isObject(arg)) {
         if (arg instanceof HDPrivateKey()) {
-          return this._buildFromPrivate(arg)
+          return this._buildFromPrivate(arg as unknown as HDPrivateKeyLike)
         } else {
           return this._buildFromObject(arg)
         }
@@ -75,7 +75,7 @@ const HDPublicKey = function HDPublicKey (this: HDPublicKey, arg?: any): any {
   }
 } as unknown as HDPublicKeyConstructor
 
-HDPublicKey.fromHDPrivateKey = function (hdPrivateKey: any) {
+HDPublicKey.fromHDPrivateKey = function (hdPrivateKey: HDPrivateKeyLike) {
   return new HDPublicKey(hdPrivateKey)
 }
 
@@ -85,7 +85,7 @@ HDPublicKey.fromHDPrivateKey = function (hdPrivateKey: any) {
  * @param {string|number} arg
  * @return {boolean}
  */
-HDPublicKey.isValidPath = function (arg: any) {
+HDPublicKey.isValidPath = function (arg: string | number) {
   if (_.isString(arg)) {
     const indexes = HDPrivateKey()._getDerivationIndexes(arg)
     return indexes !== null && _.every(indexes, HDPublicKey.isValidPath)
@@ -123,7 +123,7 @@ HDPublicKey.isValidPath = function (arg: any) {
  *
  * @param {string|number} arg
  */
-HDPublicKey.prototype.derive = function (this: HDPublicKey) {
+HDPublicKey.prototype.derive = function (this: HDPublicKey, arg: string | number, hardened?: boolean) {
   throw new Error('derive has been deprecated. use deriveChild or, for the old way, deriveNonCompliantChild.')
 }
 
@@ -152,7 +152,7 @@ HDPublicKey.prototype.derive = function (this: HDPublicKey) {
  *
  * @param {string|number} arg
  */
-HDPublicKey.prototype.deriveChild = function (this: HDPublicKey, arg: any, hardened: any) {
+HDPublicKey.prototype.deriveChild = function (this: HDPublicKey, arg: string | number, hardened?: boolean) {
   if (_.isNumber(arg)) {
     return this._deriveWithNumber(arg, hardened)
   } else if (_.isString(arg)) {
@@ -162,7 +162,7 @@ HDPublicKey.prototype.deriveChild = function (this: HDPublicKey, arg: any, harde
   }
 }
 
-HDPublicKey.prototype._deriveWithNumber = function (this: HDPublicKey, index: any, hardened: any) {
+HDPublicKey.prototype._deriveWithNumber = function (this: HDPublicKey, index: number, hardened?: boolean) {
   if (index >= HDPublicKey.Hardened || hardened) {
     throw new (err('HDPublicKey.InvalidIndexCantDeriveHardened'))()
   }
@@ -195,8 +195,8 @@ HDPublicKey.prototype._deriveWithNumber = function (this: HDPublicKey, index: an
   return derived
 }
 
-HDPublicKey.prototype._deriveFromString = function (this: HDPublicKey, path: any) {
-  if (_.includes(path, "'")) {
+HDPublicKey.prototype._deriveFromString = function (this: HDPublicKey, path: string) {
+  if (_.includes(path as unknown as string[], "'")) {
     throw new (err('HDPublicKey.InvalidIndexCantDeriveHardened'))()
   } else if (!HDPublicKey.isValidPath(path)) {
     throw new (err('HDPublicKey.InvalidPath'))(path)
@@ -219,7 +219,7 @@ HDPublicKey.prototype._deriveFromString = function (this: HDPublicKey, path: any
  *     network provided matches the network serialized.
  * @return {boolean}
  */
-HDPublicKey.isValidSerialized = function (data: any, network: any) {
+HDPublicKey.isValidSerialized = function (data: string | Buffer, network?: NetworkLike) {
   return _.isNull(HDPublicKey.getSerializedError(data, network))
 }
 
@@ -232,7 +232,7 @@ HDPublicKey.isValidSerialized = function (data: any, network: any) {
  *     network provided matches the network serialized.
  * @return {errors|null}
  */
-HDPublicKey.getSerializedError = function (data: any, network: any) {
+HDPublicKey.getSerializedError = function (data: string | Buffer, network?: NetworkLike) {
   if (!(_.isString(data) || Buffer.isBuffer(data))) {
     return new (err('HDPublicKey.UnrecognizedArgument'))('expected buffer or string')
   }
@@ -260,7 +260,7 @@ HDPublicKey.getSerializedError = function (data: any, network: any) {
   return null
 }
 
-HDPublicKey._validateNetwork = function (data: any, networkArg: any) {
+HDPublicKey._validateNetwork = function (data: Buffer, networkArg?: NetworkLike) {
   const network = Network.get(networkArg)
   if (!network) {
     return new (err('InvalidNetworkArgument'))(networkArg)
@@ -272,15 +272,15 @@ HDPublicKey._validateNetwork = function (data: any, networkArg: any) {
   return null
 }
 
-HDPublicKey.prototype._buildFromPrivate = function (this: HDPublicKey, arg: any) {
-  const args = _.clone(arg._buffers)
-  const point = Point.getG().mul(BN.fromBuffer(args.privateKey))
+HDPublicKey.prototype._buildFromPrivate = function (this: HDPublicKey, arg: HDPrivateKeyLike) {
+  const args = _.clone(arg._buffers) as unknown as HDPrivateToPublicBuffers
+  const point = Point.getG().mul(BN.fromBuffer(args.privateKey!))
   args.publicKey = Point.pointToCompressed(point)
   args.version = JSUtil.integerAsBuffer(Network.get(args.version.readUInt32BE(0))!.xpubkey)
   args.privateKey = undefined
   args.checksum = undefined
   args.xprivkey = undefined
-  return this._buildFromBuffers(args)
+  return this._buildFromBuffers(args as HDPublicBuffers)
 }
 
 HDPublicKey.prototype._buildFromObject = function (this: HDPublicKey, arg: any) {
@@ -299,7 +299,7 @@ HDPublicKey.prototype._buildFromObject = function (this: HDPublicKey, arg: any) 
   return this._buildFromBuffers(buffers)
 }
 
-HDPublicKey.prototype._buildFromSerialized = function (this: HDPublicKey, arg: any) {
+HDPublicKey.prototype._buildFromSerialized = function (this: HDPublicKey, arg: string) {
   const decoded = Base58Check.decode(arg)
   const buffers = {
     version: decoded.slice(HDPublicKey.VersionStart, HDPublicKey.VersionEnd),
@@ -331,7 +331,7 @@ HDPublicKey.prototype._buildFromSerialized = function (this: HDPublicKey, arg: a
  *      representation
  * @return {HDPublicKey} this
  */
-HDPublicKey.prototype._buildFromBuffers = function (this: HDPublicKey, arg: any) {
+HDPublicKey.prototype._buildFromBuffers = function (this: HDPublicKey, arg: HDPublicBuffers) {
   HDPublicKey._validateBufferArguments(arg)
 
   JSUtil.defineImmutable(this, {
@@ -372,9 +372,9 @@ HDPublicKey.prototype._buildFromBuffers = function (this: HDPublicKey, arg: any)
   return this
 }
 
-HDPublicKey._validateBufferArguments = function (arg: any) {
-  const checkBuffer = function (name: any, size: any) {
-    const buff = arg[name]
+HDPublicKey._validateBufferArguments = function (arg: HDPublicBuffers) {
+  const checkBuffer = function (name: keyof HDPublicBuffers, size: number) {
+    const buff = arg[name] as Buffer
     assert(Buffer.isBuffer(buff), name + ' argument is not a buffer, it\'s ' + typeof buff)
     assert(
       buff.length === size,
@@ -392,7 +392,7 @@ HDPublicKey._validateBufferArguments = function (arg: any) {
   }
 }
 
-HDPublicKey.fromString = function (arg: any) {
+HDPublicKey.fromString = function (arg: string) {
   $.checkArgument(_.isString(arg), 'No valid string was provided')
   return new HDPublicKey(arg)
 }
@@ -455,7 +455,7 @@ HDPublicKey.prototype.toObject = HDPublicKey.prototype.toJSON = function toObjec
  * @param {Buffer} arg
  * @return {HDPublicKey}
  */
-HDPublicKey.fromBuffer = function (arg: any) {
+HDPublicKey.fromBuffer = function (arg: Buffer) {
   return new HDPublicKey(arg)
 }
 
@@ -465,7 +465,7 @@ HDPublicKey.fromBuffer = function (arg: any) {
  * @param {Buffer} arg
  * @return {HDPublicKey}
  */
-HDPublicKey.fromHex = function (hex: any) {
+HDPublicKey.fromHex = function (hex: string) {
   return HDPublicKey.fromBuffer(Buffer.from(hex, 'hex'))
 }
 

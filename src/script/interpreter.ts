@@ -1,14 +1,25 @@
 'use strict'
 
-const _ = require('../util/_')
+import _ = require('../util/_')
 
-const Script = require('./script')
-const Opcode = require('../opcode')
-const BN = require('../crypto/bn')
-const Hash = require('../crypto/hash')
-const Signature = require('../crypto/signature')
-const PublicKey = require('../publickey')
-const cloneDeep = require('clone-deep')
+import Script = require('./script')
+import Opcode = require('../opcode')
+import BN = require('../crypto/bn')
+import Hash = require('../crypto/hash')
+import Signature = require('../crypto/signature')
+import cloneDeep = require('clone-deep')
+import type { Interpreter, InterpreterConstructor } from './interpreter.types'
+import type { Script as ScriptType, ScriptChunk } from './script.types'
+
+// publickey is in this cycle, so it resolves on demand.
+const publicKeyClass = (): any => require('../publickey')
+
+// NOTE ON THE `as ScriptChunk` / `as Buffer` CASTS BELOW: the interpreter
+// indexes chunks and the stack constantly, always after an explicit bounds or
+// depth check (`stack.length < 2`, `pc < chunks.length`, ...). TypeScript
+// cannot carry those checks to the index, so the casts state what the guard
+// already established. They are erased, so an out-of-range access still
+// behaves exactly as it did.
 
 /**
  * Bitcoin transactions contain scripts. Each input has a script called the
@@ -20,17 +31,17 @@ const cloneDeep = require('clone-deep')
  * The primary way to use this class is via the verify function.
  * e.g., Interpreter().verify( ... );
  */
-const Interpreter = function Interpreter (obj) {
+const Interpreter = function Interpreter (this: Interpreter, obj?: unknown) {
   if (!(this instanceof Interpreter)) {
-    return new Interpreter(obj)
+    return new (Interpreter as unknown as InterpreterConstructor)(obj)
   }
   if (obj) {
     this.initialize()
-    this.set(obj)
+    this.set(obj as Record<string, unknown>)
   } else {
     this.initialize()
   }
-}
+} as unknown as InterpreterConstructor
 
 /**
  * Verifies a Script by executing it and returns true if it is valid.
@@ -46,7 +57,7 @@ const Interpreter = function Interpreter (obj) {
  *
  * Translated from bitcoind's VerifyScript
  */
-Interpreter.prototype.verify = function (scriptSig, scriptPubkey, tx, nin, flags, satoshisBN) {
+Interpreter.prototype.verify = function (this: Interpreter, scriptSig: any, scriptPubkey: any, tx: any, nin: any, flags: any, satoshisBN: any) {
   const Transaction = require('../transaction')
 
   if (_.isUndefined(tx)) {
@@ -76,7 +87,7 @@ Interpreter.prototype.verify = function (scriptSig, scriptPubkey, tx, nin, flags
     flags,
     satoshisBN
   })
-  let stackCopy
+  let stackCopy: Buffer[] = []
 
   if ((flags & Interpreter.SCRIPT_VERIFY_SIGPUSHONLY) !== 0 && !scriptSig.isPushOnly()) {
     this.errstr = 'SCRIPT_ERR_SIG_PUSHONLY'
@@ -113,7 +124,7 @@ Interpreter.prototype.verify = function (scriptSig, scriptPubkey, tx, nin, flags
     return false
   }
 
-  const buf = this.stack[this.stack.length - 1]
+  const buf = (this.stack[this.stack.length - 1] as Buffer)
   if (!Interpreter.castToBool(buf)) {
     this.errstr = 'SCRIPT_ERR_EVAL_FALSE_IN_STACK'
     return false
@@ -135,7 +146,7 @@ Interpreter.prototype.verify = function (scriptSig, scriptPubkey, tx, nin, flags
     }
 
     const redeemScriptSerialized = stackCopy[stackCopy.length - 1]
-    const redeemScript = Script.fromBuffer(redeemScriptSerialized)
+    const redeemScript = Script.fromBuffer(redeemScriptSerialized as Buffer)
     stackCopy.pop()
 
     this.initialize()
@@ -158,7 +169,7 @@ Interpreter.prototype.verify = function (scriptSig, scriptPubkey, tx, nin, flags
       return false
     }
 
-    if (!Interpreter.castToBool(stackCopy[stackCopy.length - 1])) {
+    if (!Interpreter.castToBool(stackCopy[stackCopy.length - 1] as Buffer)) {
       this.errstr = 'SCRIPT_ERR_EVAL_FALSE_IN_P2SH_STACK'
       return false
     }
@@ -185,9 +196,9 @@ Interpreter.prototype.verify = function (scriptSig, scriptPubkey, tx, nin, flags
   return true
 }
 
-module.exports = Interpreter
+export = Interpreter
 
-Interpreter.prototype.initialize = function (obj) {
+Interpreter.prototype.initialize = function (this: Interpreter, obj: any) {
   this.stack = []
   this.altstack = []
   this.pc = 0
@@ -198,10 +209,10 @@ Interpreter.prototype.initialize = function (obj) {
   this.flags = 0
 }
 
-Interpreter.prototype.set = function (obj) {
+Interpreter.prototype.set = function (this: Interpreter, obj: any) {
   this.script = obj.script || this.script
   this.tx = obj.tx || this.tx
-  this.nin = typeof obj.nin !== 'undefined' ? obj.nin : this.nin
+  this.nin = typeof obj.nin !== 'undefined' ? obj.nin : this.nin!
   this.satoshisBN = obj.satoshisBN || this.satoshisBN
   this.stack = obj.stack || this.stack
   this.altstack = obj.altstack || this.altstack
@@ -256,7 +267,7 @@ Interpreter.LOCKTIME_THRESHOLD_BN = new BN(Interpreter.LOCKTIME_THRESHOLD)
  * @param {number} [max=0x7fffffff] Ceiling applied to all four caps.
  * @returns {Interpreter} the Interpreter constructor (for chaining)
  */
-Interpreter.useGenesisLimits = function (max) {
+Interpreter.useGenesisLimits = function (max: any) {
   max = max || 0x7fffffff
   Interpreter.MAX_SCRIPT_ELEMENT_SIZE = max
   Interpreter.MAXIMUM_ELEMENT_SIZE = max
@@ -289,7 +300,7 @@ Interpreter.getLimits = function () {
  * @param {object} limits as returned by getLimits()
  * @returns {Interpreter} the Interpreter constructor (for chaining)
  */
-Interpreter.setLimits = function (limits) {
+Interpreter.setLimits = function (limits: any) {
   limits = limits || {}
   if (limits.maxScriptElementSize != null) Interpreter.MAX_SCRIPT_ELEMENT_SIZE = limits.maxScriptElementSize
   if (limits.maximumElementSize != null) Interpreter.MAXIMUM_ELEMENT_SIZE = limits.maximumElementSize
@@ -405,7 +416,7 @@ Interpreter.SEQUENCE_LOCKTIME_TYPE_FLAG = (1 << 22)
  */
 Interpreter.SEQUENCE_LOCKTIME_MASK = 0x0000ffff
 
-Interpreter.castToBool = function (buf) {
+Interpreter.castToBool = function (buf: any) {
   for (let i = 0; i < buf.length; i++) {
     if (buf[i] !== 0) {
       // can be negative zero
@@ -421,7 +432,7 @@ Interpreter.castToBool = function (buf) {
 /**
  * Translated from bitcoind's CheckSignatureEncoding
  */
-Interpreter.prototype.checkSignatureEncoding = function (buf) {
+Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf: any) {
   let sig
 
   // Empty signature. Not strictly DER encoded, but allowed to provide a
@@ -447,13 +458,13 @@ Interpreter.prototype.checkSignatureEncoding = function (buf) {
     }
 
     if (!(this.flags & Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID) &&
-        (sig.nhashtype & Signature.SIGHASH_FORKID)) {
+        ((sig.nhashtype as number) & Signature.SIGHASH_FORKID)) {
       this.errstr = 'SCRIPT_ERR_ILLEGAL_FORKID'
       return false
     }
 
     if ((this.flags & Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID) &&
-        !(sig.nhashtype & Signature.SIGHASH_FORKID)) {
+        !((sig.nhashtype as number) & Signature.SIGHASH_FORKID)) {
       this.errstr = 'SCRIPT_ERR_MUST_USE_FORKID'
       return false
     }
@@ -465,8 +476,8 @@ Interpreter.prototype.checkSignatureEncoding = function (buf) {
 /**
  * Translated from bitcoind's CheckPubKeyEncoding
  */
-Interpreter.prototype.checkPubkeyEncoding = function (buf) {
-  if ((this.flags & Interpreter.SCRIPT_VERIFY_STRICTENC) !== 0 && !PublicKey.isValid(buf)) {
+Interpreter.prototype.checkPubkeyEncoding = function (this: Interpreter, buf: any) {
+  if ((this.flags & Interpreter.SCRIPT_VERIFY_STRICTENC) !== 0 && !publicKeyClass().isValid(buf)) {
     this.errstr = 'SCRIPT_ERR_PUBKEYTYPE'
     return false
   }
@@ -480,7 +491,7 @@ Interpreter.prototype.checkPubkeyEncoding = function (buf) {
   *
   */
 
-Interpreter._isMinimallyEncoded = function (buf, nMaxNumSize) {
+Interpreter._isMinimallyEncoded = function (buf: any, nMaxNumSize: any) {
   nMaxNumSize = nMaxNumSize || Interpreter.MAXIMUM_ELEMENT_SIZE
   if (buf.length > nMaxNumSize) {
     return false
@@ -513,7 +524,7 @@ Interpreter._isMinimallyEncoded = function (buf, nMaxNumSize) {
   *
   * @param {number} nMaxNumSize (max allowed size)
   */
-Interpreter._minimallyEncode = function (buf) {
+Interpreter._minimallyEncode = function (buf: any) {
   if (buf.length === 0) {
     return buf
   }
@@ -561,15 +572,15 @@ Interpreter._minimallyEncode = function (buf) {
  * Interpreter.prototype.step()
  * bitcoind commit: b5d1b1092998bc95313856d535c632ea5a8f9104
  */
-Interpreter.prototype.evaluate = function () {
-  if (this.script.toBuffer().length > Interpreter.MAX_SCRIPT_SIZE) {
+Interpreter.prototype.evaluate = function (this: Interpreter) {
+  if (this.script!.toBuffer().length > Interpreter.MAX_SCRIPT_SIZE) {
     this.errstr = 'SCRIPT_ERR_SCRIPT_SIZE'
     return false
   }
 
   try {
-    while (this.pc < this.script.chunks.length) {
-      const thisStep = { pc: this.pc, opcode: Opcode.fromNumber(this.script.chunks[this.pc].opcodenum) }
+    while (this.pc < this.script!.chunks.length) {
+      const thisStep = { pc: this.pc, opcode: Opcode.fromNumber((this.script!.chunks[this.pc] as ScriptChunk).opcodenum) }
       const fSuccess = this.step()
       if (!fSuccess) {
         return false
@@ -595,7 +606,7 @@ Interpreter.prototype.evaluate = function () {
   return true
 }
 
-Interpreter.prototype._callbackStep = function (thisStep) {
+Interpreter.prototype._callbackStep = function (this: Interpreter, thisStep: any) {
   if (typeof this.stepListener === 'function') {
     try {
       this.stepListener(thisStep, cloneDeep(this.stack, true), cloneDeep(this.altstack, true))
@@ -617,20 +628,20 @@ Interpreter.prototype._callbackStep = function (thisStep) {
  * @return {boolean} true if the transaction's locktime is less than or equal to
  *                   the transaction's locktime
  */
-Interpreter.prototype.checkLockTime = function (nLockTime) {
+Interpreter.prototype.checkLockTime = function (this: Interpreter, nLockTime: any) {
   // We want to compare apples to apples, so fail the script
   // unless the type of nLockTime being tested is the same as
   // the nLockTime in the transaction.
   if (!(
-    (this.tx.nLockTime < Interpreter.LOCKTIME_THRESHOLD && nLockTime.lt(Interpreter.LOCKTIME_THRESHOLD_BN)) ||
-    (this.tx.nLockTime >= Interpreter.LOCKTIME_THRESHOLD && nLockTime.gte(Interpreter.LOCKTIME_THRESHOLD_BN))
+    (this.tx!.nLockTime < Interpreter.LOCKTIME_THRESHOLD && nLockTime.lt(Interpreter.LOCKTIME_THRESHOLD_BN)) ||
+    (this.tx!.nLockTime >= Interpreter.LOCKTIME_THRESHOLD && nLockTime.gte(Interpreter.LOCKTIME_THRESHOLD_BN))
   )) {
     return false
   }
 
   // Now that we know we're comparing apples-to-apples, the
   // comparison is a simple numeric one.
-  if (nLockTime.gt(new BN(this.tx.nLockTime))) {
+  if (nLockTime.gt(new BN(this.tx!.nLockTime))) {
     return false
   }
 
@@ -644,7 +655,7 @@ Interpreter.prototype.checkLockTime = function (nLockTime) {
   // prevent this condition. Alternatively we could test all
   // inputs, but testing just this input minimizes the data
   // required to prove correct CHECKLOCKTIMEVERIFY execution.
-  if (this.tx.inputs[this.nin].isFinal()) {
+  if (this.tx!.inputs[this.nin!].isFinal()) {
     return false
   }
 
@@ -657,14 +668,14 @@ Interpreter.prototype.checkLockTime = function (nLockTime) {
  * @return {boolean} true if the transaction's sequence is less than or equal to
  *                   the transaction's sequence
  */
-Interpreter.prototype.checkSequence = function (nSequence) {
+Interpreter.prototype.checkSequence = function (this: Interpreter, nSequence: any) {
   // Relative lock times are supported by comparing the passed in operand to
   // the sequence number of the input.
-  const txToSequence = this.tx.inputs[this.nin].sequenceNumber
+  const txToSequence = this.tx!.inputs[this.nin!].sequenceNumber
 
   // Fail if the transaction's version number is not set high enough to
   // trigger BIP 68 rules.
-  if (this.tx.version < 2) {
+  if (this.tx!.version < 2) {
     return false
   }
 
@@ -707,7 +718,7 @@ Interpreter.prototype.checkSequence = function (nSequence) {
   return true
 }
 
-function padBufferToSize (buf, len) {
+function padBufferToSize (buf: Buffer, len: number): Buffer {
   let b = buf
   while (b.length < len) {
     b = Buffer.concat([Buffer.from([0x00]), b])
@@ -719,14 +730,22 @@ function padBufferToSize (buf, len) {
  * Based on the inner loop of bitcoind's EvalScript function
  * bitcoind commit: b5d1b1092998bc95313856d535c632ea5a8f9104
  */
-Interpreter.prototype.step = function () {
+Interpreter.prototype.step = function (this: Interpreter) {
   const self = this
 
-  function stacktop (i) {
-    return self.stack[self.stack.length + i]
+  /**
+   * Peek at the stack relative to the top: stacktop(-1) is the top element.
+   *
+   * Returns Buffer, not Buffer | undefined: every call site is preceded by an
+   * explicit depth check ("if (this.stack.length < N) { errstr = ...; return
+   * false }"), which TypeScript cannot carry to the index. An out-of-range
+   * peek still yields undefined at runtime, exactly as before.
+   */
+  function stacktop (i: number): Buffer {
+    return self.stack[self.stack.length + i] as Buffer
   }
 
-  function isOpcodeDisabled (opcode) {
+  function isOpcodeDisabled (opcode: number): boolean {
     switch (opcode) {
       case Opcode.OP_2MUL:
       case Opcode.OP_2DIV:
@@ -768,19 +787,34 @@ Interpreter.prototype.step = function () {
 
   // bool fExec = !count(vfExec.begin(), vfExec.end(), false);
   const fExec = (this.vfExec.indexOf(false) === -1)
-  let buf, buf1, buf2, spliced, n, x1, x2, bn, bn1, bn2, bufSig, bufPubkey, subscript
+  // One declaration for the whole opcode switch, as in the original. The
+  // definite-assignment assertions say what the switch guarantees: each case
+  // assigns before it reads. They are erased, so an unassigned read still
+  // produces the same undefined it always did.
+  let buf!: Buffer
+  let buf1!: Buffer
+  let buf2!: Buffer
+  let bufSig!: Buffer
+  // The remainder are left untyped rather than guessed at: the switch reuses
+  // them across opcodes with genuinely different value types, and pinning one
+  // would be a fiction. They are candidates for per-case locals in the API
+  // pass, which is where that restructuring belongs.
+  let spliced: any, n: any, x1: any, x2: any
+  let bn: any, bn1: any, bn2: any
+  let bufPubkey: any, subscript: any
   let sig, pubkey
   let fValue, fSuccess
 
   // Read instruction
-  const chunk = this.script.chunks[this.pc]
+  // pc is bounds-checked by `while (this.pc < chunks.length)` in evaluate().
+  const chunk = this.script!.chunks[this.pc] as ScriptChunk
   this.pc++
   const opcodenum = chunk.opcodenum
   if (_.isUndefined(opcodenum)) {
     this.errstr = 'SCRIPT_ERR_UNDEFINED_OPCODE'
     return false
   }
-  if (chunk.buf && chunk.buf.length > Interpreter.MAX_SCRIPT_ELEMENT_SIZE) {
+  if (chunk.buf != null && chunk.buf!.length > Interpreter.MAX_SCRIPT_ELEMENT_SIZE) {
     this.errstr = 'SCRIPT_ERR_PUSH_SIZE'
     return false
   }
@@ -797,16 +831,16 @@ Interpreter.prototype.step = function () {
   }
 
   if (fExec && opcodenum >= 0 && opcodenum <= Opcode.OP_PUSHDATA4) {
-    if (fRequireMinimal && !this.script.checkMinimalPush(this.pc - 1)) {
+    if (fRequireMinimal && !this.script!.checkMinimalPush(this.pc - 1)) {
       this.errstr = 'SCRIPT_ERR_MINIMALDATA'
       return false
     }
     if (!chunk.buf) {
       this.stack.push(Interpreter.false)
-    } else if (chunk.len !== chunk.buf.length) {
-      throw new Error(`Length of push value not equal to length of data (${chunk.len},${chunk.buf.length})`)
+    } else if (chunk.len !== chunk.buf!.length) {
+      throw new Error(`Length of push value not equal to length of data (${chunk.len},${chunk.buf!.length})`)
     } else {
-      this.stack.push(chunk.buf)
+      this.stack.push(chunk.buf as Buffer)
     }
   } else if (fExec || (Opcode.OP_IF <= opcodenum && opcodenum <= Opcode.OP_ENDIF)) {
     switch (opcodenum) {
@@ -874,7 +908,7 @@ Interpreter.prototype.step = function () {
         // Thus as a special case we tell CScriptNum to accept up
         // to 5-byte bignums, which are good until 2**39-1, well
         // beyond the 2**32-1 limit of the nLockTime field itself.
-        var nLockTime = BN.fromScriptNumBuffer(this.stack[this.stack.length - 1], fRequireMinimal, 5)
+        var nLockTime = BN.fromScriptNumBuffer((this.stack[this.stack.length - 1] as Buffer), fRequireMinimal, 5)
 
         // In the rare event that the argument may be < 0 due to
         // some arithmetic being done first, you can always use
@@ -925,7 +959,7 @@ Interpreter.prototype.step = function () {
         // To provide for future soft-fork extensibility, if the
         // operand has the disabled lock-time flag set,
         // CHECKSEQUENCEVERIFY behaves as a NOP.
-        if ((nSequence &
+        if (((nSequence as any) &
           Interpreter.SEQUENCE_LOCKTIME_DISABLE_FLAG) !== 0) {
           break
         }
@@ -977,7 +1011,7 @@ Interpreter.prototype.step = function () {
           if (opcodenum === Opcode.OP_NOTIF) {
             fValue = !fValue
           }
-          this.stack.pop()
+          this.stack.pop() as Buffer
         }
         this.vfExec.push(fValue)
         break
@@ -1008,7 +1042,7 @@ Interpreter.prototype.step = function () {
         buf = stacktop(-1)
         fValue = Interpreter.castToBool(buf)
         if (fValue) {
-          this.stack.pop()
+          this.stack.pop() as Buffer
         } else {
           this.errstr = 'SCRIPT_ERR_VERIFY'
           return false
@@ -1028,7 +1062,7 @@ Interpreter.prototype.step = function () {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
         }
-        this.altstack.push(this.stack.pop())
+        this.altstack.push(this.stack.pop() as Buffer)
         break
 
       case Opcode.OP_FROMALTSTACK:
@@ -1036,7 +1070,7 @@ Interpreter.prototype.step = function () {
           this.errstr = 'SCRIPT_ERR_INVALID_ALTSTACK_OPERATION'
           return false
         }
-        this.stack.push(this.altstack.pop())
+        this.stack.push(this.altstack.pop() as Buffer)
         break
 
       case Opcode.OP_2DROP:
@@ -1045,8 +1079,8 @@ Interpreter.prototype.step = function () {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
         }
-        this.stack.pop()
-        this.stack.pop()
+        this.stack.pop() as Buffer
+        this.stack.pop() as Buffer
         break
 
       case Opcode.OP_2DUP:
@@ -1134,7 +1168,7 @@ Interpreter.prototype.step = function () {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
         }
-        this.stack.pop()
+        this.stack.pop() as Buffer
         break
 
       case Opcode.OP_DUP:
@@ -1175,7 +1209,7 @@ Interpreter.prototype.step = function () {
         buf = stacktop(-1)
         bn = BN.fromScriptNumBuffer(buf, fRequireMinimal)
         n = bn.toNumber()
-        this.stack.pop()
+        this.stack.pop() as Buffer
         if (n < 0 || n >= this.stack.length) {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
@@ -1258,17 +1292,17 @@ Interpreter.prototype.step = function () {
         switch (opcodenum) {
           case Opcode.OP_AND:
             for (let i = 0; i < buf1.length; i++) {
-              buf1[i] &= buf2[i]
+              buf1[i] = (buf1[i] as number) & (buf2[i] as number)
             }
             break
           case Opcode.OP_OR:
             for (let i = 0; i < buf1.length; i++) {
-              buf1[i] |= buf2[i]
+              buf1[i] = (buf1[i] as number) | (buf2[i] as number)
             }
             break
           case Opcode.OP_XOR:
             for (let i = 0; i < buf1.length; i++) {
-              buf1[i] ^= buf2[i]
+              buf1[i] = (buf1[i] as number) ^ (buf2[i] as number)
             }
             break
           default:
@@ -1276,7 +1310,7 @@ Interpreter.prototype.step = function () {
         }
 
         // And pop vch2.
-        this.stack.pop()
+        this.stack.pop() as Buffer
         break
 
       case Opcode.OP_INVERT:
@@ -1286,7 +1320,7 @@ Interpreter.prototype.step = function () {
         }
         buf = stacktop(-1)
         for (let i = 0; i < buf.length; i++) {
-          buf[i] = ~buf[i]
+          buf[i] = ~(buf[i] as number)
         }
         break
 
@@ -1299,7 +1333,7 @@ Interpreter.prototype.step = function () {
         }
         buf1 = stacktop(-2)
         if (buf1.length === 0) {
-          this.stack.pop()
+          this.stack.pop() as Buffer
         } else {
           bn1 = new BN(buf1)
           bn2 = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal)
@@ -1308,8 +1342,8 @@ Interpreter.prototype.step = function () {
             this.errstr = 'SCRIPT_ERR_INVALID_NUMBER_RANGE'
             return false
           }
-          this.stack.pop()
-          this.stack.pop()
+          this.stack.pop() as Buffer
+          this.stack.pop() as Buffer
           let shifted
           if (opcodenum === Opcode.OP_LSHIFT) {
             shifted = bn1.ushln(n)
@@ -1337,12 +1371,12 @@ Interpreter.prototype.step = function () {
         buf1 = stacktop(-2)
         buf2 = stacktop(-1)
         var fEqual = buf1.toString('hex') === buf2.toString('hex')
-        this.stack.pop()
-        this.stack.pop()
+        this.stack.pop() as Buffer
+        this.stack.pop() as Buffer
         this.stack.push(fEqual ? Interpreter.true : Interpreter.false)
         if (opcodenum === Opcode.OP_EQUALVERIFY) {
           if (fEqual) {
-            this.stack.pop()
+            this.stack.pop() as Buffer
           } else {
             this.errstr = 'SCRIPT_ERR_EQUALVERIFY'
             return false
@@ -1382,14 +1416,14 @@ Interpreter.prototype.step = function () {
             }
             break
           case Opcode.OP_NOT:
-            bn = new BN((bn.cmp(BN.Zero) === 0) + 0)
+            bn = new BN(bn.cmp(BN.Zero) === 0 ? 1 : 0)
             break
           case Opcode.OP_0NOTEQUAL:
-            bn = new BN((bn.cmp(BN.Zero) !== 0) + 0)
+            bn = new BN(bn.cmp(BN.Zero) !== 0 ? 1 : 0)
             break
             // default:      assert(!'invalid opcode'); break; // TODO: does this ever occur?
         }
-        this.stack.pop()
+        this.stack.pop() as Buffer
         this.stack.push(bn.toScriptNumBuffer())
         break
 
@@ -1450,39 +1484,39 @@ Interpreter.prototype.step = function () {
             break
 
           case Opcode.OP_BOOLAND:
-            bn = new BN(((bn1.cmp(BN.Zero) !== 0) && (bn2.cmp(BN.Zero) !== 0)) + 0)
+            bn = new BN(((bn1.cmp(BN.Zero) !== 0) && (bn2.cmp(BN.Zero) !== 0)) ? 1 : 0)
             break
             // case Opcode.OP_BOOLOR:        bn = (bn1 !== bnZero || bn2 !== bnZero); break;
           case Opcode.OP_BOOLOR:
-            bn = new BN(((bn1.cmp(BN.Zero) !== 0) || (bn2.cmp(BN.Zero) !== 0)) + 0)
+            bn = new BN(((bn1.cmp(BN.Zero) !== 0) || (bn2.cmp(BN.Zero) !== 0)) ? 1 : 0)
             break
             // case Opcode.OP_NUMEQUAL:      bn = (bn1 === bn2); break;
           case Opcode.OP_NUMEQUAL:
-            bn = new BN((bn1.cmp(bn2) === 0) + 0)
+            bn = new BN(bn1.cmp(bn2) === 0 ? 1 : 0)
             break
             // case Opcode.OP_NUMEQUALVERIFY:    bn = (bn1 === bn2); break;
           case Opcode.OP_NUMEQUALVERIFY:
-            bn = new BN((bn1.cmp(bn2) === 0) + 0)
+            bn = new BN(bn1.cmp(bn2) === 0 ? 1 : 0)
             break
             // case Opcode.OP_NUMNOTEQUAL:     bn = (bn1 !== bn2); break;
           case Opcode.OP_NUMNOTEQUAL:
-            bn = new BN((bn1.cmp(bn2) !== 0) + 0)
+            bn = new BN(bn1.cmp(bn2) !== 0 ? 1 : 0)
             break
             // case Opcode.OP_LESSTHAN:      bn = (bn1 < bn2); break;
           case Opcode.OP_LESSTHAN:
-            bn = new BN((bn1.cmp(bn2) < 0) + 0)
+            bn = new BN(bn1.cmp(bn2) < 0 ? 1 : 0)
             break
             // case Opcode.OP_GREATERTHAN:     bn = (bn1 > bn2); break;
           case Opcode.OP_GREATERTHAN:
-            bn = new BN((bn1.cmp(bn2) > 0) + 0)
+            bn = new BN(bn1.cmp(bn2) > 0 ? 1 : 0)
             break
             // case Opcode.OP_LESSTHANOREQUAL:   bn = (bn1 <= bn2); break;
           case Opcode.OP_LESSTHANOREQUAL:
-            bn = new BN((bn1.cmp(bn2) <= 0) + 0)
+            bn = new BN(bn1.cmp(bn2) <= 0 ? 1 : 0)
             break
             // case Opcode.OP_GREATERTHANOREQUAL:  bn = (bn1 >= bn2); break;
           case Opcode.OP_GREATERTHANOREQUAL:
-            bn = new BN((bn1.cmp(bn2) >= 0) + 0)
+            bn = new BN(bn1.cmp(bn2) >= 0 ? 1 : 0)
             break
           case Opcode.OP_MIN:
             bn = (bn1.cmp(bn2) < 0 ? bn1 : bn2)
@@ -1492,14 +1526,14 @@ Interpreter.prototype.step = function () {
             break
             // default:           assert(!'invalid opcode'); break; //TODO: does this ever occur?
         }
-        this.stack.pop()
-        this.stack.pop()
+        this.stack.pop() as Buffer
+        this.stack.pop() as Buffer
         this.stack.push(bn.toScriptNumBuffer())
 
         if (opcodenum === Opcode.OP_NUMEQUALVERIFY) {
           // if (CastToBool(stacktop(-1)))
           if (Interpreter.castToBool(stacktop(-1))) {
-            this.stack.pop()
+            this.stack.pop() as Buffer
           } else {
             this.errstr = 'SCRIPT_ERR_NUMEQUALVERIFY'
             return false
@@ -1518,9 +1552,9 @@ Interpreter.prototype.step = function () {
         var bn3 = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE)
         // bool fValue = (bn2 <= bn1 && bn1 < bn3);
         fValue = (bn2.cmp(bn1) <= 0) && (bn1.cmp(bn3) < 0)
-        this.stack.pop()
-        this.stack.pop()
-        this.stack.pop()
+        this.stack.pop() as Buffer
+        this.stack.pop() as Buffer
+        this.stack.pop() as Buffer
         this.stack.push(fValue ? Interpreter.true : Interpreter.false)
         break
 
@@ -1552,8 +1586,8 @@ Interpreter.prototype.step = function () {
         } else if (opcodenum === Opcode.OP_HASH256) {
           bufHash = Hash.sha256sha256(buf)
         }
-        this.stack.pop()
-        this.stack.push(bufHash)
+        this.stack.pop() as Buffer
+        this.stack.push(bufHash as Buffer)
         break
 
       case Opcode.OP_CODESEPARATOR:
@@ -1579,7 +1613,7 @@ Interpreter.prototype.step = function () {
         // Subset of script starting at the most recent codeseparator
         // CScript scriptCode(pbegincodehash, pend);
         subscript = new Script().set({
-          chunks: this.script.chunks.slice(this.pbegincodehash)
+          chunks: this.script!.chunks.slice(this.pbegincodehash)
         })
 
         // Drop the signature, since there's no way for a signature to sign itself
@@ -1588,9 +1622,9 @@ Interpreter.prototype.step = function () {
 
         try {
           sig = Signature.fromTxFormat(bufSig)
-          pubkey = PublicKey.fromBuffer(bufPubkey, false)
+          pubkey = publicKeyClass().fromBuffer(bufPubkey, false)
 
-          fSuccess = this.tx.verifySignature(sig, pubkey, this.nin, subscript, this.satoshisBN, this.flags)
+          fSuccess = this.tx!.verifySignature(sig, pubkey, this.nin!, subscript, this.satoshisBN, this.flags)
         } catch (e) {
           // invalid sig or pubkey
           fSuccess = false
@@ -1602,14 +1636,14 @@ Interpreter.prototype.step = function () {
           return false
         }
 
-        this.stack.pop()
-        this.stack.pop()
+        this.stack.pop() as Buffer
+        this.stack.pop() as Buffer
 
         // stack.push_back(fSuccess ? vchTrue : vchFalse);
         this.stack.push(fSuccess ? Interpreter.true : Interpreter.false)
         if (opcodenum === Opcode.OP_CHECKSIGVERIFY) {
           if (fSuccess) {
-            this.stack.pop()
+            this.stack.pop() as Buffer
           } else {
             this.errstr = 'SCRIPT_ERR_CHECKSIGVERIFY'
             return false
@@ -1668,7 +1702,7 @@ Interpreter.prototype.step = function () {
 
         // Subset of script starting at the most recent codeseparator
         subscript = new Script().set({
-          chunks: this.script.chunks.slice(this.pbegincodehash)
+          chunks: this.script!.chunks.slice(this.pbegincodehash)
         })
 
         // Drop the signatures, since there's no way for a signature to sign itself
@@ -1691,8 +1725,8 @@ Interpreter.prototype.step = function () {
           var fOk
           try {
             sig = Signature.fromTxFormat(bufSig)
-            pubkey = PublicKey.fromBuffer(bufPubkey, false)
-            fOk = this.tx.verifySignature(sig, pubkey, this.nin, subscript, this.satoshisBN, this.flags)
+            pubkey = publicKeyClass().fromBuffer(bufPubkey, false)
+            fOk = this.tx!.verifySignature(sig, pubkey, this.nin!, subscript, this.satoshisBN, this.flags)
           } catch (e) {
             // invalid sig or pubkey
             fOk = false
@@ -1724,7 +1758,7 @@ Interpreter.prototype.step = function () {
             ikey2--
           }
 
-          this.stack.pop()
+          this.stack.pop() as Buffer
         }
 
         // A bug causes CHECKMULTISIG to consume one extra argument
@@ -1741,13 +1775,13 @@ Interpreter.prototype.step = function () {
           this.errstr = 'SCRIPT_ERR_SIG_NULLDUMMY'
           return false
         }
-        this.stack.pop()
+        this.stack.pop() as Buffer
 
         this.stack.push(fSuccess ? Interpreter.true : Interpreter.false)
 
         if (opcodenum === Opcode.OP_CHECKMULTISIGVERIFY) {
           if (fSuccess) {
-            this.stack.pop()
+            this.stack.pop() as Buffer
           } else {
             this.errstr = 'SCRIPT_ERR_CHECKMULTISIGVERIFY'
             return false
@@ -1771,7 +1805,7 @@ Interpreter.prototype.step = function () {
           return false
         }
         this.stack[this.stack.length - 2] = Buffer.concat([buf1, buf2])
-        this.stack.pop()
+        this.stack.pop() as Buffer
         break
 
       case Opcode.OP_SPLIT:
@@ -1815,7 +1849,7 @@ Interpreter.prototype.step = function () {
         if (n > buf1.length) {
           n = buf1.length
         }
-        this.stack.pop()
+        this.stack.pop() as Buffer
         if (opcodenum === Opcode.OP_LEFT) {
           this.stack[this.stack.length - 1] = Buffer.from(buf1).slice(0, n)
         } else {
@@ -1843,8 +1877,8 @@ Interpreter.prototype.step = function () {
         if (subBegin + subSize > buf1.length) {
           subSize = buf1.length - subBegin
         }
-        this.stack.pop()
-        this.stack.pop()
+        this.stack.pop() as Buffer
+        this.stack.pop() as Buffer
         this.stack[this.stack.length - 1] = Buffer.from(buf1).slice(subBegin, subBegin + subSize)
         break
 
@@ -1864,7 +1898,7 @@ Interpreter.prototype.step = function () {
           return false
         }
 
-        this.stack.pop()
+        this.stack.pop() as Buffer
         var rawnum = stacktop(-1)
 
         // Try to see if we can fit that number in the number of
@@ -1886,8 +1920,9 @@ Interpreter.prototype.step = function () {
 
         var signbit = 0x00
         if (rawnum.length > 0) {
-          signbit = rawnum[rawnum.length - 1] & 0x80
-          rawnum[rawnum.length - 1] &= 0x7f
+          // Guarded by `rawnum.length > 0` immediately above.
+          signbit = (rawnum[rawnum.length - 1] as number) & 0x80
+          rawnum[rawnum.length - 1] = (rawnum[rawnum.length - 1] as number) & 0x7f
         }
 
         var num = Buffer.alloc(size)

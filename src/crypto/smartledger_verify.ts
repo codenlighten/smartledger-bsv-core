@@ -5,9 +5,9 @@
  * Provides secure ECDSA signature verification with malleability protection
  */
 
-const BN = require('./bn')
-const Point = require('./point')
-const ECDSA = require('./ecdsa')
+import BN = require('./bn')
+import Point = require('./point')
+import ECDSA = require('./ecdsa')
 
 // Cache curve constants for performance
 const n = Point.getN()
@@ -20,7 +20,7 @@ const nh = n.shrn(1) // n / 2
  * @param {PublicKey} pubkey - Public key for verification
  * @returns {boolean} - true if signature is valid and canonical
  */
-function smartVerify (msgHash, sig, pubkey) {
+function smartVerify (msgHash: any, sig: any, pubkey: any) {
   // Strict input validation
   if (!Buffer.isBuffer(msgHash) || msgHash.length !== 32) {
     throw new Error('Invalid message hash: must be 32-byte buffer')
@@ -80,7 +80,7 @@ function smartVerify (msgHash, sig, pubkey) {
  * @param {Object|Buffer} sig - Signature with r,s components or DER buffer
  * @returns {boolean} - true if signature is canonical
  */
-function isCanonical (sig) {
+function isCanonical (sig: any) {
   if (!sig) {
     return false
   }
@@ -109,7 +109,7 @@ function isCanonical (sig) {
  * @param {Object} sig - Signature object to canonicalize
  * @returns {Object} - New signature object with canonical s
  */
-function canonicalize (sig) {
+function canonicalize (sig: any) {
   if (!sig || !sig.r || !sig.s) {
     throw new Error('Invalid signature object')
   }
@@ -128,7 +128,7 @@ function canonicalize (sig) {
   }
 }
 
-module.exports = {
+export = {
   smartVerify,
   isCanonical,
   canonicalize,

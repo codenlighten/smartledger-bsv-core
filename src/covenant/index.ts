@@ -15,7 +15,7 @@
  * imports are public API via the package.json exports map.
  */
 
-module.exports = {
-  PushTx: require('./pushtx'),
-  Helpers: require('./helpers')
-}
+import PushTx = require('./pushtx')
+import Helpers = require('./helpers')
+
+export = { PushTx, Helpers }

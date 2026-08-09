@@ -9,16 +9,16 @@
  * and ./locks.
  */
 
-const Script = require('../script')
-const Interpreter = require('../script/interpreter')
-const Opcode = require('../opcode')
-const Transaction = require('../transaction')
-const Input = require('../transaction/input')
-const Output = require('../transaction/output')
-const sighash = require('../transaction/sighash')
-const BN = require('../crypto/bn')
-const Hash = require('../crypto/hash')
-const Signature = require('../crypto/signature')
+import Script = require('../script')
+import Interpreter = require('../script/interpreter')
+import Opcode = require('../opcode')
+import Transaction = require('../transaction')
+import Input = require('../transaction/input')
+import Output = require('../transaction/output')
+import sighash = require('../transaction/sighash')
+import BN = require('../crypto/bn')
+import Hash = require('../crypto/hash')
+import Signature = require('../crypto/signature')
 
 // SIGHASH_ALL | SIGHASH_FORKID — the BSV default these covenants are built for.
 const SIGHASH = Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID // 0x41
@@ -46,7 +46,7 @@ function flags () {
  * Opt into post-Genesis script limits (needed by OP_PUSH_TX covenants).
  * Thin wrapper over Interpreter.useGenesisLimits (added in 4.1.0).
  */
-function enableGenesis (max) {
+function enableGenesis (max: any) {
   return Interpreter.useGenesisLimits(max)
 }
 
@@ -54,7 +54,7 @@ function enableGenesis (max) {
  * Verify an unlocking script against a locking script through the consensus
  * interpreter. @returns {{ok:boolean, err:string}}
  */
-function verify (unlockingScript, lockingScript, opts) {
+function verify (unlockingScript: any, lockingScript: any, opts: any) {
   opts = opts || {}
   const interp = new Interpreter()
   const ok = interp.verify(
@@ -69,18 +69,18 @@ function verify (unlockingScript, lockingScript, opts) {
 }
 
 /** Raw BIP-143 preimage (the serialization that is double-SHA256'd), not the digest. */
-function rawPreimage (tx, inputIndex, lockingScript, satoshis, sighashType) {
+function rawPreimage (tx: any, inputIndex: any, lockingScript: any, satoshis: any, sighashType: any) {
   return sighash.sighashPreimage(
     tx, sighashType || SIGHASH, inputIndex, lockingScript, new BN(satoshis))
 }
 
 /** Sighash digest = HASH256(rawPreimage) — useful for asserting OP_PUSH_TX linkage in JS. */
-function sighashDigest (tx, inputIndex, lockingScript, satoshis, sighashType) {
+function sighashDigest (tx: any, inputIndex: any, lockingScript: any, satoshis: any, sighashType: any) {
   return Hash.sha256sha256(rawPreimage(tx, inputIndex, lockingScript, satoshis, sighashType))
 }
 
 /** DER+sighash-byte signature over `lockingScript` for `inputIndex`. */
-function signInput (tx, privateKey, inputIndex, lockingScript, satoshis, sighashType) {
+function signInput (tx: any, privateKey: any, inputIndex: any, lockingScript: any, satoshis: any, sighashType: any) {
   sighashType = sighashType || SIGHASH
   const sig = sighash.sign(tx, privateKey, sighashType, inputIndex, lockingScript, new BN(satoshis))
   return Buffer.concat([sig.toDER(), Buffer.from([sighashType])])
@@ -91,7 +91,7 @@ function signInput (tx, privateKey, inputIndex, lockingScript, satoshis, sighash
  * consuming it with the supplied outputs. Returns { funding, spend }; the caller
  * sets spend.inputs[0] script.
  */
-function fundAndSpend (lockingScript, satoshis, opts) {
+function fundAndSpend (lockingScript: any, satoshis: any, opts: any) {
   opts = opts || {}
   const funding = new Transaction().addOutput(
     new Output({ script: lockingScript, satoshis }))
@@ -99,29 +99,31 @@ function fundAndSpend (lockingScript, satoshis, opts) {
   spend.addInput(
     new Input({ prevTxId: funding.hash, outputIndex: 0, script: Script.empty() }),
     lockingScript, satoshis)
-  if (opts.outputs) opts.outputs.forEach(function (o) { spend.addOutput(o) })
+  if (opts.outputs) opts.outputs.forEach(function (o: any) { spend.addOutput(o) })
   return { funding, spend }
 }
 
 /** A P2PKH Output object for an address or public key. */
-function p2pkhOutput (addressOrPubKey, satoshis) {
+function p2pkhOutput (addressOrPubKey: any, satoshis: any) {
   const addr = addressOrPubKey.toAddress ? addressOrPubKey.toAddress() : addressOrPubKey
   return new Output({ script: Script.buildPublicKeyHashOut(addr), satoshis })
 }
 
 /** Minimal little-endian script-number Buffer (push as data to put a number on-stack). */
-function scriptNum (n) {
+function scriptNum (n: any) {
   // Minimal on-stack number: 0..16 and -1 use the dedicated opcodes (OP_0..OP_16,
   // OP_1NEGATE) instead of a data push, so covenant scripts stay MINIMALDATA-clean
   // (mainnet relay policy). Larger values use a minimal scriptNum push. The result
   // is passed to Script.add(), which accepts an opcode number or a Buffer.
   if (n === 0) return Opcode.OP_0
   if (n === -1) return Opcode.OP_1NEGATE
-  if (n >= 1 && n <= 16) return Opcode['OP_' + n]
+  // Dynamic lookup of OP_1..OP_16; the constants are enumerated on the
+  // interface, so index through a string-keyed view rather than widen them.
+  if (n >= 1 && n <= 16) return (Opcode as unknown as Record<string, number>)['OP_' + n]
   return new BN(n).toScriptNumBuffer()
 }
 
-module.exports = {
+export = {
   SIGHASH,
   flags,
   enableGenesis,

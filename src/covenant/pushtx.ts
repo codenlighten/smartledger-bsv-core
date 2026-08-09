@@ -17,12 +17,12 @@
  * Interpreter.useGenesisLimits()) before verifying these scripts.
  */
 
-const Script = require('../script')
-const Opcode = require('../opcode')
-const Signature = require('../crypto/signature')
-const BN = require('../crypto/bn')
-const Hash = require('../crypto/hash')
-const H = require('./helpers')
+import Script = require('../script')
+import Opcode = require('../opcode')
+import Signature = require('../crypto/signature')
+import BN = require('../crypto/bn')
+import Hash = require('../crypto/hash')
+import H = require('./helpers')
 
 const SIGHASH = H.SIGHASH
 const scriptNum = H.scriptNum
@@ -40,7 +40,7 @@ const N_LE = Buffer.concat([Buffer.from(N.toBuffer()).reverse(), Buffer.from([0x
 const DER_PREFIX = Buffer.concat([Buffer.from([0x30, 0x44, 0x02, 0x20]), Gx, Buffer.from([0x02, 0x20])])
 
 /** Reverse a fixed n-byte buffer on top of the stack (big-endian <-> little-endian). */
-function reverseBytes (script, n) {
+function reverseBytes (script: any, n: any) {
   let i
   for (i = 0; i < n - 1; i++) script.add(Opcode.OP_1).add(Opcode.OP_SPLIT)
   for (i = 0; i < n - 1; i++) script.add(Opcode.OP_SWAP).add(Opcode.OP_CAT)
@@ -74,7 +74,7 @@ const SIGHASH_ALL_ANYONECANPAY_FORKID =
  *   so the spender must push the matching BIP-143 preimage (grind with the same
  *   sighashType). Defaults to SIGHASH_ALL|FORKID — existing covenants are unchanged.
  */
-function pushTxCore (script, opts) {
+function pushTxCore (script: any, opts: any) {
   const sighashType = (opts && opts.sighashType) || SIGHASH
   script.add(Opcode.OP_HASH256) // z = HASH256(preimage), 32B BE
   reverseBytes(script, 32) // -> little-endian = e. The grind guarantees e is
@@ -100,11 +100,11 @@ function pushTxCore (script, opts) {
 
 /** Bare authenticator script: unlock with the (grindable) preimage. */
 function authenticator () {
-  return pushTxCore(new Script())
+  return pushTxCore(new Script(), {})
 }
 
 /** Extract the committed hashOutputs (item 9, offsetFromEnd 40, len 32) from a preimage on-stack. */
-function extractHashOutputs (script) {
+function extractHashOutputs (script: any) {
   // last 40 bytes, then the first 32 of those = hashOutputs. (BSV string opcodes.)
   script.add(scriptNum(40)).add(Opcode.OP_RIGHT).add(scriptNum(32)).add(Opcode.OP_LEFT)
   return script
@@ -125,7 +125,7 @@ function extractHashOutputs (script) {
  * recreated OUTPUT (HASH256(nextOutput) == hashOutputs). This guard makes the
  * flag assumption explicit and fails fast — and survives any refactor of the core.
  */
-function assertSighashAll (script) {
+function assertSighashAll (script: any) {
   return assertSighashType(script, SIGHASH)
 }
 
@@ -135,7 +135,7 @@ function assertSighashAll (script) {
  * equal `sighashType`. Use with pushTxCore({ sighashType }) + grind({ sighashType })
  * to build covenants under SIGHASH_SINGLE|ANYONECANPAY (marketplace) etc.
  */
-function assertSighashType (script, sighashType) {
+function assertSighashType (script: any, sighashType: any) {
   const word = Buffer.from([sighashType & 0xff, 0x00, 0x00, 0x00])
   script.add(Opcode.OP_DUP).add(scriptNum(4)).add(Opcode.OP_RIGHT)
     .add(word).add(Opcode.OP_EQUALVERIFY)
@@ -143,8 +143,8 @@ function assertSighashType (script, sighashType) {
 }
 
 /** BIP-143 hashOutputs (SIGHASH_ALL) for a set of Transaction.Output objects. */
-function hashOutputs (outputs) {
-  const ser = Buffer.concat(outputs.map(function (o) { return o.toBufferWriter().toBuffer() }))
+function hashOutputs (outputs: any) {
+  const ser = Buffer.concat(outputs.map(function (o: any) { return o.toBufferWriter().toBuffer() }))
   return Hash.sha256sha256(ser)
 }
 
@@ -152,9 +152,9 @@ function hashOutputs (outputs) {
  * Value/output covenant: the spend is valid only if its outputs hash to
  * `expectedHashOutputs` — coins can only go where the covenant says.
  */
-function valueCovenant (expectedHashOutputs) {
+function valueCovenant (expectedHashOutputs: any) {
   const script = new Script().add(Opcode.OP_DUP)
-  pushTxCore(script)
+  pushTxCore(script, {})
   script.add(Opcode.OP_VERIFY)
   extractHashOutputs(script)
   script.add(Buffer.from(expectedHashOutputs)).add(Opcode.OP_EQUAL)
@@ -171,16 +171,24 @@ const HALF_N = new BN('7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F466
  * so it passes nodes enforcing SCRIPT_VERIFY_LOW_S — at zero script-size cost
  * (the burden is on the spender's grind, not extra opcodes).
  */
-function sFromPreimage (preimage) {
+function sFromPreimage (preimage: any) {
   const z = Hash.sha256sha256(preimage)
   // Script no longer sign-extends z, so e (= reverse(z) as a number) must be
   // positive AND minimally encoded: its little-endian MSB (= z[0]) in 0x01..0x7f.
   // This keeps the locking script MINIMALDATA-clean (mainnet-relayable).
-  if (z[0] < 0x01 || z[0] > 0x7f) return null
+  if (z[0]! < 0x01 || z[0]! > 0x7f) return null
   const s = new BN(z).add(new BN(Gx)).mod(N)
   if (s.gt(HALF_N)) return null // enforce low-S (canonical / non-malleable)
-  const sBE = s.toBuffer('be', 32)
-  return (sBE[0] >= 0x01) ? sBE : null // s <= n/2 already guarantees sBE[0] <= 0x7f
+  // BUG, PRESERVED: this is bn.js's NATIVE toBuffer(endian, length) signature,
+  // but crypto/bn REPLACES toBuffer with an options-object form. 'be' lands in
+  // `opts`, `opts.size` is undefined, and the result is the natural-length
+  // buffer — 31 bytes or fewer whenever s < 2^248, about 1 call in 256.
+  // DER_PREFIX ends in 0220, declaring s to be exactly 32 bytes, and grind()
+  // only tests this for truthiness, so it will happily return a nonce whose
+  // covenant cannot be spent. The fix is `s.toBuffer({ size: 32 })`.
+  // Left as-is: this conversion changes no behaviour. Recorded separately.
+  const sBE = (s as any).toBuffer('be', 32)
+  return (sBE[0]! >= 0x01) ? sBE : null // s <= n/2 already guarantees sBE[0] <= 0x7f
 }
 
 /**
@@ -198,7 +206,7 @@ function sFromPreimage (preimage) {
  *       nLockTime. (Not for CSV/relative-locktime covenants, which encode meaning
  *       in the sequence number itself.)
  */
-function grind (spend, inputIndex, lockingScript, satoshis, opts) {
+function grind (spend: any, inputIndex: any, lockingScript: any, satoshis: any, opts: any) {
   if (typeof opts === 'number') opts = { maxTries: opts } // back-compat: legacy maxTries arg
   opts = opts || {}
   const maxTries = opts.maxTries || 5000
@@ -219,7 +227,7 @@ function grind (spend, inputIndex, lockingScript, satoshis, opts) {
   throw new Error('OP_PUSH_TX grind failed after ' + maxTries + ' tries')
 }
 
-module.exports = {
+export = {
   Gx,
   N,
   PUBKEY,

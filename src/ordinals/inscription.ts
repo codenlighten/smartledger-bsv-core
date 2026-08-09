@@ -16,15 +16,15 @@
  *
  * This matches the widely-used 1Sat Ordinals format (js-1sat-ord).
  */
-const Script = require('../script')
-const Opcode = require('../opcode')
-const Address = require('../address')
-const Output = require('../transaction/output')
+import Script = require('../script')
+import Opcode = require('../opcode')
+import Address = require('../address')
+import Output = require('../transaction/output')
 
 const ORD = Buffer.from('ord', 'utf8')
 
 /** Describe a rejected value for an error message, without dumping its contents. */
-function typeName (v) {
+function typeName (v: any) {
   if (v === null) return 'null'
   if (v === undefined) return 'undefined'
   if (Array.isArray(v)) return 'an array'
@@ -39,7 +39,7 @@ function typeName (v) {
  * through `String(v)`: an inscription is permanent, and stringifying an object writes
  * the literal text `[object Object]` to the chain, which is never what the caller meant.
  */
-function toBuf (v, name) {
+function toBuf (v: any, name: any) {
   if (Buffer.isBuffer(v)) return v
   if (typeof v === 'string') return Buffer.from(v, 'utf8')
   throw new Error(name + ' must be a string or Buffer, got ' + typeName(v))
@@ -49,7 +49,7 @@ function toBuf (v, name) {
 const CONTENT_ALIASES = ['data', 'body', 'payload', 'text', 'message']
 
 /** Resolve a base locking script from a Script, an Address, or an address string. */
-function resolveLock (params) {
+function resolveLock (params: any) {
   const hasLock = params.lock != null
   const hasAddress = params.address != null
 
@@ -108,7 +108,7 @@ function resolveLock (params) {
  * @param {boolean} [params.allowEmptyLock]     permit an empty base lock; see resolveLock
  * @returns {Script} the full inscription locking script
  */
-function buildInscription (params) {
+function buildInscription (params: any) {
   params = params || {}
   const lock = resolveLock(params)
 
@@ -147,7 +147,7 @@ function buildInscription (params) {
   return s
 }
 
-function chunkIsOp (chunk, opcodenum) {
+function chunkIsOp (chunk: any, opcodenum: any) {
   return chunk && chunk.opcodenum === opcodenum && (chunk.buf == null)
 }
 
@@ -165,7 +165,7 @@ function chunkIsOp (chunk, opcodenum) {
  * @returns {null|{ contentType: string, content: Buffer, contentText: string, lock: Script }}
  *   null if the script carries no inscription envelope.
  */
-function parseInscription (script) {
+function parseInscription (script: any) {
   const s = (script instanceof Script)
     ? script
     : Buffer.isBuffer(script)
@@ -178,7 +178,7 @@ function parseInscription (script) {
   for (let i = 0; i + 2 < chunks.length; i++) {
     if (chunkIsOp(chunks[i], Opcode.OP_FALSE) &&
         chunkIsOp(chunks[i + 1], Opcode.OP_IF) &&
-        chunks[i + 2].buf && chunks[i + 2].buf.equals(ORD)) {
+        chunks[i + 2]!.buf != null && chunks[i + 2]!.buf!.equals(ORD)) {
       start = i
       break
     }
@@ -186,16 +186,16 @@ function parseInscription (script) {
   if (start === -1) return null
 
   // Walk fields after "ord" until OP_ENDIF: OP_1 => content-type, OP_0 => body.
-  let contentType = Buffer.alloc(0)
-  let content = Buffer.alloc(0)
+  let contentType: Buffer = Buffer.alloc(0)
+  let content: Buffer = Buffer.alloc(0)
   let end = chunks.length // index of OP_ENDIF, or past the end if the envelope is unterminated
   for (let j = start + 3; j < chunks.length; j++) {
     const c = chunks[j]
     if (chunkIsOp(c, Opcode.OP_ENDIF)) { end = j; break }
-    if (chunkIsOp(c, Opcode.OP_1) && chunks[j + 1] && chunks[j + 1].buf) {
-      contentType = chunks[j + 1].buf; j++
-    } else if (chunkIsOp(c, Opcode.OP_0) && chunks[j + 1] && chunks[j + 1].buf) {
-      content = chunks[j + 1].buf; j++
+    if (chunkIsOp(c, Opcode.OP_1) && chunks[j + 1] && chunks[j + 1]!.buf) {
+      contentType = chunks[j + 1]!.buf!; j++
+    } else if (chunkIsOp(c, Opcode.OP_0) && chunks[j + 1] && chunks[j + 1]!.buf) {
+      content = chunks[j + 1]!.buf!; j++
     }
   }
 
@@ -203,8 +203,8 @@ function parseInscription (script) {
   // the lock entirely for the spec-legal appended form, reporting an owned ordinal as
   // having no locking script at all.
   const lock = new Script()
-  for (let k = 0; k < start; k++) lock.chunks.push(chunks[k])
-  for (let m = end + 1; m < chunks.length; m++) lock.chunks.push(chunks[m])
+  for (let k = 0; k < start; k++) lock.chunks.push(chunks[k]!)
+  for (let m = end + 1; m < chunks.length; m++) lock.chunks.push(chunks[m]!)
 
   return {
     contentType: contentType.toString('utf8'),
@@ -215,7 +215,7 @@ function parseInscription (script) {
 }
 
 /** True if the script carries an inscription envelope. */
-function isInscription (script) {
+function isInscription (script: any) {
   try { return parseInscription(script) !== null } catch (e) { return false }
 }
 
@@ -225,7 +225,7 @@ function isInscription (script) {
  * @param {number} [params.satoshis]  defaults to 1 (the 1Sat Ordinals convention)
  * @returns {Transaction.Output}
  */
-function createInscriptionOutput (params) {
+function createInscriptionOutput (params: any) {
   params = params || {}
   const satoshis = params.satoshis != null ? params.satoshis : 1
   // Output rejects negatives and fractions, but 0 and the string '1' slipped through:
@@ -239,7 +239,7 @@ function createInscriptionOutput (params) {
   })
 }
 
-module.exports = {
+export = {
   buildInscription,
   parseInscription,
   isInscription,

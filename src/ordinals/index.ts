@@ -6,23 +6,23 @@
  * inscriptions into one transaction, and (see ./ordlock) list an ordinal for sale
  * behind an OP_PUSH_TX "pay the seller or cancel" covenant.
  */
-const inscription = require('./inscription')
-const ordlock = require('./ordlock')
-const bsv20 = require('./bsv20')
+import inscription = require('./inscription')
+import ordlock = require('./ordlock')
+import bsv20 = require('./bsv20')
 
 /**
  * Build the 1-sat output(s) for one or more inscriptions.
  * @param {Array<object>} items  each: { contentType, content, address|lock, satoshis? }
  * @returns {Transaction.Output[]}
  */
-function batchInscriptionOutputs (items) {
+function batchInscriptionOutputs (items: any) {
   if (!Array.isArray(items) || !items.length) {
     throw new Error('batchInscriptionOutputs requires a non-empty array of items')
   }
-  return items.map(function (it) { return inscription.createInscriptionOutput(it) })
+  return items.map(function (it: any) { return inscription.createInscriptionOutput(it) })
 }
 
-module.exports = {
+export = {
   buildInscription: inscription.buildInscription,
   parseInscription: inscription.parseInscription,
   isInscription: inscription.isInscription,

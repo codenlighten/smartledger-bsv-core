@@ -74,7 +74,7 @@ const SIGHASH_ALL_ANYONECANPAY_FORKID =
  *   so the spender must push the matching BIP-143 preimage (grind with the same
  *   sighashType). Defaults to SIGHASH_ALL|FORKID — existing covenants are unchanged.
  */
-function pushTxCore (script: any, opts: any) {
+function pushTxCore (script: any, opts?: any) {
   const sighashType = (opts && opts.sighashType) || SIGHASH
   script.add(Opcode.OP_HASH256) // z = HASH256(preimage), 32B BE
   reverseBytes(script, 32) // -> little-endian = e. The grind guarantees e is
@@ -100,7 +100,7 @@ function pushTxCore (script: any, opts: any) {
 
 /** Bare authenticator script: unlock with the (grindable) preimage. */
 function authenticator () {
-  return pushTxCore(new Script(), {})
+  return pushTxCore(new Script())
 }
 
 /** Extract the committed hashOutputs (item 9, offsetFromEnd 40, len 32) from a preimage on-stack. */
@@ -154,7 +154,7 @@ function hashOutputs (outputs: any) {
  */
 function valueCovenant (expectedHashOutputs: any) {
   const script = new Script().add(Opcode.OP_DUP)
-  pushTxCore(script, {})
+  pushTxCore(script)
   script.add(Opcode.OP_VERIFY)
   extractHashOutputs(script)
   script.add(Buffer.from(expectedHashOutputs)).add(Opcode.OP_EQUAL)

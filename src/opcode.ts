@@ -205,19 +205,29 @@ Opcode.map = {
   OP_NOP2: 177,
   OP_NOP3: 178,
 
-  // Chronicle string operations (re-enabled in Chronicle release)
+  // Chronicle takes over the upper NOP range. Each of these bytes WAS a NOP;
+  // the spec names which one, and that is what fixes the numbering:
+  //
+  //   179  OP_SUBSTR      was OP_NOP4
+  //   180  OP_LEFT        was OP_NOP5
+  //   181  OP_RIGHT       was OP_NOP6
+  //   182  OP_LSHIFTNUM   was OP_NOP7
+  //   183  OP_RSHIFTNUM   was OP_NOP8
+  //
+  // So OP_NOP4..OP_NOP8 no longer exist, and OP_NOP9/OP_NOP10 keep their own
+  // consensus bytes rather than being shifted up. An earlier version of this
+  // map slid the NOP names upward instead, which put OP_NOP4/OP_NOP5 on the
+  // shift opcodes' bytes and invented OP_NOP8..OP_NOP10 at 186-188 — three
+  // bytes that are not valid opcodes at all.
   OP_SUBSTR: 179,
   OP_LEFT: 180,
   OP_RIGHT: 181,
+  OP_LSHIFTNUM: 182,
+  OP_RSHIFTNUM: 183,
 
-  // remaining NOPs (shifted due to Chronicle string ops)
-  OP_NOP4: 182,
-  OP_NOP5: 183,
-  OP_NOP6: 184,
-  OP_NOP7: 185,
-  OP_NOP8: 186,
-  OP_NOP9: 187,
-  OP_NOP10: 188,
+  // The only NOPs left above OP_NOP3.
+  OP_NOP9: 184,
+  OP_NOP10: 185,
 
   // template matching params
   OP_PUBKEYHASH: 253,

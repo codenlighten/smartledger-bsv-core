@@ -1,6 +1,6 @@
 {
   "suite": "interpreter",
-  "generatedBy": "v7.5.5",
+  "generatedBy": "0.1.0",
   "caseCount": 15,
   "cases": {
     "bitcoind script_tests (all)": {
@@ -210,8 +210,8 @@
         "201:pass:agrees:OK",
         "202:pass:agrees:OK",
         "203:pass:agrees:OK",
-        "204:pass:agrees:OK",
-        "205:pass:agrees:OK",
+        "204:fail:DISAGREES:OK",
+        "205:fail:DISAGREES:OK",
         "206:pass:agrees:OK",
         "207:pass:agrees:OK",
         "208:pass:agrees:OK",
@@ -386,11 +386,11 @@
         "377:pass:agrees:OK",
         "378:pass:agrees:OK",
         "379:pass:agrees:OK",
-        "380:pass:agrees:OK",
-        "381:pass:agrees:OK",
-        "382:pass:agrees:OK",
-        "383:pass:agrees:OK",
-        "384:pass:agrees:OK",
+        "380:fail:DISAGREES:OK",
+        "381:fail:DISAGREES:OK",
+        "382:fail:DISAGREES:OK",
+        "383:fail:DISAGREES:OK",
+        "384:fail:DISAGREES:OK",
         "385:pass:agrees:OK",
         "386:pass:agrees:OK",
         "387:pass:agrees:OK",
@@ -1027,7 +1027,7 @@
         "1018:fail:agrees:BAD_OPCODE",
         "1019:fail:agrees:BAD_OPCODE",
         "1020:fail:agrees:BAD_OPCODE",
-        "1021:pass:DISAGREES:BAD_OPCODE",
+        "1021:fail:agrees:BAD_OPCODE",
         "1022:fail:agrees:UNKNOWN_ERROR",
         "1023:fail:agrees:UNKNOWN_ERROR",
         "1024:fail:agrees:UNKNOWN_ERROR",
@@ -1269,8 +1269,8 @@
         "1260:fail:agrees:SIG_NULLDUMMY",
         "1261:pass:agrees:OK",
         "1262:fail:agrees:SIG_PUSHONLY",
-        "1263:pass:agrees:OK",
-        "1264:pass:agrees:OK",
+        "1263:fail:DISAGREES:OK",
+        "1264:fail:DISAGREES:OK",
         "1265:fail:agrees:SIG_PUSHONLY",
         "1266:fail:agrees:SIG_PUSHONLY",
         "1267:pass:agrees:OK",
@@ -1345,6 +1345,13 @@
       "outcome": "ok",
       "value": {
         "cases": [
+          "204:OK:",
+          "205:OK:",
+          "380:OK:",
+          "381:OK:",
+          "382:OK:",
+          "383:OK:",
+          "384:OK:",
           "663:DISABLED_OPCODE:CAT disabled",
           "665:DISABLED_OPCODE:CAT disabled",
           "667:DISABLED_OPCODE:SPLIT disabled",
@@ -1358,9 +1365,10 @@
           "752:DISABLED_OPCODE:MOD disabled",
           "904:DISABLED_OPCODE:disabled",
           "910:DISABLED_OPCODE:disabled",
-          "1021:BAD_OPCODE:0xba === FIRST_UNDEFINED_OP_VALUE"
+          "1263:OK:P2SH(P2PK) with non-push scriptSig but no P2SH or SIGPUSHONLY",
+          "1264:OK:P2PK with non-push scriptSig but with P2SH validation"
         ],
-        "count": 14
+        "count": 22
       }
     },
     "castToBool cases": {

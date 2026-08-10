@@ -17,6 +17,27 @@
  *   OP_NAME   an opcode, with or without the OP_ prefix
  *   <number>  a minimally-encoded script number push
  */
+/**
+ * Bitcoin Core names for bytes that BSV reassigned at Chronicle.
+ *
+ * The vendored script_tests.json is a faithful upstream copy and is never
+ * edited, so it still says NOP4..NOP8 — names this library no longer defines,
+ * because 0xb3-0xb7 now carry OP_SUBSTR/OP_LEFT/OP_RIGHT/OP_LSHIFTNUM/
+ * OP_RSHIFTNUM.
+ *
+ * Resolving them to Core's BYTES keeps each vector assembling the exact script
+ * Core meant, so the comparison stays honest: same bytes in, different BSV
+ * verdict out. Letting them fail to parse instead would have turned a
+ * documented consensus divergence into an opaque harness error.
+ */
+const CORE_ONLY_OPCODES = {
+  OP_NOP4: 0xb3,
+  OP_NOP5: 0xb4,
+  OP_NOP6: 0xb5,
+  OP_NOP7: 0xb6,
+  OP_NOP8: 0xb7
+}
+
 function scriptFromBitcoindString (bsv, str) {
   const { Script, Opcode, BufferWriter, BN } = {
     Script: bsv.Script,
@@ -35,6 +56,8 @@ function scriptFromBitcoindString (bsv, str) {
       bw.write(new Script().add(Buffer.from(token.slice(1, token.length - 1))).toBuffer())
     } else if (typeof Opcode['OP_' + token] !== 'undefined') {
       bw.writeUInt8(Opcode['OP_' + token])
+    } else if (typeof CORE_ONLY_OPCODES['OP_' + token] === 'number') {
+      bw.writeUInt8(CORE_ONLY_OPCODES['OP_' + token])
     } else if (typeof Opcode[token] === 'number') {
       bw.writeUInt8(Opcode[token])
     } else if (!isNaN(parseInt(token, 10))) {

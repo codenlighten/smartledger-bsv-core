@@ -980,11 +980,9 @@ Interpreter.prototype.step = function (this: Interpreter) {
         break
 
       case Opcode.OP_NOP1:
-      case Opcode.OP_NOP4:
-      case Opcode.OP_NOP5:
-      case Opcode.OP_NOP6:
-      case Opcode.OP_NOP7:
-      case Opcode.OP_NOP8:
+      // OP_NOP4..OP_NOP8 are gone: Chronicle reassigned their bytes to
+      // OP_SUBSTR/OP_LEFT/OP_RIGHT/OP_LSHIFTNUM/OP_RSHIFTNUM. These two are
+      // all that remain of the upgradable-NOP range.
       case Opcode.OP_NOP9:
       case Opcode.OP_NOP10:
         if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {

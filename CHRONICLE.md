@@ -28,43 +28,64 @@ The full Genesis-restored set — `OP_CAT`, `OP_SPLIT`, `OP_AND`, `OP_OR`,
 
 ## Gaps
 
-### 1. `OP_LSHIFTNUM` and `OP_RSHIFTNUM` are missing — and byte 182 silently misreads
+### 1. `OP_LSHIFTNUM` / `OP_RSHIFTNUM` — numbering FIXED, semantics still missing
 
-Chronicle adds two opcodes:
-
-| opcode | byte | was |
-| --- | --- | --- |
-| `OP_LSHIFTNUM` | 182 (0xb6) | `OP_NOP7` |
-| `OP_RSHIFTNUM` | 183 (0xb7) | `OP_NOP8` |
-
-Neither name exists in this library. Worse, the library's own NOP renumbering
-already claims those bytes:
+**Fixed.** The opcode map now reads:
 
 ```
-byte 182 -> OP_NOP4
-byte 183 -> OP_NOP5
-byte 184 -> OP_NOP6
-byte 185 -> OP_NOP7
-byte 186 -> OP_NOP8      <- 0xba, not a valid opcode in consensus
-byte 187 -> OP_NOP9      <- 0xbb
-byte 188 -> OP_NOP10     <- 0xbc
+179  OP_SUBSTR      was OP_NOP4
+180  OP_LEFT        was OP_NOP5
+181  OP_RIGHT       was OP_NOP6
+182  OP_LSHIFTNUM   was OP_NOP7
+183  OP_RSHIFTNUM   was OP_NOP8
+184  OP_NOP9
+185  OP_NOP10
+186+ unassigned
 ```
 
-So a Chronicle script containing `OP_LSHIFTNUM` is read by this library as
-`OP_NOP4` and evaluates as a **no-op that succeeds**:
+The spec fixes this itself by naming which NOP each reassigned byte used to
+be. An earlier version of the map slid the NOP names upward instead, which put
+`OP_NOP4`/`OP_NOP5` on the shift opcodes' bytes and invented `OP_NOP8`–
+`OP_NOP10` at 186–188 — three bytes that are not valid opcodes at all.
+
+The consequence of that was the worst kind of bug: byte 182 parsed as a NOP
+and **verified as true with both operands still on the stack**. A shift that
+never happened, reported as success. It now fails closed:
 
 ```
-OP_NOP4 (byte 182)  ->  verify() = true, stack unchanged
+byte 182 -> SCRIPT_ERR_BAD_OPCODE
+byte 183 -> SCRIPT_ERR_BAD_OPCODE
+byte 184 -> no-op (OP_NOP9)
+byte 185 -> no-op (OP_NOP10)
+byte 186..188 -> SCRIPT_ERR_BAD_OPCODE
 ```
 
-This is the dangerous class of divergence: the library reports a script valid
-without performing the shift, so a result that differs from what a node
-computes is never surfaced as an error. It is not a crash, it is a wrong
-answer.
+Refusing to validate is safe; validating wrongly is not. Until the semantics
+are implemented, rejecting is the correct posture for a validation library.
 
-The three bytes above 185 are a separate problem: 0xba–0xbc are invalid
-opcodes in consensus, and this library names them `OP_NOP8`–`OP_NOP10` and
-treats them as upgradable NOPs.
+**Still missing: the semantics.** They are deliberately not implemented,
+because the specification does not contain enough to implement them
+correctly. The
+[Chronicle spec](https://github.com/bitcoin-sv-specs/protocol/blob/master/updates/chronicle-spec.md)
+says, in full:
+
+> `OP_LSHIFTNUM` — Performs a numerical shift to left, preserving sign.
+> Inputs: a, b. Output: Shifts a left b bits
+
+That leaves at least four things undetermined, each of which changes the
+result:
+
+1. **Operand order.** Which of `a`/`b` is on top of the stack?
+2. **What "preserving sign" means.** Script numbers are sign-magnitude — the
+   sign lives in the high bit of the last byte — not two's complement. An
+   arithmetic shift in one encoding is not the other.
+3. **Negative or oversized shift counts.** Error, clamp, or wrap?
+4. **Result encoding.** Minimally encoded, and subject to which element-size
+   limit?
+
+Guessing any of these produces a library that computes confident wrong
+answers, which is precisely the failure mode this section began with. These
+need the node implementation or a clarified spec before they are written.
 
 ### 2. `OP_2MUL` / `OP_2DIV` are hard-coded as permanently disabled
 
@@ -102,18 +123,30 @@ SIGHASH_FORKID = 0x40   SIGHASH_ANYONECANPAY = 0x80
 There is no 0x20 flag and no OTDA digest path. Transactions that need the
 original digest cannot be signed or verified with this library.
 
-## Priority
+## Status and remaining priority
 
-1. `OP_LSHIFTNUM`/`OP_RSHIFTNUM` and the NOP renumbering, because that one
-   produces silently wrong validation results rather than an error.
-2. The `CHRONICLE` sighash flag and OTDA, because it blocks a class of
-   transaction outright.
-3. `OP_2MUL`/`OP_2DIV`, then the `OP_VER` family — these fail loudly, so they
-   are visible rather than deceptive.
+Chronicle shipped in SV Node **v1.2.0** (January 2026), with mainnet activation
+scheduled at height 943,816 — around 7 April 2026. Confirm the current chain
+height before treating any of this as future work rather than a live gap.
 
-Each of these needs conformance fixtures before implementation, so that the
-corpus records the current (wrong) behaviour as a deliberate change rather
-than an accident.
+Done:
+
+- **Opcode numbering**, including the fail-closed behaviour for the two shift
+  opcodes and for bytes 186–188. This was priority 1 because it was the only
+  gap producing silently wrong results rather than errors.
+
+Remaining, in order:
+
+1. **The `CHRONICLE` sighash flag and OTDA** — blocks a class of transaction
+   outright, and unlike the rest cannot be worked around by a caller.
+2. **`OP_LSHIFTNUM`/`OP_RSHIFTNUM` semantics** — blocked on the four questions
+   above, not on effort.
+3. **`OP_2MUL`/`OP_2DIV`**, then the **`OP_VER` family**. These fail loudly, so
+   they are visible rather than deceptive.
+
+Every one of these needs conformance fixtures before implementation, so the
+corpus records the current behaviour and the change lands as a deliberate
+outcome flip. `conformance/suites/chronicle.js` already covers all four.
 
 ## Sources
 

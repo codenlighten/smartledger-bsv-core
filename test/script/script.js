@@ -704,7 +704,10 @@ describe('Script', function () {
       // 186 (0xba) is OP_NOP8 in this build's opcode table — the NOPs are
       // shifted up by 3 to make room for the OP_SUBSTR/OP_LEFT/OP_RIGHT string
       // ops at 0xb3-0xb5 (see lib/opcode.js) — so it disassembles by name.
-      Script().add(1).add(10).add(186).toString().should.equal('0x01 0x0a OP_NOP8')
+      // 186 (0xba) has no name any more. It was OP_NOP8 while the NOP names
+      // were slid up to make room for the string opcodes; Chronicle stops at
+      // 185, so 0xba is an undefined opcode and prints as its raw byte.
+      Script().add(1).add(10).add(186).toString().should.equal('0x01 0x0a 0xba')
       Script().add(1000).toString().should.equal('0x03e8')
       Script().add('OP_CHECKMULTISIG').toString().should.equal('OP_CHECKMULTISIG')
       Script().add('OP_1').add('OP_2').toString().should.equal('OP_1 OP_2')

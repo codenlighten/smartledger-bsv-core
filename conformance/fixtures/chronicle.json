@@ -9,9 +9,9 @@
         "OP_2DIV": 142,
         "OP_2MUL": 141,
         "OP_LEFT": 180,
-        "OP_LSHIFTNUM": null,
+        "OP_LSHIFTNUM": 182,
         "OP_RIGHT": 181,
-        "OP_RSHIFTNUM": null,
+        "OP_RSHIFTNUM": 183,
         "OP_SUBSTR": 179,
         "OP_VER": 98,
         "OP_VERIF": 101,
@@ -24,9 +24,9 @@
         "OP_2DIV": "ok",
         "OP_2MUL": "ok",
         "OP_LEFT": "ok",
-        "OP_LSHIFTNUM": "MISSING",
+        "OP_LSHIFTNUM": "ok",
         "OP_RIGHT": "ok",
-        "OP_RSHIFTNUM": "MISSING",
+        "OP_RSHIFTNUM": "ok",
         "OP_SUBSTR": "ok",
         "OP_VER": "ok",
         "OP_VERIF": "ok",
@@ -171,7 +171,7 @@
     "byte 182 (OP_LSHIFTNUM in Chronicle) evaluated alone": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+        "errstr": "SCRIPT_ERR_BAD_OPCODE",
         "stack": [],
         "verified": false
       }
@@ -179,18 +179,18 @@
     "byte 182 with shift operands on the stack": {
       "outcome": "ok",
       "value": {
-        "errstr": "",
+        "errstr": "SCRIPT_ERR_BAD_OPCODE",
         "stack": [
           "04",
           "01"
         ],
-        "verified": true
+        "verified": false
       }
     },
     "byte 183 (OP_RSHIFTNUM in Chronicle) evaluated alone": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+        "errstr": "SCRIPT_ERR_BAD_OPCODE",
         "stack": [],
         "verified": false
       }
@@ -198,12 +198,12 @@
     "byte 183 with shift operands on the stack": {
       "outcome": "ok",
       "value": {
-        "errstr": "",
+        "errstr": "SCRIPT_ERR_BAD_OPCODE",
         "stack": [
           "04",
           "01"
         ],
-        "verified": true
+        "verified": false
       }
     },
     "bytes 184..188 evaluated alone": {
@@ -220,17 +220,17 @@
           "verified": false
         },
         "186": {
-          "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+          "errstr": "SCRIPT_ERR_BAD_OPCODE",
           "stack": [],
           "verified": false
         },
         "187": {
-          "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+          "errstr": "SCRIPT_ERR_BAD_OPCODE",
           "stack": [],
           "verified": false
         },
         "188": {
-          "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+          "errstr": "SCRIPT_ERR_BAD_OPCODE",
           "stack": [],
           "verified": false
         }
@@ -245,13 +245,13 @@
         "179": "OP_SUBSTR",
         "180": "OP_LEFT",
         "181": "OP_RIGHT",
-        "182": "OP_NOP4",
-        "183": "OP_NOP5",
-        "184": "OP_NOP6",
-        "185": "OP_NOP7",
-        "186": "OP_NOP8",
-        "187": "OP_NOP9",
-        "188": "OP_NOP10",
+        "182": "OP_LSHIFTNUM",
+        "183": "OP_RSHIFTNUM",
+        "184": "OP_NOP9",
+        "185": "OP_NOP10",
+        "186": null,
+        "187": null,
+        "188": null,
         "189": null,
         "190": null
       }

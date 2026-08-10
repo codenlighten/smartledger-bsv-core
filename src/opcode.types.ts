@@ -106,6 +106,7 @@ export interface OpcodeConstants {
   readonly OP_INVALIDOPCODE: number
   readonly OP_INVERT: number
   readonly OP_LEFT: number
+  readonly OP_LSHIFTNUM: number
   readonly OP_LESSTHAN: number
   readonly OP_LESSTHANOREQUAL: number
   readonly OP_LSHIFT: number
@@ -120,11 +121,6 @@ export interface OpcodeConstants {
   readonly OP_NOP10: number
   readonly OP_NOP2: number
   readonly OP_NOP3: number
-  readonly OP_NOP4: number
-  readonly OP_NOP5: number
-  readonly OP_NOP6: number
-  readonly OP_NOP7: number
-  readonly OP_NOP8: number
   readonly OP_NOP9: number
   readonly OP_NOT: number
   readonly OP_NOTIF: number
@@ -145,6 +141,7 @@ export interface OpcodeConstants {
   readonly OP_RESERVED2: number
   readonly OP_RETURN: number
   readonly OP_RIGHT: number
+  readonly OP_RSHIFTNUM: number
   readonly OP_RIPEMD160: number
   readonly OP_ROLL: number
   readonly OP_ROT: number

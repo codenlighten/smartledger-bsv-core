@@ -329,3 +329,38 @@ Worth knowing before continuing, because they recur:
 | Converted | **36 — the entire acyclic set** |
 | Acyclic, remaining | 0 | `spv/index` | ✅ done |
 | Cyclic cluster | ~39 |
+
+## Opcode numbering: `OP_NOP4`–`OP_NOP8` are gone (Chronicle)
+
+**Breaking.** Five opcode names were removed and two added, so
+`Object.keys(Opcode.map).length` is 118 rather than 121.
+
+| byte | was | is now |
+| --- | --- | --- |
+| 179 | `OP_NOP4` | `OP_SUBSTR` |
+| 180 | `OP_NOP5` | `OP_LEFT` |
+| 181 | `OP_NOP6` | `OP_RIGHT` |
+| 182 | `OP_NOP4` *(shifted)* | `OP_LSHIFTNUM` |
+| 183 | `OP_NOP5` *(shifted)* | `OP_RSHIFTNUM` |
+| 184 | `OP_NOP6` *(shifted)* | `OP_NOP9` |
+| 185 | `OP_NOP7` *(shifted)* | `OP_NOP10` |
+| 186–188 | `OP_NOP8`–`OP_NOP10` *(invented)* | unassigned |
+
+The previous map slid the NOP names upward to make room for the string
+opcodes. That put `OP_NOP4`/`OP_NOP5` on the bytes Chronicle assigns to the
+shift opcodes, and invented three opcodes at 186–188 which are not valid in
+consensus. Chronicle names which NOP each reassigned byte used to be, and that
+is what the map follows now.
+
+**Why this is worth a breaking change.** Byte 182 previously parsed as a NOP,
+so a script using `OP_LSHIFTNUM` **verified as true without performing the
+shift** — a wrong answer reported as success. It now returns
+`SCRIPT_ERR_BAD_OPCODE`. Refusing to validate is safe; validating wrongly is
+not.
+
+**If you referenced `OP_NOP4`–`OP_NOP8`:** you were referencing bytes that now
+carry real opcodes. There is no rename to apply — check what you meant. Bytes
+184 and 185 remain no-ops, under their consensus names `OP_NOP9`/`OP_NOP10`.
+
+The `OP_LSHIFTNUM`/`OP_RSHIFTNUM` **semantics are not implemented**; the
+specification does not determine them. See `CHRONICLE.md`.

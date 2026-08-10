@@ -23,7 +23,7 @@
     },
     {
       "suite": "crypto-misc",
-      "generatedBy": "v7.5.5",
+      "generatedBy": "0.1.0",
       "cases": 50,
       "throws": 14
     },
@@ -53,7 +53,7 @@
     },
     {
       "suite": "interpreter",
-      "generatedBy": "v7.5.5",
+      "generatedBy": "0.1.0",
       "cases": 15,
       "throws": 0
     },

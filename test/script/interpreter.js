@@ -16,6 +16,23 @@ const txValid = require('../data/bitcoind/tx_valid')
 const txInvalid = require('../data/bitcoind/tx_invalid')
 
 // the script string format used in bitcoind data tests
+// Bitcoin Core names for bytes that BSV reassigned at Chronicle. The vendored
+// script_tests.json is a faithful upstream copy and is not edited, so it still
+// says NOP4..NOP8 — names this library no longer defines, because 0xb3-0xb7 now
+// carry OP_SUBSTR/OP_LEFT/OP_RIGHT/OP_LSHIFTNUM/OP_RSHIFTNUM.
+//
+// Resolving them to Core's BYTES keeps the vector assembling the exact script
+// Core meant, so the comparison stays honest: same bytes in, different BSV
+// verdict out, recorded in BSV_DIVERGENCES. Dropping the vectors instead would
+// have hidden the divergence rather than documented it.
+const CORE_ONLY_OPCODES = {
+  OP_NOP4: 0xb3,
+  OP_NOP5: 0xb4,
+  OP_NOP6: 0xb5,
+  OP_NOP7: 0xb6,
+  OP_NOP8: 0xb7
+}
+
 Script.fromBitcoindString = function (str) {
   const bw = new BufferWriter()
   const tokens = str.split(' ')
@@ -44,6 +61,8 @@ Script.fromBitcoindString = function (str) {
       opstr = token
       opcodenum = Opcode[opstr]
       bw.writeUInt8(opcodenum)
+    } else if (typeof CORE_ONLY_OPCODES['OP_' + token] === 'number') {
+      bw.writeUInt8(CORE_ONLY_OPCODES['OP_' + token])
     } else if (!isNaN(parseInt(token))) {
       const script = Script().add(new BN(token).toScriptNumBuffer())
       tbuf = script.toBuffer()
@@ -618,9 +637,16 @@ describe('Interpreter', function () {
   //    the surrounding `0 IF <op> ELSE 1 ENDIF` form fails under upstream only
   //    because disabled opcodes are rejected even in unexecuted branches; once
   //    enabled, the branch is simply skipped and the script is 'OK'.)
-  //  - 0xba is OP_NOP8 in this build's opcode table (the NOPs are shifted to
-  //    make room for the OP_SUBSTR/OP_LEFT/OP_RIGHT string ops at 0xb3-0xb5;
-  //    see lib/opcode.js), so `1 0xba` is a valid no-op, not 'BAD_OPCODE'.
+  //  - Chronicle reassigned 0xb3-0xb7 (Core's NOP4..NOP8) to OP_SUBSTR,
+  //    OP_LEFT, OP_RIGHT, OP_LSHIFTNUM and OP_RSHIFTNUM. Core's vectors expect
+  //    those bytes to be upgradable no-ops; on BSV the first three consume
+  //    stack (so a bare `NOP4 1` underflows) and the last two are not yet
+  //    implemented here, so they are BAD_OPCODE. See CHRONICLE.md.
+  //
+  //    `1 0xba` is NOT in this table any more. An earlier build slid the NOP
+  //    names up and called 0xba OP_NOP8, which made it a valid no-op and a
+  //    divergence; 0xba is unassigned again, so BSV agrees with Core and an
+  //    override here would assert the wrong result.
   const BSV_DIVERGENCES = {
     "'a' 'b'|CAT|P2SH,STRICTENC": 'OK',
     "'a' 'b' 0|IF CAT ELSE 1 ENDIF|P2SH,STRICTENC": 'OK',
@@ -635,7 +661,17 @@ describe('Interpreter', function () {
     '2 2 0 IF MOD ELSE 1 ENDIF|NOP|P2SH,STRICTENC': 'OK',
     '2 DUP DIV|1 EQUAL|P2SH,STRICTENC': 'OK',
     '7 3 MOD|1 EQUAL|P2SH,STRICTENC': 'OK',
-    '1|0xba|P2SH,STRICTENC': 'OK'
+
+    // Chronicle reassignments of Core's NOP4..NOP8 (0xb3-0xb7).
+    '1|NOP1 CHECKLOCKTIMEVERIFY CHECKSEQUENCEVERIFY NOP4 NOP5 NOP6 NOP7 NOP8 NOP9 NOP10 1 EQUAL|P2SH,STRICTENC': 'INVALID_STACK_OPERATION',
+    "'NOP_1_to_10' NOP1 CHECKLOCKTIMEVERIFY CHECKSEQUENCEVERIFY NOP4 NOP5 NOP6 NOP7 NOP8 NOP9 NOP10|'NOP_1_to_10' EQUAL|P2SH,STRICTENC": 'INVALID_STACK_OPERATION',
+    'NOP|NOP4 1|P2SH,STRICTENC': 'INVALID_STACK_OPERATION',
+    'NOP|NOP5 1|P2SH,STRICTENC': 'INVALID_STACK_OPERATION',
+    'NOP|NOP6 1|P2SH,STRICTENC': 'INVALID_STACK_OPERATION',
+    'NOP|NOP7 1|P2SH,STRICTENC': 'BAD_OPCODE',
+    'NOP|NOP8 1|P2SH,STRICTENC': 'BAD_OPCODE',
+    '0x47 0x3044022018a2a81a93add5cb5f5da76305718e4ea66045ec4888b28d84cb22fae7f4645b02201e6daa5ed5d2e4b2b2027cf7ffd43d8d9844dd49f74ef86899ec8e669dfd39aa01 NOP8 0x23 0x2103363d90d447b00c9c99ceac05b6262ee053441c7e55552ffe526bad8f83ff4640ac|HASH160 0x14 0x215640c2f72f0d16b4eced26762035a42ffed39a EQUAL|': 'BAD_OPCODE',
+    '0x47 0x304402203e4516da7253cf068effec6b95c41221c0cf3a8e6ccb8cbf1725b562e9afde2c022054e1c258c2981cdfba5df1f46661fb6541c44f77ca0092f3600331abfffb125101 NOP8|0x21 0x03363d90d447b00c9c99ceac05b6262ee053441c7e55552ffe526bad8f83ff4640 CHECKSIG|': 'BAD_OPCODE'
   }
 
   describe('bitcoind script evaluation fixtures', function () {

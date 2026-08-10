@@ -83,15 +83,21 @@ describe('Opcode', function () {
   })
 
   describe('@map', function () {
-    it('should have a map containing 121 elements', function () {
-      Object.keys(Opcode.map).length.should.equal(121)
+    // 118, not 118: Chronicle removed OP_NOP4..OP_NOP8 (their bytes now carry
+    // OP_SUBSTR/OP_LEFT/OP_RIGHT/OP_LSHIFTNUM/OP_RSHIFTNUM) and added the two
+    // shift opcodes — five gone, two added.
+    it('should have a map containing 118 elements', function () {
+      Object.keys(Opcode.map).length.should.equal(118)
     })
   })
 
   describe('@reverseMap', function () {
+    // 185 is OP_NOP10. It was OP_NOP7 while the NOP names were slid upward to
+    // make room for the string opcodes; they are not slid any more, because
+    // Chronicle names which NOP each reassigned byte used to be.
     it('should exist and have op 185', function () {
       should.exist(Opcode.reverseMap)
-      Opcode.reverseMap[185].should.equal('OP_NOP7')
+      Opcode.reverseMap[185].should.equal('OP_NOP10')
     })
   })
   const smallints = [

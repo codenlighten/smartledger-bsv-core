@@ -210,8 +210,8 @@
         "201:pass:agrees:OK",
         "202:pass:agrees:OK",
         "203:pass:agrees:OK",
-        "204:fail:DISAGREES:OK",
-        "205:fail:DISAGREES:OK",
+        "204:pass:agrees:OK",
+        "205:pass:agrees:OK",
         "206:pass:agrees:OK",
         "207:pass:agrees:OK",
         "208:pass:agrees:OK",
@@ -386,9 +386,9 @@
         "377:pass:agrees:OK",
         "378:pass:agrees:OK",
         "379:pass:agrees:OK",
-        "380:fail:DISAGREES:OK",
-        "381:fail:DISAGREES:OK",
-        "382:fail:DISAGREES:OK",
+        "380:pass:agrees:OK",
+        "381:pass:agrees:OK",
+        "382:pass:agrees:OK",
         "383:pass:agrees:OK",
         "384:pass:agrees:OK",
         "385:pass:agrees:OK",
@@ -590,10 +590,10 @@
         "581:fail:agrees:EVAL_FALSE",
         "582:fail:agrees:EVAL_FALSE",
         "583:fail:agrees:BAD_OPCODE",
-        "584:fail:agrees:BAD_OPCODE",
-        "585:fail:agrees:BAD_OPCODE",
-        "586:fail:agrees:BAD_OPCODE",
-        "587:fail:agrees:BAD_OPCODE",
+        "584:pass:DISAGREES:BAD_OPCODE",
+        "585:pass:DISAGREES:BAD_OPCODE",
+        "586:pass:DISAGREES:BAD_OPCODE",
+        "587:pass:DISAGREES:BAD_OPCODE",
         "588:fail:agrees:UNBALANCED_CONDITIONAL",
         "589:fail:agrees:UNBALANCED_CONDITIONAL",
         "590:fail:agrees:UNBALANCED_CONDITIONAL",
@@ -1345,11 +1345,10 @@
       "outcome": "ok",
       "value": {
         "cases": [
-          "204:OK:",
-          "205:OK:",
-          "380:OK:",
-          "381:OK:",
-          "382:OK:",
+          "584:BAD_OPCODE:VERIF illegal everywhere",
+          "585:BAD_OPCODE:VERIF illegal everywhere",
+          "586:BAD_OPCODE:VERNOTIF illegal everywhere",
+          "587:BAD_OPCODE:VERNOTIF illegal everywhere",
           "663:DISABLED_OPCODE:CAT disabled",
           "665:DISABLED_OPCODE:CAT disabled",
           "667:DISABLED_OPCODE:SPLIT disabled",
@@ -1364,7 +1363,7 @@
           "904:DISABLED_OPCODE:disabled",
           "910:DISABLED_OPCODE:disabled"
         ],
-        "count": 18
+        "count": 17
       }
     },
     "castToBool cases": {

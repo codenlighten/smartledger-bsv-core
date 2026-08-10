@@ -752,6 +752,13 @@ function padBufferToSize (buf: Buffer, len: number): Buffer {
  * Based on the inner loop of bitcoind's EvalScript function
  * bitcoind commit: b5d1b1092998bc95313856d535c632ea5a8f9104
  */
+/** The transaction version as the four little-endian bytes Chronicle compares. */
+function versionLE (version: number): Buffer {
+  const buf = Buffer.alloc(4)
+  buf.writeInt32LE(version | 0, 0)
+  return buf
+}
+
 Interpreter.prototype.step = function (this: Interpreter) {
   const self = this
 
@@ -1091,7 +1098,19 @@ Interpreter.prototype.step = function (this: Interpreter) {
         break
 
       case Opcode.OP_VER:
-        // Chronicle: pushes the executing transaction's version.
+        // Chronicle: pushes the executing transaction's version as FOUR
+        // LITTLE-ENDIAN BYTES, not as a script number. The node is:
+        //
+        //   const auto tx_version{checker.Version()};
+        //   std::vector<uint8_t> val(sizeof(tx_version));
+        //   to_le(tx_version, val.data());
+        //   stack.push_back(std::move(val));
+        //
+        // A minimally-encoded script number pushes `01` for version 1 where
+        // the node pushes `01000000`, so anything consuming the value diverges.
+        //
+        // Unlike the string opcodes, BAD_OPCODE pre-Chronicle IS correct here —
+        // the node returns it unconditionally.
         if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
           this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
           return false
@@ -1100,7 +1119,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.errstr = 'SCRIPT_ERR_UNKNOWN_ERROR'
           return false
         }
-        this.stack.push(new BN(this.tx.version).toScriptNumBuffer())
+        this.stack.push(versionLE(this.tx.version))
         break
 
       case Opcode.OP_VERIF:
@@ -1108,10 +1127,19 @@ Interpreter.prototype.step = function (this: Interpreter) {
         // Chronicle: an IF whose condition is "top of stack equals the
         // executing transaction's version", closed by OP_ENDIF.
         //
-        // Before Chronicle these are invalid EVEN IN AN UNEXECUTED BRANCH —
-        // the one rule Bitcoin applies to no other opcode — so the flag check
-        // deliberately sits outside the fExec guard below, preserving that.
+        //   if(!utxo_after_chronicle) {
+        //     if(utxo_after_genesis && !fExec) break;
+        //     else return SCRIPT_ERR_BAD_OPCODE;
+        //   }
+        //
+        // So pre-Chronicle they are an error only in an EXECUTED branch. This
+        // library targets post-Genesis BSV, where that is the whole condition.
+        // Returning BAD_OPCODE unconditionally rejected scripts the network
+        // accepts.
         if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+          if (!fExec) {
+            break
+          }
           this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
           return false
         }
@@ -1125,12 +1153,15 @@ Interpreter.prototype.step = function (this: Interpreter) {
             this.errstr = 'SCRIPT_ERR_UNKNOWN_ERROR'
             return false
           }
-          // Popping mirrors OP_IF. The spec describes the comparison but not
-          // the stack effect; the OP_VERIF/OP_ENDIF form it documents is an
-          // IF, and an IF that left its condition behind would unbalance every
-          // script using it.
-          bn = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal)
-          fValue = bn.cmp(new BN(this.tx.version)) === 0
+          // BYTE-WISE against the 4-byte little-endian version, not a numeric
+          // compare. An item of any other length simply yields false — it is
+          // NOT an error — so `OP_2 OP_VERIF` against version 2 is false,
+          // where a numeric comparison made it true.
+          //
+          // MINIMALIF deliberately does not apply: the node guards it with
+          // `(opcode == OP_IF || opcode == OP_NOTIF) && VerifyMinimalIf(flags)`.
+          buf = stacktop(-1)
+          fValue = buf.length === 4 && buf.equals(versionLE(this.tx.version))
           if (opcodenum === Opcode.OP_VERNOTIF) {
             fValue = !fValue
           }
@@ -2000,22 +2031,42 @@ Interpreter.prototype.step = function (this: Interpreter) {
 
       case Opcode.OP_LEFT:
       case Opcode.OP_RIGHT:
-        // (in size -- out)  OP_LEFT keeps the first `size` bytes; OP_RIGHT the last.
-        // Re-enabled string opcodes (BSV Chronicle). Original Satoshi semantics.
+        // (in size -- out)  OP_LEFT keeps the first `size` bytes; OP_RIGHT the
+        // last. Chronicle, ported from SV Node.
+        // Pre-Chronicle these bytes are UPGRADABLE NOPS on the network — they
+        // were OP_NOP4/OP_NOP5/OP_NOP6 — so the node breaks rather than
+        // erroring:
+        //
+        //   if(!utxo_after_chronicle) {
+        //     if(flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
+        //       return SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS;
+        //     else break;
+        //   }
+        //
+        // Running them unconditionally consumed stack where the network does
+        // nothing, which is a wrong answer rather than an error.
+        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+          if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
+            this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
+            return false
+          }
+          break
+        }
+
         if (this.stack.length < 2) {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
         }
         buf1 = stacktop(-2)
-        n = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal).toNumber()
-        if (n < 0) {
+        n = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE).toNumber()
+        // ERRORS on out of range; it does not clamp. The node is
+        // `if(len < 0 || len > size) return SCRIPT_ERR_INVALID_NUMBER_RANGE`.
+        // Clamping made scripts the node rejects succeed here.
+        if (n < 0 || n > buf1.length) {
           this.errstr = 'SCRIPT_ERR_INVALID_NUMBER_RANGE'
           return false
         }
-        if (n > buf1.length) {
-          n = buf1.length
-        }
-        this.stack.pop() as Buffer
+        this.stack.pop()
         if (opcodenum === Opcode.OP_LEFT) {
           this.stack[this.stack.length - 1] = Buffer.from(buf1).slice(0, n)
         } else {
@@ -2025,27 +2076,47 @@ Interpreter.prototype.step = function (this: Interpreter) {
 
       case Opcode.OP_SUBSTR:
         // (in begin size -- out)  out = in[begin : begin + size]
-        // Re-enabled string opcode (BSV Chronicle). Original Satoshi semantics.
+        // Chronicle, ported from SV Node.
+        // Pre-Chronicle these bytes are UPGRADABLE NOPS on the network — they
+        // were OP_NOP4/OP_NOP5/OP_NOP6 — so the node breaks rather than
+        // erroring:
+        //
+        //   if(!utxo_after_chronicle) {
+        //     if(flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
+        //       return SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS;
+        //     else break;
+        //   }
+        //
+        // Running them unconditionally consumed stack where the network does
+        // nothing, which is a wrong answer rather than an error.
+        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+          if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
+            this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
+            return false
+          }
+          break
+        }
+
         if (this.stack.length < 3) {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
         }
-        buf1 = stacktop(-3)
-        var subSize = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal).toNumber()
-        var subBegin = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal).toNumber()
-        if (subBegin < 0 || subSize < 0) {
-          this.errstr = 'SCRIPT_ERR_INVALID_NUMBER_RANGE'
-          return false
+        {
+          buf1 = stacktop(-3)
+          const subSize = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE).toNumber()
+          const subBegin = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE).toNumber()
+          // ERRORS on out of range, matching
+          //   offset < 0 || offset >= size || len < 0 || len > size - offset
+          // Note `offset >= size` is strict: a begin index AT the end is an
+          // error, not an empty result.
+          if (subBegin < 0 || subBegin >= buf1.length || subSize < 0 || subSize > buf1.length - subBegin) {
+            this.errstr = 'SCRIPT_ERR_INVALID_NUMBER_RANGE'
+            return false
+          }
+          this.stack.pop()
+          this.stack.pop()
+          this.stack[this.stack.length - 1] = Buffer.from(buf1).slice(subBegin, subBegin + subSize)
         }
-        if (subBegin > buf1.length) {
-          subBegin = buf1.length
-        }
-        if (subBegin + subSize > buf1.length) {
-          subSize = buf1.length - subBegin
-        }
-        this.stack.pop() as Buffer
-        this.stack.pop() as Buffer
-        this.stack[this.stack.length - 1] = Buffer.from(buf1).slice(subBegin, subBegin + subSize)
         break
 
         //

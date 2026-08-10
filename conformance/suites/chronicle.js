@@ -547,7 +547,81 @@ const cases = {
       lshiftnumDiscouraged: runFlags(182, I.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS),
       rshiftnumDiscouraged: runFlags(183, I.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
     }
-  }
+  },
+  // --- divergences from SV Node, now closed ---------------------------------
+  //
+  // Five behaviours that did not match src/script/interpreter.cpp at v1.2.0.
+  // Each is pinned in both flag states, because for three of them the DEFAULT
+  // behaviour was the wrong one.
+
+  /** A: the string opcodes are upgradable NOPs until Chronicle is enabled. */
+  'node-parity: string opcodes are NOPs with Chronicle off': (bsv) => {
+    const I = bsv.Script.Interpreter
+    const build = (s, O) => s.add(Buffer.from('hello')).add(O.OP_1).add(O.OP_3).add(O.OP_SUBSTR)
+    const at = (flags) => {
+      const i = new I()
+      const script = new bsv.Script()
+      build(script, bsv.Opcode)
+      const verified = i.verify(new bsv.Script(), script, new bsv.Transaction(), 0, flags, new bsv.crypto.BN(0))
+      return { verified, errstr: i.errstr || '', stack: i.stack.map((b) => b.toString('hex')) }
+    }
+    return {
+      off: at(0),
+      discouraged: at(I.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS),
+      on: at(I.SCRIPT_ENABLE_CHRONICLE)
+    }
+  },
+
+  /** B: OP_VER pushes four little-endian bytes, not a script number. */
+  'node-parity: OP_VER pushes 4-byte little-endian': (bsv) => {
+    const out = {}
+    for (const v of [1, 2, 10]) {
+      out[v] = runChronicle(bsv, (s, O) => s.add(O.OP_VER), v).stack
+    }
+    return out
+  },
+
+  /**
+   * C: OP_VERIF compares BYTE-WISE against those four bytes. A 1-byte OP_2 is
+   * not equal to version 2 — it is simply false, not an error — so the
+   * idiomatic form is `OP_VER OP_VERIF`.
+   */
+  'node-parity: OP_VERIF compares byte-wise, not numerically': (bsv) => ({
+    oneByteOperand: runChronicle(bsv, (s, O) => s.add(O.OP_2).add(O.OP_VERIF).add(O.OP_9).add(O.OP_ENDIF).add(O.OP_1), 2),
+    fourByteOperand: runChronicle(bsv, (s, O) => s.add(Buffer.from('02000000', 'hex')).add(O.OP_VERIF).add(O.OP_9).add(O.OP_ENDIF), 2),
+    viaOpVer: runChronicle(bsv, (s, O) => s.add(O.OP_VER).add(O.OP_VERIF).add(O.OP_9).add(O.OP_ENDIF), 2),
+    wrongVersion: runChronicle(bsv, (s, O) => s.add(Buffer.from('03000000', 'hex')).add(O.OP_VERIF).add(O.OP_9).add(O.OP_ENDIF).add(O.OP_1), 2)
+  }),
+
+  /** D: pre-Chronicle, OP_VERIF errors only in an EXECUTED branch. */
+  'node-parity: OP_VERIF unexecuted with Chronicle off': (bsv) => {
+    const I = bsv.Script.Interpreter
+    const at = (build) => {
+      const i = new I()
+      const script = new bsv.Script()
+      build(script, bsv.Opcode)
+      const verified = i.verify(new bsv.Script(), script, new bsv.Transaction(), 0, 0, new bsv.crypto.BN(0))
+      return { verified, errstr: i.errstr || '' }
+    }
+    return {
+      unexecuted: at((s, O) => s.add(O.OP_0).add(O.OP_IF).add(O.OP_VERIF).add(O.OP_ENDIF).add(O.OP_1)),
+      executed: at((s, O) => s.add(O.OP_1).add(O.OP_VERIF).add(O.OP_ENDIF))
+    }
+  },
+
+  /**
+   * E: the string opcodes ERROR on out-of-range arguments rather than
+   * clamping. Clamping made scripts the node rejects succeed here.
+   * `offset >= size` is strict — a begin index at the end is an error, not an
+   * empty result.
+   */
+  'node-parity: string opcode range errors': (bsv) => ({
+    substrPastEnd: runChronicle(bsv, (s, O) => s.add(Buffer.from('hi')).add(num(bsv, 1)).add(num(bsv, 9)).add(O.OP_SUBSTR)),
+    substrOffsetAtEnd: runChronicle(bsv, (s, O) => s.add(Buffer.from('hi')).add(num(bsv, 2)).add(num(bsv, 1)).add(O.OP_SUBSTR)),
+    substrExact: runChronicle(bsv, (s, O) => s.add(Buffer.from('hi')).add(num(bsv, 0)).add(num(bsv, 2)).add(O.OP_SUBSTR)),
+    leftTooLong: runChronicle(bsv, (s, O) => s.add(Buffer.from('hi')).add(num(bsv, 9)).add(O.OP_LEFT)),
+    rightTooLong: runChronicle(bsv, (s, O) => s.add(Buffer.from('hi')).add(num(bsv, 9)).add(O.OP_RIGHT))
+  })
 
 }
 

@@ -1,7 +1,7 @@
 {
   "suite": "chronicle",
   "generatedBy": "0.1.0",
-  "caseCount": 48,
+  "caseCount": 53,
   "cases": {
     "Chronicle opcode numbers as this library defines them": {
       "outcome": "ok",
@@ -66,7 +66,8 @@
       "value": {
         "errstr": "",
         "stack": [
-          "6865"
+          "68656c6c6f",
+          "02"
         ],
         "verified": true
       }
@@ -74,7 +75,7 @@
     "OP_LEFT on an empty stack": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_INVALID_STACK_OPERATION",
+        "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
         "stack": [],
         "verified": false
       }
@@ -84,6 +85,7 @@
       "value": {
         "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
         "stack": [
+          "68656c6c6f",
           ""
         ],
         "verified": false
@@ -94,7 +96,8 @@
       "value": {
         "errstr": "",
         "stack": [
-          "6c6f"
+          "68656c6c6f",
+          "02"
         ],
         "verified": true
       }
@@ -104,7 +107,9 @@
       "value": {
         "errstr": "",
         "stack": [
-          "656c6c"
+          "68656c6c6f",
+          "01",
+          "03"
         ],
         "verified": true
       }
@@ -114,7 +119,9 @@
       "value": {
         "errstr": "",
         "stack": [
-          "69"
+          "6869",
+          "01",
+          "09"
         ],
         "verified": true
       }
@@ -124,6 +131,8 @@
       "value": {
         "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
         "stack": [
+          "68656c6c6f",
+          "01",
           ""
         ],
         "verified": false
@@ -148,9 +157,11 @@
     "OP_VERIF inside a false branch": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_BAD_OPCODE",
-        "stack": [],
-        "verified": false
+        "errstr": "",
+        "stack": [
+          "01"
+        ],
+        "verified": true
       }
     },
     "OP_VERNOTIF alone": {
@@ -643,11 +654,9 @@
           "verified": true
         },
         "matches": {
-          "errstr": "",
-          "stack": [
-            "9"
-          ],
-          "verified": true
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+          "stack": [],
+          "verified": false
         }
       }
     },
@@ -664,6 +673,7 @@
         "matches": {
           "errstr": "",
           "stack": [
+            "9",
             "1"
           ],
           "verified": true
@@ -718,6 +728,142 @@
         "188": null,
         "189": null,
         "190": null
+      }
+    },
+    "node-parity: OP_VER pushes 4-byte little-endian": {
+      "outcome": "ok",
+      "value": {
+        "1": [
+          "1"
+        ],
+        "2": [
+          "2"
+        ],
+        "10": [
+          "10"
+        ]
+      }
+    },
+    "node-parity: OP_VERIF compares byte-wise, not numerically": {
+      "outcome": "ok",
+      "value": {
+        "fourByteOperand": {
+          "errstr": "",
+          "stack": [
+            "9"
+          ],
+          "verified": true
+        },
+        "oneByteOperand": {
+          "errstr": "",
+          "stack": [
+            "1"
+          ],
+          "verified": true
+        },
+        "viaOpVer": {
+          "errstr": "",
+          "stack": [
+            "9"
+          ],
+          "verified": true
+        },
+        "wrongVersion": {
+          "errstr": "",
+          "stack": [
+            "1"
+          ],
+          "verified": true
+        }
+      }
+    },
+    "node-parity: OP_VERIF unexecuted with Chronicle off": {
+      "outcome": "ok",
+      "value": {
+        "executed": {
+          "errstr": "SCRIPT_ERR_BAD_OPCODE",
+          "verified": false
+        },
+        "unexecuted": {
+          "errstr": "",
+          "verified": true
+        }
+      }
+    },
+    "node-parity: string opcode range errors": {
+      "outcome": "ok",
+      "value": {
+        "leftTooLong": {
+          "errstr": "SCRIPT_ERR_INVALID_NUMBER_RANGE",
+          "stack": [
+            "26984",
+            "9"
+          ],
+          "verified": false
+        },
+        "rightTooLong": {
+          "errstr": "SCRIPT_ERR_INVALID_NUMBER_RANGE",
+          "stack": [
+            "26984",
+            "9"
+          ],
+          "verified": false
+        },
+        "substrExact": {
+          "errstr": "",
+          "stack": [
+            "26984"
+          ],
+          "verified": true
+        },
+        "substrOffsetAtEnd": {
+          "errstr": "SCRIPT_ERR_INVALID_NUMBER_RANGE",
+          "stack": [
+            "26984",
+            "2",
+            "1"
+          ],
+          "verified": false
+        },
+        "substrPastEnd": {
+          "errstr": "SCRIPT_ERR_INVALID_NUMBER_RANGE",
+          "stack": [
+            "26984",
+            "1",
+            "9"
+          ],
+          "verified": false
+        }
+      }
+    },
+    "node-parity: string opcodes are NOPs with Chronicle off": {
+      "outcome": "ok",
+      "value": {
+        "discouraged": {
+          "errstr": "SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS",
+          "stack": [
+            "68656c6c6f",
+            "01",
+            "03"
+          ],
+          "verified": false
+        },
+        "off": {
+          "errstr": "",
+          "stack": [
+            "68656c6c6f",
+            "01",
+            "03"
+          ],
+          "verified": true
+        },
+        "on": {
+          "errstr": "",
+          "stack": [
+            "656c6c"
+          ],
+          "verified": true
+        }
       }
     },
     "selection: 0x20 passes checkSignatureEncoding": {

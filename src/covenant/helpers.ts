@@ -40,7 +40,18 @@ function flags () {
     I.SCRIPT_VERIFY_CHECKSEQUENCEVERIFY |
     I.SCRIPT_ENABLE_SIGHASH_FORKID |
     I.SCRIPT_ENABLE_MAGNETIC_OPCODES |
-    I.SCRIPT_ENABLE_MONOLITH_OPCODES
+    I.SCRIPT_ENABLE_MONOLITH_OPCODES |
+    // REQUIRED, not optional. pushTxCore emits OP_RIGHT/OP_LEFT — see
+    // extractHashOutputs and assertSighashType — and those bytes (180/181) are
+    // upgradable NOPs on the network until Chronicle activates. Without this
+    // flag the interpreter treats them as no-ops, exactly as a pre-Chronicle
+    // node does, and the covenant does not verify.
+    //
+    // The consequence is worth stating plainly: OP_PUSH_TX covenants built by
+    // this library DEPEND on Chronicle. They cannot be spent on a pre-Chronicle
+    // chain. That was previously invisible because the interpreter ran the
+    // string opcodes unconditionally — more permissively than the network.
+    I.SCRIPT_ENABLE_CHRONICLE
 }
 
 /**

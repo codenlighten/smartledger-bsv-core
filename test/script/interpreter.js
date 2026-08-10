@@ -639,11 +639,11 @@ describe('Interpreter', function () {
   //    enabled, the branch is simply skipped and the script is 'OK'.)
   //  - Chronicle reassigned 0xb3-0xb7 (Core's NOP4..NOP8) to OP_SUBSTR,
   //    OP_LEFT, OP_RIGHT, OP_LSHIFTNUM and OP_RSHIFTNUM. Core's vectors expect
-  //    those bytes to be upgradable no-ops. On BSV the first three (SUBSTR,
-  //    LEFT, RIGHT) consume stack, so a bare `NOP4 1` underflows. The last two
-  //    (LSHIFTNUM, RSHIFTNUM) stay upgradable NOPs until Chronicle is enabled,
-  //    exactly as the node does, so BSV AGREES with Core on those and they are
-  //    not listed here. See CHRONICLE.md.
+  //    those bytes to be upgradable no-ops, and so does this library UNTIL
+  //    SCRIPT_ENABLE_CHRONICLE is set — matching the node, which breaks rather
+  //    than erroring when the UTXO predates activation. BSV therefore AGREES
+  //    with Core on all of 0xb3-0xb7 by default, and none of them are listed
+  //    here. See CHRONICLE.md.
   //
   //    `1 0xba` is NOT in this table any more. An earlier build slid the NOP
   //    names up and called 0xba OP_NOP8, which made it a valid no-op and a
@@ -664,12 +664,15 @@ describe('Interpreter', function () {
     '2 DUP DIV|1 EQUAL|P2SH,STRICTENC': 'OK',
     '7 3 MOD|1 EQUAL|P2SH,STRICTENC': 'OK',
 
-    // Chronicle reassignments of Core's NOP4..NOP8 (0xb3-0xb7).
-    '1|NOP1 CHECKLOCKTIMEVERIFY CHECKSEQUENCEVERIFY NOP4 NOP5 NOP6 NOP7 NOP8 NOP9 NOP10 1 EQUAL|P2SH,STRICTENC': 'INVALID_STACK_OPERATION',
-    "'NOP_1_to_10' NOP1 CHECKLOCKTIMEVERIFY CHECKSEQUENCEVERIFY NOP4 NOP5 NOP6 NOP7 NOP8 NOP9 NOP10|'NOP_1_to_10' EQUAL|P2SH,STRICTENC": 'INVALID_STACK_OPERATION',
-    'NOP|NOP4 1|P2SH,STRICTENC': 'INVALID_STACK_OPERATION',
-    'NOP|NOP5 1|P2SH,STRICTENC': 'INVALID_STACK_OPERATION',
-    'NOP|NOP6 1|P2SH,STRICTENC': 'INVALID_STACK_OPERATION'
+    //  - OP_VERIF/OP_VERNOTIF are "illegal everywhere" in Core, including in
+    //    an unexecuted branch — a rule it applies to no other opcode. BSV
+    //    dropped that at Genesis: the node breaks when the branch is not
+    //    executed and the UTXO predates Chronicle. So these four verify here
+    //    and are rejected upstream.
+    '0|IF VERIF ELSE 1 ENDIF|P2SH,STRICTENC': 'OK',
+    '0|IF ELSE 1 ELSE VERIF ENDIF|P2SH,STRICTENC': 'OK',
+    '0|IF VERNOTIF ELSE 1 ENDIF|P2SH,STRICTENC': 'OK',
+    '0|IF ELSE 1 ELSE VERNOTIF ENDIF|P2SH,STRICTENC': 'OK'
   }
 
   describe('bitcoind script evaluation fixtures', function () {

@@ -170,9 +170,8 @@ Done:
 
 - **`OP_LSHIFTNUM`/`OP_RSHIFTNUM`**, ported from the node source.
 
-The gating and the shift opcodes are done. Five divergences from the node
-remain in the opcodes restored earlier — see "Divergences from SV Node still
-outstanding" below.
+Everything is done, and the implementation has been checked against the node
+source — see "Node parity" below.
 
 Everything Chronicle changes is opt-in via `SCRIPT_ENABLE_CHRONICLE`, which is
 off by default. Pre-Chronicle behaviour is byte-identical — verified by the
@@ -183,83 +182,38 @@ Every one of these needs conformance fixtures before implementation, so the
 corpus records the current behaviour and the change lands as a deliberate
 outcome flip. `conformance/suites/chronicle.js` already covers all four.
 
-## Divergences from SV Node still outstanding
+## Node parity
 
-Checked against `src/script/interpreter.cpp` at tag **v1.2.0**. The first two
-were confirmed against verbatim source; the rest follow from them or come from
-a reading of the same file and should be re-confirmed line-by-line before the
-fix lands, because these are consensus paths.
+Checked against `src/script/interpreter.cpp` at tag **v1.2.0**, verbatim. Five
+divergences were found and closed:
 
-### A. `OP_SUBSTR`/`OP_LEFT`/`OP_RIGHT` run unconditionally
+| | was | now |
+| --- | --- | --- |
+| `OP_SUBSTR`/`OP_LEFT`/`OP_RIGHT` gating | ran unconditionally | upgradable NOP until Chronicle |
+| `OP_VER` push | script number (`01`) | 4-byte little-endian (`01000000`) |
+| `OP_VERIF` compare | numeric | byte-wise against 4 bytes |
+| `OP_VERIF` unexecuted, pre-Chronicle | `BAD_OPCODE` | breaks, as post-Genesis |
+| string opcode ranges | clamped | `INVALID_NUMBER_RANGE` |
 
-The node gates them exactly like the shift opcodes:
+Two details are easy to miss and are worth stating: MINIMALIF applies only to
+`OP_IF`/`OP_NOTIF`, never to the `OP_VER` family (the node guards it with
+`(opcode == OP_IF || opcode == OP_NOTIF) && VerifyMinimalIf(flags)`); and a
+non-4-byte operand to `OP_VERIF` yields **false**, it is not an error. The
+idiomatic form is therefore `OP_VER OP_VERIF`.
 
-```cpp
-case OP_SUBSTR:
-{
-    if(!utxo_after_chronicle)
-    {
-        if(flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
-            return SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS;
-        else
-            break;
-    }
-```
+### Consequence: OP_PUSH_TX covenants depend on Chronicle
 
-This library runs them with no flag check at all, so with Chronicle off
-`'hello' 1 3 OP_SUBSTR` consumes three stack items and yields `ell`, where the
-network performs a no-op. Same class of bug as the 182/183 one already fixed,
-and it reaches further: bytes 179–181 are live upgradable NOPs today.
+Closing the gating divergence surfaced something the previous behaviour hid.
+`pushTxCore` emits `OP_RIGHT`/`OP_LEFT` — see `extractHashOutputs` and
+`assertSighashType` — and those bytes are upgradable NOPs on the network until
+Chronicle activates.
 
-### B. `OP_VER` pushes the wrong bytes
-
-```cpp
-const auto tx_version{checker.Version()};
-std::vector<uint8_t> val(sizeof(tx_version));
-to_le(tx_version, val.data());
-stack.push_back(std::move(val));
-```
-
-Four bytes, little-endian. This library pushes a minimally-encoded script
-number: `01` for version 1, where the node pushes `01000000`. Any script that
-consumes the value diverges immediately.
-
-(The pre-Chronicle guard here IS correct — the node returns
-`SCRIPT_ERR_BAD_OPCODE`, unlike the string opcodes.)
-
-### C. `OP_VERIF` compares numerically instead of byte-wise
-
-The node requires the top item to be exactly four bytes and compares it to the
-little-endian version. This library does a numeric `BN` comparison, so
-`OP_2 OP_VERIF` against version 2 is TRUE here and FALSE on the node.
-
-### D. `OP_VERIF`/`OP_VERNOTIF` in an unexecuted branch
-
-```cpp
-if(!utxo_after_chronicle) { if(utxo_after_genesis && !fExec) break; else return SCRIPT_ERR_BAD_OPCODE; }
-```
-
-Post-Genesis, pre-Chronicle, in a non-executed branch, the node BREAKS. This
-library returns `SCRIPT_ERR_BAD_OPCODE` regardless, so it rejects a script the
-network accepts. The comment here claiming these are "invalid even in an
-unexecuted branch" is true of pre-Genesis Bitcoin and not of BSV.
-
-### E. `OP_SUBSTR`/`OP_LEFT`/`OP_RIGHT` clamp where the node errors
-
-```cpp
-if(offset < 0 || offset >= size || len < 0 || len > size - offset)
-    return SCRIPT_ERR_INVALID_NUMBER_RANGE;
-```
-
-This library checks only for negatives. Measured:
-
-```
-'hi' 1 9 OP_SUBSTR  ->  library: 'i', script SUCCEEDS   node: INVALID_NUMBER_RANGE
-'hi' 9 OP_LEFT      ->  library: 'hi', script SUCCEEDS  node: INVALID_NUMBER_RANGE
-```
-
-This is the dangerous shape again — a wrong answer rather than an error. A
-script the node rejects validates here.
+**OP_PUSH_TX covenants built by this library cannot be spent on a
+pre-Chronicle chain.** That was invisible while the interpreter executed the
+string opcodes unconditionally, because the library was more permissive than
+the network and its own tests passed. `Covenant.Helpers.flags()` now sets
+`SCRIPT_ENABLE_CHRONICLE` explicitly, so the dependency is stated rather than
+assumed.
 
 ## Sources
 

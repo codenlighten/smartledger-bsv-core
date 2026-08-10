@@ -1,7 +1,7 @@
 {
   "suite": "chronicle",
   "generatedBy": "0.1.0",
-  "caseCount": 25,
+  "caseCount": 34,
   "cases": {
     "Chronicle opcode numbers as this library defines them": {
       "outcome": "ok",
@@ -161,11 +161,20 @@
         "verified": false
       }
     },
+    "OTDA fixture transaction": {
+      "outcome": "ok",
+      "value": {
+        "subscript": "76a91479b000887626b294a914501a4cd226b58b23598388ac",
+        "txid": "beee4da994396dbf2964e0ed60fe3bcba0fc54427b4e0e17fecb3d456625e064"
+      }
+    },
     "a sighash flag with value 0x20 exists": {
       "outcome": "ok",
       "value": {
-        "names": [],
-        "present": false
+        "names": [
+          "SIGHASH_CHRONICLE"
+        ],
+        "present": true
       }
     },
     "byte 182 (OP_LSHIFTNUM in Chronicle) evaluated alone": {
@@ -236,6 +245,18 @@
         }
       }
     },
+    "digest: BIP143 (ALL|FORKID)": {
+      "outcome": "ok",
+      "value": "46ddb584e812db5acc54ea75cf669666a2103563fd6cecac4067bc60d4ccd62d"
+    },
+    "digest: OTDA (ALL, no FORKID)": {
+      "outcome": "ok",
+      "value": "c091c278186818e89927b90a124af1fb840eb58d65d5603daec6e9f1cfc6798e"
+    },
+    "digest: OTDA reproduces the SIGHASH_SINGLE bug": {
+      "outcome": "ok",
+      "value": "0000000000000000000000000000000000000000000000000000000000000001"
+    },
     "names assigned to bytes 176..190": {
       "outcome": "ok",
       "value": {
@@ -256,12 +277,46 @@
         "190": null
       }
     },
-    "sighash type with the 0x20 bit set": {
+    "selection: 0x20 passes checkSignatureEncoding": {
       "outcome": "ok",
       "value": {
-        "digest": "4ec9da5c537a7ff36b5af1c8c71d432b225bb9e1608b944ffe1f3f89a7f400f4",
-        "preimageLength": 182,
-        "sighashType": 97
+        "accepted": true,
+        "errstr": ""
+      }
+    },
+    "selection: ALL — which algorithm": {
+      "outcome": "ok",
+      "value": {
+        "algorithm": "OTDA",
+        "digest": "c091c278186818e89927b90a124af1fb840eb58d65d5603daec6e9f1cfc6798e"
+      }
+    },
+    "selection: ALL|CHRONICLE — which algorithm": {
+      "outcome": "ok",
+      "value": {
+        "algorithm": "OTDA",
+        "digest": "df963da69e55283a205253259a83d4f1bfdc9302f9cb55a37b9a44305deb3d20"
+      }
+    },
+    "selection: ALL|FORKID — which algorithm": {
+      "outcome": "ok",
+      "value": {
+        "algorithm": "BIP143",
+        "digest": "46ddb584e812db5acc54ea75cf669666a2103563fd6cecac4067bc60d4ccd62d"
+      }
+    },
+    "selection: ALL|FORKID|CHRONICLE with SCRIPT_ENABLE_CHRONICLE": {
+      "outcome": "ok",
+      "value": {
+        "algorithm": "OTDA",
+        "digest": "78417433f158c3666765ab432d44cb083f1ce5e2b9a7ce76f75fa02f724e39e0"
+      }
+    },
+    "selection: ALL|FORKID|CHRONICLE — which algorithm": {
+      "outcome": "ok",
+      "value": {
+        "algorithm": "BIP143",
+        "digest": "4ec9da5c537a7ff36b5af1c8c71d432b225bb9e1608b944ffe1f3f89a7f400f4"
       }
     },
     "signature SIGHASH constants": {
@@ -269,6 +324,7 @@
       "value": {
         "SIGHASH_ALL": 1,
         "SIGHASH_ANYONECANPAY": 128,
+        "SIGHASH_CHRONICLE": 32,
         "SIGHASH_FORKID": 64,
         "SIGHASH_NONE": 2,
         "SIGHASH_SINGLE": 3

@@ -1,6 +1,6 @@
 {
   "suite": "sighash",
-  "generatedBy": "v7.5.5",
+  "generatedBy": "0.1.0",
   "caseCount": 31,
   "cases": {
     "bitcoind sighash vectors (all)": {
@@ -1135,7 +1135,7 @@
       "outcome": "throws",
       "error": {
         "name": "AssertionError",
-        "message": "The expression evaluated to a falsy value:\n\n  assert(Buffer.isBuffer(buf))\n"
+        "message": "The expression evaluated to a falsy value:\n\n  (Buffer.isBuffer(buf))\n"
       }
     }
   }

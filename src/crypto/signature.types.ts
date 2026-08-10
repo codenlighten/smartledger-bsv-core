@@ -77,5 +77,6 @@ export interface SignatureConstructor {
   SIGHASH_NONE: number
   SIGHASH_SINGLE: number
   SIGHASH_FORKID: number
+  SIGHASH_CHRONICLE: number
   SIGHASH_ANYONECANPAY: number
 }

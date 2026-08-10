@@ -109,19 +109,51 @@ has no cases for them, so they fall through to the bad-opcode default. Under
 Chronicle, `OP_VER` pushes the transaction version onto the stack, and
 `OP_VERIF`/`OP_VERNOTIF` compare against it.
 
-### 4. No `CHRONICLE` sighash flag, no OTDA
+### 4. OTDA — DONE, and my earlier assessment of it was wrong
 
-Chronicle reintroduces the Original Transaction Digest Algorithm alongside
-BIP-143, selected by a new sighash flag `CHRONICLE = 0x20`. The library's
-signature flags are:
+This section previously said "transactions that need the original digest
+cannot be signed or verified with this library." That was false, and worth
+recording as an error rather than quietly rewriting.
+
+**The Original Transaction Digest Algorithm was already implemented.** It is
+the path `sighashPreimage` takes whenever `SIGHASH_FORKID` is absent — blank
+the other inputs' scripts, strip code separators, handle NONE/SINGLE. It even
+reproduces the SIGHASH_SINGLE bug, returning the constant
 
 ```
-SIGHASH_ALL = 0x1   SIGHASH_NONE = 0x2   SIGHASH_SINGLE = 0x3
-SIGHASH_FORKID = 0x40   SIGHASH_ANYONECANPAY = 0x80
+0000000000000000000000000000000000000000000000000000000000000001
 ```
 
-There is no 0x20 flag and no OTDA digest path. Transactions that need the
-original digest cannot be signed or verified with this library.
+for an input with no corresponding output, which is the definitive fingerprint
+of the original algorithm and is now pinned by its own conformance case.
+
+What was missing was never the algorithm. It was the **selector**. Now added:
+
+- `Signature.SIGHASH_CHRONICLE = 0x20`
+- `Interpreter.SCRIPT_ENABLE_CHRONICLE`, and the routing that connects them.
+
+Two design points worth stating, because neither is obvious:
+
+**The flag overrides `SIGHASH_FORKID` rather than coexisting with it.** FORKID
+is set on essentially every BSV signature written since 2018, so a CHRONICLE
+bit that only took effect when FORKID was absent could never select OTDA in
+practice and would mean nothing. The spec says OTDA usage "requires the
+CHRONICLE sighash flag", which only has content if the flag decides the
+routing.
+
+**`SCRIPT_ENABLE_CHRONICLE` is off by default, and that gate is not caution
+for its own sake.** Before Chronicle the 0x20 bit carries no meaning, so
+BIP-143 signatures already exist whose sighash type happens to set it.
+Honouring the bit unconditionally reinterprets every one of them as OTDA. That
+was tried: it broke 252 of this repository's own tests. The gate follows the
+shape already used for `SCRIPT_ENABLE_SIGHASH_FORKID` and `useGenesisLimits()`
+— pre-upgrade rules stay the default, callers opt in.
+
+One subtlety the conformance suite exists to catch: the sighash type byte is
+committed *inside* the preimage, so setting 0x20 changes the digest **even
+when it does not change the algorithm**. Comparing digests alone cannot tell
+you which algorithm ran. The suite pins the algorithm, by holding the type
+byte constant and varying only the routing.
 
 ## Status and remaining priority
 
@@ -135,14 +167,16 @@ Done:
   opcodes and for bytes 186–188. This was priority 1 because it was the only
   gap producing silently wrong results rather than errors.
 
+- **The `CHRONICLE` sighash flag and OTDA routing.** The algorithm was already
+  present; only the selector was missing.
+
 Remaining, in order:
 
-1. **The `CHRONICLE` sighash flag and OTDA** — blocks a class of transaction
-   outright, and unlike the rest cannot be worked around by a caller.
+1. **`OP_2MUL`/`OP_2DIV`**, then the **`OP_VER` family**. Well specified —
+   doubling, halving, and pushing/comparing the transaction version — and they
+   fail loudly today, so they are visible rather than deceptive.
 2. **`OP_LSHIFTNUM`/`OP_RSHIFTNUM` semantics** — blocked on the four questions
-   above, not on effort.
-3. **`OP_2MUL`/`OP_2DIV`**, then the **`OP_VER` family**. These fail loudly, so
-   they are visible rather than deceptive.
+   above, not on effort. Needs the node implementation or a clarified spec.
 
 Every one of these needs conformance fixtures before implementation, so the
 corpus records the current behaviour and the change lands as a deliberate

@@ -66,6 +66,48 @@ function rawByte (bsv, byte) {
   return bsv.Script.fromBuffer(Buffer.from([byte]))
 }
 
+/**
+ * The transaction every OTDA case digests. Derived rather than written down:
+ * 0x01 repeated is a valid secp256k1 scalar and reproduces exactly.
+ */
+function otdaFixture (bsv) {
+  const key = new bsv.PrivateKey(bsv.crypto.BN.fromBuffer(Buffer.alloc(32, 1)))
+  const utxo = {
+    txId: '0'.repeat(64),
+    outputIndex: 0,
+    script: bsv.Script.buildPublicKeyHashOut(key.toAddress()).toHex(),
+    satoshis: 100000
+  }
+  const tx = new bsv.Transaction().from(utxo).to(key.toAddress(), 90000)
+  return {
+    key,
+    utxo,
+    tx,
+    sub: bsv.Script.fromHex(utxo.script),
+    amt: new bsv.crypto.BN(utxo.satoshis),
+    S: bsv.crypto.Signature,
+    I: bsv.Script.Interpreter
+  }
+}
+
+/**
+ * Which ALGORITHM produced the digest for a given sighash type.
+ *
+ * Comparing against a fixed reference digest does not answer this: the sighash
+ * type byte is committed INSIDE the preimage, so changing any bit of it — 0x20
+ * included — changes the digest even when the algorithm is identical. The
+ * comparison has to hold the type byte constant and vary only the routing.
+ *
+ * flags=0 forces the original algorithm, because BIP-143 requires both the
+ * FORKID bit and SCRIPT_ENABLE_SIGHASH_FORKID.
+ */
+function whichAlgorithm (bsv, tx, sighashType, sub, amt) {
+  const I = bsv.Script.Interpreter
+  const got = bsv.Transaction.sighash.sighash(tx, sighashType, 0, sub, amt, I.SCRIPT_ENABLE_SIGHASH_FORKID)
+  const forcedOtda = bsv.Transaction.sighash.sighash(tx, sighashType, 0, sub, amt, 0)
+  return { digest: got.toString('hex'), algorithm: got.equals(forcedOtda) ? 'OTDA' : 'BIP143' }
+}
+
 const cases = {
   // --- opcode numbering ----------------------------------------------------
 
@@ -243,37 +285,114 @@ const cases = {
     return { present: named.length > 0, names: named.sort() }
   },
 
+  // --- OTDA: the digest algorithms, and what selects them ------------------
+  //
+  // The Original Transaction Digest Algorithm is ALREADY IMPLEMENTED here: it
+  // is the path taken when SIGHASH_FORKID is absent. What Chronicle changes is
+  // how it is SELECTED — by setting CHRONICLE (0x20) — not what it computes.
+  //
+  // So these cases pin the two digests and the selection rule separately. When
+  // the flag lands, the digest cases must NOT move and the selection cases
+  // must; anything else means the algorithm changed when only the routing
+  // should have.
+
+  /** A fixed transaction to digest, built from a derived key. */
+  'OTDA fixture transaction': (bsv) => {
+    const { tx, sub } = otdaFixture(bsv)
+    return { txid: tx.hash, subscript: sub.toHex() }
+  },
+
+  /** BIP-143. Selected today by SIGHASH_FORKID plus the interpreter flag. */
+  'digest: BIP143 (ALL|FORKID)': (bsv) => {
+    const { tx, sub, amt, S, I } = otdaFixture(bsv)
+    return bsv.Transaction.sighash.sighash(tx, S.SIGHASH_ALL | S.SIGHASH_FORKID, 0, sub, amt,
+      I.SCRIPT_ENABLE_SIGHASH_FORKID).toString('hex')
+  },
+
+  /** OTDA. Selected today by the ABSENCE of FORKID. */
+  'digest: OTDA (ALL, no FORKID)': (bsv) => {
+    const { tx, sub, amt, S } = otdaFixture(bsv)
+    return bsv.Transaction.sighash.sighash(tx, S.SIGHASH_ALL, 0, sub, amt, 0).toString('hex')
+  },
+
   /**
-   * Signing with the 0x20 bit set. Today it is simply an unrecognized bit in
-   * the sighash type; under Chronicle it selects a different digest, so the
-   * signature bytes must change. Recording the signature pins that.
+   * The SIGHASH_SINGLE bug — signing an input with no corresponding output
+   * returns the constant 0x0000...0001 rather than a real digest. This is the
+   * definitive fingerprint of the original algorithm, so it is pinned on its
+   * own: if OTDA is ever reimplemented, losing this would be a silent
+   * consensus break that a digest comparison alone might not reveal.
    */
-  'sighash type with the 0x20 bit set': (bsv) => {
-    // Derived, not a literal WIF: a hand-written key is a value nobody has
-    // checked, and this corpus already had one fabricated vector caught the
-    // hard way. 0x01 repeated is a valid secp256k1 scalar and is reproducible.
-    const key = new bsv.PrivateKey(bsv.crypto.BN.fromBuffer(Buffer.alloc(32, 1)))
-    const utxo = {
-      txId: '0'.repeat(64),
-      outputIndex: 0,
-      script: bsv.Script.buildPublicKeyHashOut(key.toAddress()).toHex(),
-      satoshis: 100000
-    }
-    const tx = new bsv.Transaction().from(utxo).to(key.toAddress(), 90000)
-    const sighashType = bsv.crypto.Signature.SIGHASH_ALL |
-      bsv.crypto.Signature.SIGHASH_FORKID | 0x20
-    const preimage = bsv.Transaction.sighash.sighashPreimage
-      ? bsv.Transaction.sighash.sighashPreimage(tx, sighashType, 0,
-        bsv.Script.fromHex(utxo.script), new bsv.crypto.BN(utxo.satoshis))
-      : null
-    const digest = bsv.Transaction.sighash.sighash(tx, sighashType, 0,
-      bsv.Script.fromHex(utxo.script), new bsv.crypto.BN(utxo.satoshis))
-    return {
-      sighashType,
-      digest: digest.toString('hex'),
-      preimageLength: preimage ? preimage.length : null
-    }
+  'digest: OTDA reproduces the SIGHASH_SINGLE bug': (bsv) => {
+    const { key, utxo, sub, amt, S } = otdaFixture(bsv)
+    const tx = new bsv.Transaction()
+      .from(utxo)
+      .from(Object.assign({}, utxo, { outputIndex: 1 }))
+      .to(key.toAddress(), 1000)
+    return bsv.Transaction.sighash.sighash(tx, S.SIGHASH_SINGLE, 1, sub, amt, 0).toString('hex')
+  },
+
+  /**
+   * SELECTION, with the CHRONICLE bit set alongside FORKID. Today 0x20 is an
+   * unrecognized bit and is silently ignored, so this equals the BIP143
+   * digest. Under Chronicle it must select OTDA instead — meaning a signature
+   * produced today with this sighash type commits to the WRONG digest for a
+   * Chronicle verifier.
+   */
+  'selection: ALL|FORKID|CHRONICLE — which algorithm': (bsv) => {
+    const { tx, sub, amt, S } = otdaFixture(bsv)
+    return whichAlgorithm(bsv, tx, S.SIGHASH_ALL | S.SIGHASH_FORKID | 0x20, sub, amt)
+  },
+
+  /** SELECTION, with CHRONICLE but no FORKID. */
+  'selection: ALL|CHRONICLE — which algorithm': (bsv) => {
+    const { tx, sub, amt, S } = otdaFixture(bsv)
+    return whichAlgorithm(bsv, tx, S.SIGHASH_ALL | 0x20, sub, amt)
+  },
+
+  /**
+   * The same type byte WITH Chronicle enabled. This is the whole feature: the
+   * bit is inert by default and selects OTDA once opted in.
+   *
+   * The gate is not timidity. Before Chronicle the 0x20 bit means nothing, so
+   * BIP-143 signatures already exist whose type byte happens to set it;
+   * honouring it unconditionally reinterprets them as OTDA. Pinned in both
+   * states so neither the default nor the opted-in behaviour can drift.
+   */
+  'selection: ALL|FORKID|CHRONICLE with SCRIPT_ENABLE_CHRONICLE': (bsv) => {
+    const { tx, sub, amt, S, I } = otdaFixture(bsv)
+    const t = S.SIGHASH_ALL | S.SIGHASH_FORKID | S.SIGHASH_CHRONICLE
+    const on = bsv.Transaction.sighash.sighash(tx, t, 0, sub, amt,
+      I.SCRIPT_ENABLE_SIGHASH_FORKID | I.SCRIPT_ENABLE_CHRONICLE)
+    const forcedOtda = bsv.Transaction.sighash.sighash(tx, t, 0, sub, amt, 0)
+    return { digest: on.toString('hex'), algorithm: on.equals(forcedOtda) ? 'OTDA' : 'BIP143' }
+  },
+
+  /** The two controls, so a routing change is distinguishable from a digest change. */
+  'selection: ALL|FORKID — which algorithm': (bsv) => {
+    const { tx, sub, amt, S } = otdaFixture(bsv)
+    return whichAlgorithm(bsv, tx, S.SIGHASH_ALL | S.SIGHASH_FORKID, sub, amt)
+  },
+
+  'selection: ALL — which algorithm': (bsv) => {
+    const { tx, sub, amt, S } = otdaFixture(bsv)
+    return whichAlgorithm(bsv, tx, S.SIGHASH_ALL, sub, amt)
+  },
+
+  /**
+   * Whether the 0x20 bit survives signature-encoding validation. It does
+   * today, which is why setting it is silently ineffective rather than an
+   * error — the worst combination for a caller who believes it did something.
+   */
+  'selection: 0x20 passes checkSignatureEncoding': (bsv) => {
+    const { tx, sub, amt, key, S, I } = otdaFixture(bsv)
+    const t = S.SIGHASH_ALL | S.SIGHASH_FORKID | 0x20
+    const sig = bsv.Transaction.sighash.sign(tx, key, t, 0, sub, amt, I.SCRIPT_ENABLE_SIGHASH_FORKID)
+    const der = Buffer.concat([sig.toDER(), Buffer.from([t])])
+    const i = new I()
+    i.flags = I.SCRIPT_VERIFY_STRICTENC | I.SCRIPT_ENABLE_SIGHASH_FORKID
+    return { accepted: i.checkSignatureEncoding(der), errstr: i.errstr || '' }
   }
+
 }
 
 module.exports = { name: 'chronicle', cases }

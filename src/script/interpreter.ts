@@ -385,6 +385,19 @@ Interpreter.SCRIPT_VERIFY_COMPRESSED_PUBKEYTYPE = (1 << 15)
 //
 Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID = (1 << 16)
 
+// Chronicle: honour SIGHASH_CHRONICLE (0x20) as the selector for the Original
+// Transaction Digest Algorithm.
+//
+// OFF BY DEFAULT, and that is not caution for its own sake. Before Chronicle
+// the 0x20 bit carries no meaning, so signatures already exist whose sighash
+// type happens to have it set and which are BIP-143 signatures. Honouring the
+// bit unconditionally reinterprets every one of them as OTDA and breaks them —
+// 252 of this repository's own tests, when it was tried.
+//
+// Same shape as SCRIPT_ENABLE_SIGHASH_FORKID and useGenesisLimits(): the
+// pre-upgrade rules remain the default and a caller opts in.
+Interpreter.SCRIPT_ENABLE_CHRONICLE = (1 << 20)
+
 // Do we accept activate replay protection using a different fork id.
 //
 Interpreter.SCRIPT_ENABLE_REPLAY_PROTECTION = (1 << 17)

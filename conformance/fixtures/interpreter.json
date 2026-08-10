@@ -1590,6 +1590,7 @@
     "verify flag values": {
       "outcome": "ok",
       "value": {
+        "SCRIPT_ENABLE_CHRONICLE": 1048576,
         "SCRIPT_ENABLE_MAGNETIC_OPCODES": 524288,
         "SCRIPT_ENABLE_MONOLITH_OPCODES": 262144,
         "SCRIPT_ENABLE_REPLAY_PROTECTION": 131072,

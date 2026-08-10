@@ -179,7 +179,27 @@ const sighashPreimage = function sighashPreimage (transaction: TransactionLike, 
     sighashType = (newForkValue << 8) | (sighashType & 0xff)
   }
 
-  if ((sighashType & Signature.SIGHASH_FORKID) && (flags & interpreter().SCRIPT_ENABLE_SIGHASH_FORKID)) {
+  // Chronicle: SIGHASH_CHRONICLE selects the Original Transaction Digest
+  // Algorithm — the path below — in preference to BIP-143.
+  //
+  // It has to OVERRIDE SIGHASH_FORKID rather than merely coexist with it.
+  // FORKID is set on essentially every BSV signature written since 2018, so a
+  // CHRONICLE bit that only took effect when FORKID was absent could never
+  // select OTDA in practice, and the flag would mean nothing. The spec says
+  // OTDA usage "requires the CHRONICLE sighash flag", which only has content
+  // if the flag decides the routing.
+  //
+  // Gated on SCRIPT_ENABLE_CHRONICLE, which is off by default: before the
+  // upgrade the 0x20 bit means nothing, so signatures exist that set it and
+  // are BIP-143. Honouring it unconditionally would reinterpret those as OTDA.
+  //
+  // Note the sighash type byte is committed INSIDE the preimage either way, so
+  // setting this bit changes the digest even where it does not change the
+  // algorithm. That is why the conformance suite pins the algorithm, not just
+  // the digest.
+  if ((sighashType & Signature.SIGHASH_CHRONICLE) && (flags & interpreter().SCRIPT_ENABLE_CHRONICLE)) {
+    // fall through to the original algorithm
+  } else if ((sighashType & Signature.SIGHASH_FORKID) && (flags & interpreter().SCRIPT_ENABLE_SIGHASH_FORKID)) {
     return sighashPreimageForForkId(txcopy, sighashType, inputNumber, subscript, satoshisBN as BN)
   }
 

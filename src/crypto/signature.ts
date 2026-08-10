@@ -342,6 +342,10 @@ Signature.prototype.toTxFormat = function (this: Signature): Buffer {
 Signature.SIGHASH_ALL = 0x01
 Signature.SIGHASH_NONE = 0x02
 Signature.SIGHASH_SINGLE = 0x03
+// Chronicle: selects the Original Transaction Digest Algorithm instead of
+// BIP-143. It takes PRECEDENCE over SIGHASH_FORKID — see the routing note in
+// transaction/sighash.ts for why it has to.
+Signature.SIGHASH_CHRONICLE = 0x20
 Signature.SIGHASH_FORKID = 0x40
 Signature.SIGHASH_ANYONECANPAY = 0x80
 

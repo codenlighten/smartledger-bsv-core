@@ -6,7 +6,7 @@
   "lastVerifiedBy": "0.1.0",
   "node": "v22.23.1",
   "suiteCount": 13,
-  "caseCount": 433,
+  "caseCount": 442,
   "rejectCount": 76,
   "suites": [
     {
@@ -18,7 +18,7 @@
     {
       "suite": "chronicle",
       "generatedBy": "0.1.0",
-      "cases": 34,
+      "cases": 43,
       "throws": 0
     },
     {

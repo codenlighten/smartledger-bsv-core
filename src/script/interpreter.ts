@@ -770,8 +770,14 @@ Interpreter.prototype.step = function (this: Interpreter) {
     switch (opcode) {
       case Opcode.OP_2MUL:
       case Opcode.OP_2DIV:
-        // Permanently disabled opcodes.
-        return true
+        // Chronicle restores both. Until it is enabled they stay disabled, and
+        // "disabled" is stronger than "unimplemented": a disabled opcode fails
+        // the script even in an UNEXECUTED branch, which is why this lives in
+        // isOpcodeDisabled rather than in the evaluation switch.
+        if ((self.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+          return true
+        }
+        break
 
       case Opcode.OP_INVERT:
       case Opcode.OP_MUL:
@@ -1002,6 +1008,55 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
           return false
         }
+        break
+
+      case Opcode.OP_VER:
+        // Chronicle: pushes the executing transaction's version.
+        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+          this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
+          return false
+        }
+        if (this.tx == null) {
+          this.errstr = 'SCRIPT_ERR_UNKNOWN_ERROR'
+          return false
+        }
+        this.stack.push(new BN(this.tx.version).toScriptNumBuffer())
+        break
+
+      case Opcode.OP_VERIF:
+      case Opcode.OP_VERNOTIF:
+        // Chronicle: an IF whose condition is "top of stack equals the
+        // executing transaction's version", closed by OP_ENDIF.
+        //
+        // Before Chronicle these are invalid EVEN IN AN UNEXECUTED BRANCH —
+        // the one rule Bitcoin applies to no other opcode — so the flag check
+        // deliberately sits outside the fExec guard below, preserving that.
+        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+          this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
+          return false
+        }
+        fValue = false
+        if (fExec) {
+          if (this.stack.length < 1) {
+            this.errstr = 'SCRIPT_ERR_UNBALANCED_CONDITIONAL'
+            return false
+          }
+          if (this.tx == null) {
+            this.errstr = 'SCRIPT_ERR_UNKNOWN_ERROR'
+            return false
+          }
+          // Popping mirrors OP_IF. The spec describes the comparison but not
+          // the stack effect; the OP_VERIF/OP_ENDIF form it documents is an
+          // IF, and an IF that left its condition behind would unbalance every
+          // script using it.
+          bn = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal)
+          fValue = bn.cmp(new BN(this.tx.version)) === 0
+          if (opcodenum === Opcode.OP_VERNOTIF) {
+            fValue = !fValue
+          }
+          this.stack.pop()
+        }
+        this.vfExec.push(fValue)
         break
 
       case Opcode.OP_IF:
@@ -1406,6 +1461,8 @@ Interpreter.prototype.step = function (this: Interpreter) {
         //
         // Numeric
         //
+      case Opcode.OP_2MUL:
+      case Opcode.OP_2DIV:
       case Opcode.OP_1ADD:
       case Opcode.OP_1SUB:
       case Opcode.OP_NEGATE:
@@ -1420,6 +1477,16 @@ Interpreter.prototype.step = function (this: Interpreter) {
         buf = stacktop(-1)
         bn = BN.fromScriptNumBuffer(buf, fRequireMinimal)
         switch (opcodenum) {
+          case Opcode.OP_2MUL:
+            bn = bn.mul(new BN(2))
+            break
+          case Opcode.OP_2DIV:
+            // Truncates toward zero: -5 OP_2DIV is -2, not -3. Matches the
+            // existing OP_DIV, which is `bn1.div(bn2)` on the same BN type, so
+            // `x OP_2DIV` and `x 2 OP_DIV` agree. bn.js `shrn` is not usable
+            // here — it asserts on negative values.
+            bn = bn.div(new BN(2))
+            break
           case Opcode.OP_1ADD:
             bn = bn.add(BN.One)
             break

@@ -1,7 +1,7 @@
 {
   "suite": "chronicle",
   "generatedBy": "0.1.0",
-  "caseCount": 34,
+  "caseCount": 43,
   "cases": {
     "Chronicle opcode numbers as this library defines them": {
       "outcome": "ok",
@@ -256,6 +256,254 @@
     "digest: OTDA reproduces the SIGHASH_SINGLE bug": {
       "outcome": "ok",
       "value": "0000000000000000000000000000000000000000000000000000000000000001"
+    },
+    "enabled: OP_2DIV agrees with OP_DIV by 2": {
+      "outcome": "ok",
+      "value": {
+        "5": {
+          "agree": true,
+          "op2div": [
+            "2"
+          ],
+          "opdiv": [
+            "2"
+          ]
+        },
+        "7": {
+          "agree": true,
+          "op2div": [
+            "3"
+          ],
+          "opdiv": [
+            "3"
+          ]
+        },
+        "-4": {
+          "agree": true,
+          "op2div": [
+            "-2"
+          ],
+          "opdiv": [
+            "-2"
+          ]
+        },
+        "-5": {
+          "agree": true,
+          "op2div": [
+            "-2"
+          ],
+          "opdiv": [
+            "-2"
+          ]
+        }
+      }
+    },
+    "enabled: OP_2DIV over a range": {
+      "outcome": "ok",
+      "value": {
+        "0": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
+          "stack": [
+            "0"
+          ],
+          "verified": false
+        },
+        "1": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
+          "stack": [
+            "0"
+          ],
+          "verified": false
+        },
+        "4": {
+          "errstr": "",
+          "stack": [
+            "2"
+          ],
+          "verified": true
+        },
+        "5": {
+          "errstr": "",
+          "stack": [
+            "2"
+          ],
+          "verified": true
+        },
+        "1000001": {
+          "errstr": "",
+          "stack": [
+            "500000"
+          ],
+          "verified": true
+        },
+        "-1": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
+          "stack": [
+            "0"
+          ],
+          "verified": false
+        },
+        "-4": {
+          "errstr": "",
+          "stack": [
+            "-2"
+          ],
+          "verified": true
+        },
+        "-5": {
+          "errstr": "",
+          "stack": [
+            "-2"
+          ],
+          "verified": true
+        }
+      }
+    },
+    "enabled: OP_2MUL in an unexecuted branch": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "",
+        "stack": [
+          "1"
+        ],
+        "verified": true
+      }
+    },
+    "enabled: OP_2MUL over a range": {
+      "outcome": "ok",
+      "value": {
+        "0": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
+          "stack": [
+            "0"
+          ],
+          "verified": false
+        },
+        "1": {
+          "errstr": "",
+          "stack": [
+            "2"
+          ],
+          "verified": true
+        },
+        "4": {
+          "errstr": "",
+          "stack": [
+            "8"
+          ],
+          "verified": true
+        },
+        "5": {
+          "errstr": "",
+          "stack": [
+            "10"
+          ],
+          "verified": true
+        },
+        "1000000": {
+          "errstr": "",
+          "stack": [
+            "2000000"
+          ],
+          "verified": true
+        },
+        "-1": {
+          "errstr": "",
+          "stack": [
+            "-2"
+          ],
+          "verified": true
+        },
+        "-5": {
+          "errstr": "",
+          "stack": [
+            "-10"
+          ],
+          "verified": true
+        }
+      }
+    },
+    "enabled: OP_VER pushes the transaction version": {
+      "outcome": "ok",
+      "value": {
+        "1": {
+          "errstr": "",
+          "stack": [
+            "1"
+          ],
+          "verified": true
+        },
+        "2": {
+          "errstr": "",
+          "stack": [
+            "2"
+          ],
+          "verified": true
+        },
+        "10": {
+          "errstr": "",
+          "stack": [
+            "10"
+          ],
+          "verified": true
+        }
+      }
+    },
+    "enabled: OP_VERIF consumes the top of stack": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "",
+        "stack": [
+          "7"
+        ],
+        "verified": true
+      }
+    },
+    "enabled: OP_VERIF on an empty stack": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_UNBALANCED_CONDITIONAL",
+        "stack": [],
+        "verified": false
+      }
+    },
+    "enabled: OP_VERIF taken and not taken": {
+      "outcome": "ok",
+      "value": {
+        "differs": {
+          "errstr": "",
+          "stack": [
+            "1"
+          ],
+          "verified": true
+        },
+        "matches": {
+          "errstr": "",
+          "stack": [
+            "9"
+          ],
+          "verified": true
+        }
+      }
+    },
+    "enabled: OP_VERNOTIF taken and not taken": {
+      "outcome": "ok",
+      "value": {
+        "differs": {
+          "errstr": "",
+          "stack": [
+            "9"
+          ],
+          "verified": true
+        },
+        "matches": {
+          "errstr": "",
+          "stack": [
+            "1"
+          ],
+          "verified": true
+        }
+      }
     },
     "names assigned to bytes 176..190": {
       "outcome": "ok",

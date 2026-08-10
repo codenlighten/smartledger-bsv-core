@@ -108,6 +108,30 @@ function whichAlgorithm (bsv, tx, sighashType, sub, amt) {
   return { digest: got.toString('hex'), algorithm: got.equals(forcedOtda) ? 'OTDA' : 'BIP143' }
 }
 
+/** Run a script with Chronicle enabled, against a transaction of `version`. */
+function runChronicle (bsv, build, version) {
+  const I = bsv.Script.Interpreter
+  const i = new I()
+  const tx = new bsv.Transaction()
+  if (version != null) tx.version = version
+  const script = new bsv.Script()
+  build(script, bsv.Opcode, bsv)
+  let verified
+  try {
+    verified = i.verify(new bsv.Script(), script, tx, 0, I.SCRIPT_ENABLE_CHRONICLE, new bsv.crypto.BN(0))
+  } catch (err) {
+    return { threw: err.name + ': ' + err.message }
+  }
+  return {
+    verified,
+    errstr: i.errstr || '',
+    stack: (i.stack || []).map((b) => bsv.crypto.BN.fromScriptNumBuffer(b).toString())
+  }
+}
+
+/** Push a signed script number. */
+function num (bsv, v) { return new bsv.crypto.BN(v).toScriptNumBuffer() }
+
 const cases = {
   // --- opcode numbering ----------------------------------------------------
 
@@ -391,7 +415,71 @@ const cases = {
     const i = new I()
     i.flags = I.SCRIPT_VERIFY_STRICTENC | I.SCRIPT_ENABLE_SIGHASH_FORKID
     return { accepted: i.checkSignatureEncoding(der), errstr: i.errstr || '' }
-  }
+  },
+
+  // --- Chronicle enabled: the restored opcodes ------------------------------
+  //
+  // Every case above records the DEFAULT (Chronicle off) behaviour. These
+  // record the opted-in behaviour, so the two states are pinned independently
+  // and neither can drift into the other.
+
+  'enabled: OP_2MUL over a range': (bsv) => {
+    const out = {}
+    for (const v of [0, 1, 4, 5, -1, -5, 1000000]) {
+      out[v] = runChronicle(bsv, (s, O) => s.add(num(bsv, v)).add(O.OP_2MUL))
+    }
+    return out
+  },
+
+  /**
+   * OP_2DIV truncates toward zero — `-5 OP_2DIV` is -2, not -3 — matching the
+   * existing OP_DIV so that `x OP_2DIV` and `x 2 OP_DIV` agree. Negative and
+   * odd values are pinned because that is where a rounding change hides.
+   */
+  'enabled: OP_2DIV over a range': (bsv) => {
+    const out = {}
+    for (const v of [0, 1, 4, 5, -1, -4, -5, 1000001]) {
+      out[v] = runChronicle(bsv, (s, O) => s.add(num(bsv, v)).add(O.OP_2DIV))
+    }
+    return out
+  },
+
+  'enabled: OP_2DIV agrees with OP_DIV by 2': (bsv) => {
+    const out = {}
+    for (const v of [5, -5, -4, 7]) {
+      const a = runChronicle(bsv, (s, O) => s.add(num(bsv, v)).add(O.OP_2DIV))
+      const b = runChronicle(bsv, (s, O) => s.add(num(bsv, v)).add(num(bsv, 2)).add(O.OP_DIV))
+      out[v] = { op2div: a.stack, opdiv: b.stack, agree: JSON.stringify(a.stack) === JSON.stringify(b.stack) }
+    }
+    return out
+  },
+
+  'enabled: OP_2MUL in an unexecuted branch': (bsv) =>
+    runChronicle(bsv, (s, O) => s.add(O.OP_0).add(O.OP_IF).add(O.OP_2MUL).add(O.OP_ENDIF).add(O.OP_1)),
+
+  'enabled: OP_VER pushes the transaction version': (bsv) => {
+    const out = {}
+    for (const v of [1, 2, 10]) out[v] = runChronicle(bsv, (s, O) => s.add(O.OP_VER), v)
+    return out
+  },
+
+  /** OP_VERIF is an IF whose condition is "top of stack equals tx version". */
+  'enabled: OP_VERIF taken and not taken': (bsv) => ({
+    matches: runChronicle(bsv, (s, O) => s.add(O.OP_2).add(O.OP_VERIF).add(O.OP_9).add(O.OP_ENDIF), 2),
+    differs: runChronicle(bsv, (s, O) => s.add(O.OP_3).add(O.OP_VERIF).add(O.OP_9).add(O.OP_ENDIF).add(O.OP_1), 2)
+  }),
+
+  'enabled: OP_VERNOTIF taken and not taken': (bsv) => ({
+    differs: runChronicle(bsv, (s, O) => s.add(O.OP_3).add(O.OP_VERNOTIF).add(O.OP_9).add(O.OP_ENDIF), 2),
+    matches: runChronicle(bsv, (s, O) => s.add(O.OP_2).add(O.OP_VERNOTIF).add(O.OP_9).add(O.OP_ENDIF).add(O.OP_1), 2)
+  }),
+
+  /** OP_VERIF consumes its operand, as OP_IF does. */
+  'enabled: OP_VERIF consumes the top of stack': (bsv) =>
+    runChronicle(bsv, (s, O) => s.add(O.OP_7).add(O.OP_2).add(O.OP_VERIF).add(O.OP_ENDIF), 2),
+
+  'enabled: OP_VERIF on an empty stack': (bsv) =>
+    runChronicle(bsv, (s, O) => s.add(O.OP_VERIF).add(O.OP_ENDIF).add(O.OP_1), 2)
 
 }
 

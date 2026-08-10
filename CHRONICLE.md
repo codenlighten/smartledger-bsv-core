@@ -87,27 +87,39 @@ Guessing any of these produces a library that computes confident wrong
 answers, which is precisely the failure mode this section began with. These
 need the node implementation or a clarified spec before they are written.
 
-### 2. `OP_2MUL` / `OP_2DIV` are hard-coded as permanently disabled
+### 2. `OP_2MUL` / `OP_2DIV` — DONE
 
-```
-OP_2MUL  ->  SCRIPT_ERR_DISABLED_OPCODE
-OP_2DIV  ->  SCRIPT_ERR_DISABLED_OPCODE
-```
+Implemented, behind `SCRIPT_ENABLE_CHRONICLE`. Default behaviour is unchanged:
+both remain `SCRIPT_ERR_DISABLED_OPCODE`, and "disabled" is stronger than
+"unimplemented" — a disabled opcode fails the script even in an **unexecuted**
+branch, which is why the gate lives in `isOpcodeDisabled` rather than in the
+evaluation switch.
 
-The interpreter has them in a branch commented "Permanently disabled opcodes."
-Chronicle restores both. They need real implementations (multiply/divide the
-top stack item by two), gated the same way the other restored opcodes are.
+`OP_2DIV` truncates toward zero: `-5 OP_2DIV` is `-2`, not `-3`. That matches
+the existing `OP_DIV`, so `x OP_2DIV` and `x 2 OP_DIV` agree — pinned as its
+own conformance case over negative and odd values, which is where a rounding
+change would otherwise hide. (`bn.js` `shrn` is unusable here: it asserts on
+negative values.)
 
-### 3. `OP_VER` / `OP_VERIF` / `OP_VERNOTIF` are unimplemented
+### 3. `OP_VER` / `OP_VERIF` / `OP_VERNOTIF` — DONE
 
-```
-OP_VER  ->  SCRIPT_ERR_BAD_OPCODE
-```
+Implemented, behind the same flag.
 
-They are in the opcode map at the right numbers, but the interpreter's switch
-has no cases for them, so they fall through to the bad-opcode default. Under
-Chronicle, `OP_VER` pushes the transaction version onto the stack, and
-`OP_VERIF`/`OP_VERNOTIF` compare against it.
+`OP_VER` pushes the executing transaction's version. `OP_VERIF` is an `IF`
+whose condition is "top of stack equals the transaction version", closed by
+`OP_ENDIF`; `OP_VERNOTIF` is its negation.
+
+Two things worth recording:
+
+- Before Chronicle, `OP_VERIF`/`OP_VERNOTIF` are invalid **even in an
+  unexecuted branch** — a rule Bitcoin applies to no other opcode. The flag
+  check deliberately sits outside the `fExec` guard so that this survives when
+  Chronicle is off.
+- The spec describes the comparison but not the stack effect. `OP_VERIF`
+  **pops** its operand, mirroring `OP_IF`: the `OP_VERIF ... OP_ENDIF` form the
+  spec documents is an `IF`, and an `IF` that left its condition on the stack
+  would unbalance every script using it. That is an inference, and it is pinned
+  by its own conformance case so a correction shows as a diff.
 
 ### 4. OTDA — DONE, and my earlier assessment of it was wrong
 
@@ -170,13 +182,21 @@ Done:
 - **The `CHRONICLE` sighash flag and OTDA routing.** The algorithm was already
   present; only the selector was missing.
 
-Remaining, in order:
+- **`OP_2MUL`/`OP_2DIV` and the `OP_VER` family**, behind
+  `SCRIPT_ENABLE_CHRONICLE`.
 
-1. **`OP_2MUL`/`OP_2DIV`**, then the **`OP_VER` family**. Well specified —
-   doubling, halving, and pushing/comparing the transaction version — and they
-   fail loudly today, so they are visible rather than deceptive.
-2. **`OP_LSHIFTNUM`/`OP_RSHIFTNUM` semantics** — blocked on the four questions
-   above, not on effort. Needs the node implementation or a clarified spec.
+Remaining:
+
+1. **`OP_LSHIFTNUM`/`OP_RSHIFTNUM` semantics** — the only gap left, and blocked
+   on the four questions above rather than on effort. Needs the node
+   implementation or a clarified spec. The numbering and the fail-closed
+   behaviour are already in place, so scripts using them are rejected rather
+   than mis-evaluated in the meantime.
+
+Everything Chronicle changes is opt-in via `SCRIPT_ENABLE_CHRONICLE`, which is
+off by default. Pre-Chronicle behaviour is byte-identical — verified by the
+conformance fixtures, where enabling the feature added cases without altering
+a single pre-existing outcome.
 
 Every one of these needs conformance fixtures before implementation, so the
 corpus records the current behaviour and the change lands as a deliberate

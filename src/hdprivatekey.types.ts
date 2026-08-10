@@ -31,6 +31,24 @@ export interface HDBuffers {
   xprivkey?: Buffer | string | undefined
 }
 
+/**
+ * The plain-object form the constructor and fromObject() accept. Fields arrive
+ * in whichever representation the producer used — a network name or a version
+ * buffer, a number or a buffer for depth — and _buildFromObject normalizes
+ * each. That is why they are unions rather than one settled shape.
+ */
+export interface HDPrivateKeyObj {
+  network?: NetworkLike | undefined
+  version?: Buffer | undefined
+  depth?: number | Buffer | undefined
+  parentFingerPrint?: number | Buffer | undefined
+  childIndex?: number | Buffer | undefined
+  chainCode?: string | Buffer | undefined
+  privateKey?: string | Buffer | undefined
+  checksum?: number | Buffer | undefined
+  [key: string]: unknown
+}
+
 export interface HDPrivateKey {
   readonly _buffers: HDBuffers
   readonly xprivkey: string
@@ -51,8 +69,8 @@ export interface HDPrivateKey {
   _deriveWithNumber: (index: number, hardened?: boolean | null, nonCompliant?: boolean) => HDPrivateKey
   _deriveFromString: (path: string, nonCompliant?: boolean) => HDPrivateKey
 
-  _buildFromJSON: (arg: any) => HDPrivateKey
-  _buildFromObject: (arg: any) => HDPrivateKey
+  _buildFromJSON: (arg: string) => HDPrivateKey
+  _buildFromObject: (arg: HDPrivateKeyObj) => HDPrivateKey
   _buildFromSerialized: (arg: string) => HDPrivateKey
   _buildFromBuffers: (arg: HDBuffers) => HDPrivateKey
   _generateRandomly: (network?: NetworkLike) => HDPrivateKey
@@ -80,7 +98,7 @@ export interface HDPrivateKeyConstructor {
 
   fromRandom: (network?: NetworkLike) => HDPrivateKey
   fromString: (arg: string) => HDPrivateKey
-  fromObject: (arg: any) => HDPrivateKey
+  fromObject: (arg: HDPrivateKeyObj) => HDPrivateKey
   fromSeed: (hexa: string | Buffer, network?: NetworkLike) => HDPrivateKey
   fromBuffer: (buf: Buffer) => HDPrivateKey
   fromHex: (hex: string) => HDPrivateKey

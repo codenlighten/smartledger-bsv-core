@@ -24,6 +24,8 @@ import PublicKey = require('../publickey')
 import $ = require('../util/preconditions')
 import Random = require('../crypto/random')
 import type { BitcoreECIES, BitcoreECIESConstructor, ECIESOptions, AESCBCStatic } from './types'
+import type { PrivateKey as PrivateKeyType } from '../privatekey.types'
+import type { PublicKey as PublicKeyType } from '../publickey.types'
 
 function buf (u8: Uint8Array): Buffer { return Buffer.from(u8.buffer, u8.byteOffset, u8.byteLength) }
 function hmacSha256 (key: Uint8Array, data: Uint8Array): Buffer { return buf(hmac(sha256, key, data)) }
@@ -68,15 +70,15 @@ const ECIES = function ECIES (this: BitcoreECIES, opts?: ECIESOptions) {
   this.opts = opts || {}
 }
 
-ECIES.prototype.privateKey = function (this: BitcoreECIES, privateKey: any) {
+ECIES.prototype.privateKey = function (this: BitcoreECIES, privateKey: PrivateKeyType) {
   $.checkArgument(privateKey, 'no private key provided')
-  this._privateKey = privateKey || null
+  this._privateKey = privateKey
   return this
 }
 
-ECIES.prototype.publicKey = function (this: BitcoreECIES, publicKey: any) {
+ECIES.prototype.publicKey = function (this: BitcoreECIES, publicKey: PublicKeyType) {
   $.checkArgument(publicKey, 'no public key provided')
-  this._publicKey = publicKey || null
+  this._publicKey = publicKey
   return this
 }
 
@@ -85,6 +87,8 @@ const cachedProperty = function (name: string, getter: (this: BitcoreECIES) => B
   Object.defineProperty(ECIES.prototype, name, {
     configurable: false,
     enumerable: true,
+    // `this: any` on purpose: the body indexes the instance by a computed
+    // '_'+name key, which no declared shape can express.
     get: function (this: any) {
       let value = this[cachedName]
       if (!value) value = this[cachedName] = getter.apply(this)
@@ -111,7 +115,7 @@ cachedProperty('kEkM', function (this: BitcoreECIES) {
 cachedProperty('kE', function (this: BitcoreECIES) { return this.kEkM.slice(0, 32) })
 cachedProperty('kM', function (this: BitcoreECIES) { return this.kEkM.slice(32, 64) })
 
-ECIES.prototype.encrypt = function (this: BitcoreECIES, message: any, ivbuf: any) {
+ECIES.prototype.encrypt = function (this: BitcoreECIES, message: string | Buffer, ivbuf?: Buffer) {
   if (!Buffer.isBuffer(message)) message = Buffer.from(message)
   if (ivbuf === undefined) {
     ivbuf = hmacSha256(this._privateKey!.toBuffer(), message).slice(0, 16)
@@ -123,7 +127,7 @@ ECIES.prototype.encrypt = function (this: BitcoreECIES, message: any, ivbuf: any
   return Buffer.concat([this.Rbuf, c, d])
 }
 
-ECIES.prototype.decrypt = function (this: BitcoreECIES, encbuf: any) {
+ECIES.prototype.decrypt = function (this: BitcoreECIES, encbuf: Buffer) {
   $.checkArgument(encbuf)
   let offset = 0
   const tagLength = this.opts.shortTag ? 4 : 32

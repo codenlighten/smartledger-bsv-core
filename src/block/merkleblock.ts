@@ -283,10 +283,10 @@ MerkleBlock.prototype.hasTransaction = function hasTransaction (this: MerkleBloc
     hash = Buffer.from(tx.id, 'hex').reverse().toString('hex')
   }
 
-  const txs: any[] = []
+  const txs: string[] = []
   const height = this._calcTreeHeight()
   this._traverseMerkleTree(height, 0, { txs })
-  return txs.indexOf(hash) !== -1
+  return txs.indexOf(hash as string) !== -1
 }
 
 /**
@@ -296,7 +296,7 @@ MerkleBlock.prototype.hasTransaction = function hasTransaction (this: MerkleBloc
  */
 MerkleBlock._fromBufferReader = function _fromBufferReader (br: BufferReader) {
   $.checkState(!br.finished(), 'No merkleblock data received')
-  const info: any = {}
+  const info: MerkleBlockObject = {} as MerkleBlockObject
   info.header = BlockHeader.fromBufferReader(br)
   info.numTransactions = br.readUInt32LE()
   const numHashes = br.readVarintNum()

@@ -43,7 +43,7 @@ export interface PublicKeyConstructor {
   // and reached from _classifyArgs, so they are part of the declared shape.
   _isPrivateKey: (param: unknown) => boolean
   _isBuffer: (param: unknown) => boolean
-  _transformPrivateKey: (privkey: unknown) => PublicKeyInfo
+  _transformPrivateKey: (privkey: import('./privatekey.types').PrivateKey) => PublicKeyInfo
   _transformDER: (buf: Buffer, strict?: boolean) => PublicKeyInfo
   _transformX: (odd: boolean, x: BN) => PublicKeyInfo
   _transformObject: (json: { x: string, y: string, compressed?: boolean }) => PublicKeyInfo

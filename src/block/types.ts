@@ -204,5 +204,5 @@ export interface MerkleBlockConstructor {
   fromBuffer: (buf: Buffer) => MerkleBlock
   fromBufferReader: (br: BufferReader) => MerkleBlock
   fromObject: (obj: MerkleBlockObject) => MerkleBlock
-  _fromBufferReader: (br: BufferReader) => BlockInfo
+  _fromBufferReader: (br: BufferReader) => MerkleBlockObject
 }

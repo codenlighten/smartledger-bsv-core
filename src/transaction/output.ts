@@ -9,6 +9,7 @@ import $ = require('../util/preconditions')
 import errors = require('../errors')
 import type { Output, OutputConstructor } from './types'
 import type { ScriptConstructor } from '../script/script.types'
+import type { BufferReader } from '../encoding/types'
 
 // Runtime edge into the script <-> transaction cycle: resolved at call time.
 const scriptCtor = (): ScriptConstructor => require('../script')
@@ -58,17 +59,17 @@ Object.defineProperty(Output.prototype, 'satoshis', {
   },
   set: function (this: Output, num: unknown) {
     if (num instanceof BN) {
-      this._satoshisBN = num
+      this._satoshisBN! = num
       this._satoshis = num.toNumber()
     } else if (_.isString(num)) {
       this._satoshis = parseInt(num)
-      this._satoshisBN = BN.fromNumber(this._satoshis)
+      this._satoshisBN! = BN.fromNumber(this._satoshis)
     } else {
       $.checkArgument(
         JSUtil.isNaturalNumber(num),
         'Output satoshis is not a natural number'
       )
-      this._satoshisBN = BN.fromNumber(num as number)
+      this._satoshisBN! = BN.fromNumber(num as number)
       this._satoshis = num as number
     }
     $.checkState(
@@ -84,7 +85,7 @@ Output.prototype.invalidSatoshis = function (this: Output): string | false {
   if (sats > MAX_SAFE_INTEGER) {
     return 'transaction txout satoshis greater than max safe integer'
   }
-  if (sats !== (this._satoshisBN as BN).toNumber()) {
+  if (sats !== (this._satoshisBN! as BN).toNumber()) {
     return 'transaction txout satoshis has corrupted value'
   }
   if (sats < 0) {
@@ -97,10 +98,10 @@ Object.defineProperty(Output.prototype, 'satoshisBN', {
   configurable: false,
   enumerable: true,
   get: function (this: Output) {
-    return this._satoshisBN
+    return this._satoshisBN!
   },
   set: function (this: Output, num: BN) {
-    this._satoshisBN = num
+    this._satoshisBN! = num
     this._satoshis = num.toNumber()
     $.checkState(
       JSUtil.isNaturalNumber(this._satoshis),
@@ -164,7 +165,7 @@ Output.prototype.inspect = function (this: Output): string {
   return '<Output (' + this.satoshis + ' sats) ' + scriptStr + '>'
 }
 
-Output.fromBufferReader = function (br: any): Output {
+Output.fromBufferReader = function (br: BufferReader): Output {
   // Field order is the consensus serialization order; each read advances br.
   const satoshis = br.readUInt64LEBN()
   const size = br.readVarintNum()
@@ -172,11 +173,11 @@ Output.fromBufferReader = function (br: any): Output {
   return new (Output as OutputConstructor)({ satoshis, script })
 }
 
-Output.prototype.toBufferWriter = function (this: Output, writer?: any): any {
+Output.prototype.toBufferWriter = function (this: Output, writer?: BufferWriter): BufferWriter {
   if (writer == null) {
     writer = new BufferWriter()
   }
-  writer.writeUInt64LEBN(this._satoshisBN)
+  writer.writeUInt64LEBN(this._satoshisBN!)
   const script = this._scriptBuffer as Buffer
   writer.writeVarintNum(script.length)
   writer.write(script)

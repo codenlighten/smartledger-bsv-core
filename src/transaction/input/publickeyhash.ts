@@ -38,7 +38,7 @@ inherits(PublicKeyHashInput, Input)
  * @param {Buffer=} hashData - the precalculated hash of the public key associated with the privateKey provided
  * @return {Array} of objects that can be
  */
-PublicKeyHashInput.prototype.getSignatures = function (this: SigningInput, transaction: Transaction, privateKey: PrivateKey, index: any, sigtype: any, hashData: any): unknown[] {
+PublicKeyHashInput.prototype.getSignatures = function (this: SigningInput, transaction: Transaction, privateKey: PrivateKey, index: number, sigtype?: number, hashData?: Buffer): unknown[] {
   $.checkState(this.output instanceof (OutputImpl as unknown as new () => unknown))
   hashData = hashData || Hash.sha256ripemd160(privateKey.publicKey.toBuffer())
   sigtype = sigtype || (Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID)

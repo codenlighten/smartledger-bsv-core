@@ -20,9 +20,9 @@ import type { Signature as SignatureType } from '../crypto/signature.types'
  * @param {String} message
  * @returns {Message}
  */
-const Message = function Message (this: Message, message?: any): any {
+const Message = function Message (this: Message, message?: string | Buffer): any {
   if (!(this instanceof Message)) {
-    return new (Message as unknown as MessageConstructor)(message)
+    return new (Message as unknown as MessageConstructor)(message as string | Buffer)
   }
 
   $.checkArgument(_.isString(message) || Buffer.isBuffer(message), 'First argument should be a string or Buffer')

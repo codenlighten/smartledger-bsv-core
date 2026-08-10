@@ -9,17 +9,18 @@
 import inscription = require('./inscription')
 import ordlock = require('./ordlock')
 import bsv20 = require('./bsv20')
+import type { InscriptionOutputParams } from './types'
 
 /**
  * Build the 1-sat output(s) for one or more inscriptions.
  * @param {Array<object>} items  each: { contentType, content, address|lock, satoshis? }
  * @returns {Transaction.Output[]}
  */
-function batchInscriptionOutputs (items: any) {
+function batchInscriptionOutputs (items: InscriptionOutputParams[]) {
   if (!Array.isArray(items) || !items.length) {
     throw new Error('batchInscriptionOutputs requires a non-empty array of items')
   }
-  return items.map(function (it: any) { return inscription.createInscriptionOutput(it) })
+  return items.map(function (it: InscriptionOutputParams) { return inscription.createInscriptionOutput(it) })
 }
 
 export = {

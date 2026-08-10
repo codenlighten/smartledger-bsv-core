@@ -9,6 +9,7 @@ import _ = require('./util/_')
 import $ = require('./util/preconditions')
 import type { PublicKey, PublicKeyConstructor, PublicKeyInfo } from './publickey.types'
 import type { Point as PointType } from './crypto/point.types'
+import type { PrivateKey } from './privatekey.types'
 
 /**
  * Instantiate a PublicKey from a {@link PrivateKey}, {@link Point}, `string`, or `Buffer`.
@@ -84,7 +85,7 @@ PublicKey.prototype._classifyArgs = function (this: PublicKey, data: unknown, ex
   } else if ((PublicKey as PublicKeyConstructor)._isBuffer(data)) {
     info = (PublicKey as PublicKeyConstructor)._transformDER(data as Buffer)
   } else if ((PublicKey as PublicKeyConstructor)._isPrivateKey(data)) {
-    info = (PublicKey as PublicKeyConstructor)._transformPrivateKey(data)
+    info = (PublicKey as PublicKeyConstructor)._transformPrivateKey(data as PrivateKey)
   } else {
     throw new TypeError('First argument is an unrecognized data format.')
   }
@@ -126,7 +127,7 @@ PublicKey._isBuffer = function (param: unknown): boolean {
  * @returns {Object} An object with keys: point and compressed
  * @private
  */
-PublicKey._transformPrivateKey = function (privkey: any): PublicKeyInfo {
+PublicKey._transformPrivateKey = function (privkey: PrivateKey): PublicKeyInfo {
   $.checkArgument((PublicKey as PublicKeyConstructor)._isPrivateKey(privkey), 'Must be an instance of PrivateKey')
   const info: Partial<PublicKeyInfo> = {}
   info.point = Point.getG().mul(privkey.bn)
@@ -219,7 +220,7 @@ PublicKey._transformObject = function (json: { x: string, y: string, compressed?
  */
 PublicKey.fromPrivateKey = function (privkey: unknown): PublicKey {
   $.checkArgument((PublicKey as PublicKeyConstructor)._isPrivateKey(privkey), 'Must be an instance of PrivateKey')
-  const info = (PublicKey as PublicKeyConstructor)._transformPrivateKey(privkey)
+  const info = (PublicKey as PublicKeyConstructor)._transformPrivateKey(privkey as PrivateKey)
   return new (PublicKey as PublicKeyConstructor)(info.point, {
     compressed: info.compressed,
     network: info.network

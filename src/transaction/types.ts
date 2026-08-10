@@ -40,6 +40,12 @@ export interface TransactionObject {
   fee?: number
 }
 
+/** One leg of the batch form of `to()`. */
+export interface Payment {
+  address: Address | string
+  satoshis: number
+}
+
 /** Anything `from()` accepts as a UTXO: an UnspentOutput or its plain form. */
 export type UnspentOutputLike = UnspentOutput | UnspentOutputData
 
@@ -378,7 +384,13 @@ export interface Transaction {
   getChangeOutput: () => Output | null
   _updateChangeOutput: () => void
 
-  to: (address: Address | string, amount: number) => Transaction
+  /**
+   * Also accepts a BATCH: an array of `{ address, satoshis }`, in which case
+   * `amount` is ignored and each entry becomes its own output. Undocumented in
+   * the original JSDoc and easy to miss, since the array form reads like a
+   * mistake at the call site.
+   */
+  to: (address: Address | string | Payment[], amount?: number) => Transaction
   addData: (value: string | Buffer | Array<string | Buffer>) => Transaction
   addSafeData: (value: string | Buffer | Array<string | Buffer>) => Transaction
   addOutput: (output: Output) => Transaction

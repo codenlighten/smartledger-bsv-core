@@ -100,7 +100,7 @@ function fundAndSpend (lockingScript: Script, satoshis: number, opts?: FundAndSp
   spend.addInput(
     new Input({ prevTxId: funding.hash, outputIndex: 0, script: Script.empty() }),
     lockingScript, satoshis)
-  if (opts.outputs) opts.outputs.forEach(function (o: any) { spend.addOutput(o) })
+  if (opts.outputs) opts.outputs.forEach(function (o: Output) { spend.addOutput(o) })
   return { funding, spend }
 }
 

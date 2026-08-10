@@ -53,9 +53,9 @@ const bsvErr = (path: string): ErrCtor =>
  * @returns {Mnemonic} A new instance of Mnemonic
  * @constructor
  */
-const Mnemonic = function Mnemonic (this: Mnemonic, data?: any, wordlist?: any): any {
+const Mnemonic = function Mnemonic (this: Mnemonic, data?: string | Buffer | number | Wordlist | null, wordlist?: Wordlist | null): any {
   if (!(this instanceof Mnemonic)) {
-    return new (Mnemonic as unknown as MnemonicConstructor)(data, wordlist)
+    return new (Mnemonic as unknown as MnemonicConstructor)(data ?? undefined, wordlist ?? undefined)
   }
 
   if (_.isArray(data)) {
@@ -81,10 +81,10 @@ const Mnemonic = function Mnemonic (this: Mnemonic, data?: any, wordlist?: any):
   if (phrase && !wordlist) {
     throw new (err('UnknownWordlist'))(phrase)
   }
-  wordlist = wordlist || (Mnemonic as unknown as MnemonicConstructor).Words.ENGLISH
+  wordlist = wordlist ?? (Mnemonic as unknown as MnemonicConstructor).Words.ENGLISH!
 
   if (seed) {
-    phrase = (Mnemonic as unknown as MnemonicConstructor)._entropy2mnemonic(seed, wordlist)
+    phrase = (Mnemonic as unknown as MnemonicConstructor)._entropy2mnemonic(seed, wordlist!)
   }
 
   // validate phrase and ent

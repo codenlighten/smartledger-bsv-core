@@ -22,7 +22,7 @@ import Input = require('./input')
 // They are read at their use sites instead (see _getInputFrom).
 import Output = require('./output')
 import type { Script as ScriptType, ScriptConstructor } from '../script/script.types'
-import type { Transaction, TransactionConstructor, Input as InputType, Output as OutputType, TransactionObject, SerializeOptions, UnspentOutputLike, TransactionSignature } from './types'
+import type { Transaction, TransactionConstructor, Input as InputType, Output as OutputType, TransactionObject, SerializeOptions, UnspentOutputLike, TransactionSignature, Payment } from './types'
 import type { PrivateKey } from '../privatekey.types'
 import type { PublicKey } from '../publickey.types'
 import type { Address } from '../address.types'
@@ -380,7 +380,7 @@ Transaction.prototype.fromObject = function fromObject (this: Transaction, arg: 
   } else {
     transaction = arg
   }
-  _.each(transaction.inputs, function (input: any) {
+  _.each(transaction.inputs, function (input: Record<string, any>) {
     if (!input.output || !input.output.script) {
       self.uncheckedAddInput(new Input(input))
       return
@@ -400,8 +400,10 @@ Transaction.prototype.fromObject = function fromObject (this: Transaction, arg: 
     }
     self.addInput(txin)
   })
-  _.each(transaction.outputs, function (output: any) {
-    self.addOutput(new Output(output))
+    // fromObject accepts both the plain form and a live Transaction, so an
+  // element here is either shape; Output's constructor normalizes both.
+  _.each(transaction.outputs, function (output: OutputType | { satoshis?: unknown, script?: unknown }) {
+    self.addOutput(new Output(output as { satoshis?: unknown, script?: unknown }))
   })
   if (transaction.changeIndex) {
     this._changeIndex = transaction.changeIndex
@@ -562,7 +564,7 @@ Transaction.prototype._newTransaction = function (this: Transaction) {
 Transaction.prototype.from = function (this: Transaction, utxo: UnspentOutputLike | UnspentOutputLike[], pubkeys?: PublicKey[], threshold?: number) {
   if (_.isArray(utxo)) {
     const self = this
-    _.each(utxo, function (utxo: any) {
+    _.each(utxo, function (utxo: UnspentOutputLike) {
       self.from(utxo, pubkeys, threshold)
     })
     return this
@@ -677,7 +679,7 @@ Transaction.prototype.uncheckedAddInput = function (this: Transaction, input: In
  * @return {boolean}
  */
 Transaction.prototype.hasAllUtxoInfo = function (this: Transaction) {
-  return _.every(this.inputs.map(function (input: any) {
+  return _.every(this.inputs.map(function (input: InputType) {
     return !!input.output
   }))
 }
@@ -756,10 +758,10 @@ Transaction.prototype.getChangeOutput = function (this: Transaction) {
  * @param {number} amount in satoshis
  * @return {Transaction} this, for chaining
  */
-Transaction.prototype.to = function (this: Transaction, address: Address | string, amount: number) {
+Transaction.prototype.to = function (this: Transaction, address: Address | string | Payment[], amount?: number) {
   if (_.isArray(address)) {
     const self = this
-    _.each(address, function (to: any) {
+    _.each(address as Payment[], function (to: Payment) {
       self.to(to.address, to.satoshis)
     })
     return this
@@ -1004,7 +1006,7 @@ Transaction.prototype.removeOutput = function (this: Transaction, index: number)
  * @return {Transaction} this
  */
 Transaction.prototype.sort = function (this: Transaction) {
-  this.sortInputs(function (inputs: any[]) {
+  this.sortInputs(function (inputs: InputType[]) {
     const copy = Array.prototype.concat.apply([], inputs)
     copy.sort(function (first, second) {
       return first.prevTxId.compare(second.prevTxId) ||
@@ -1012,7 +1014,7 @@ Transaction.prototype.sort = function (this: Transaction) {
     })
     return copy
   })
-  this.sortOutputs(function (outputs: any[]) {
+  this.sortOutputs(function (outputs: OutputType[]) {
     const copy = Array.prototype.concat.apply([], outputs)
     copy.sort(function (first, second) {
       return first.satoshis - second.satoshis ||
@@ -1112,7 +1114,7 @@ Transaction.prototype.sign = function (this: Transaction, privateKey: PrivateKey
   $.checkState(this.hasAllUtxoInfo(), 'Not all utxo information is available to sign the transaction.')
   const self = this
   if (_.isArray(privateKey)) {
-    _.each(privateKey, function (privateKey: any) {
+    _.each(privateKey as PrivateKey[], function (privateKey: PrivateKey) {
       self.sign(privateKey, sigtype)
     })
     return this

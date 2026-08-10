@@ -32,7 +32,7 @@ const MultiSigScriptHashInput = function MultiSigScriptHashInput (this: MSInput,
   const keys = (pubkeys ?? input.publicKeys) as unknown[]
   const thr = (threshold ?? input.threshold) as number
   const sigs = (signatures ?? input.signatures) as unknown[] | undefined
-  this.publicKeys = keys.map((k: any) => k.toString('hex')).sort().map((k: string) => new (publicKeyClass())(k))
+  this.publicKeys = (keys as PublicKey[]).map((k) => k.toString()).sort().map((k: string) => new (publicKeyClass())(k))
   this.redeemScript = scriptClass().buildMultisigOut(this.publicKeys, thr)
   $.checkState(scriptClass().buildScriptHashOut(this.redeemScript).equals((this.output as OutputType).script),
     'Provided public keys don\'t hash to the provided output')
@@ -148,7 +148,7 @@ MultiSigScriptHashInput.prototype.countSignatures = function (this: MSInput): nu
   }, 0)
 }
 
-MultiSigScriptHashInput.prototype.publicKeysWithoutSignature = function (this: MSInput): any[] {
+MultiSigScriptHashInput.prototype.publicKeysWithoutSignature = function (this: MSInput): PublicKey[] {
   const self = this
   return _.filter(this.publicKeys, function (publicKey: PublicKey) {
     const idx = self.publicKeyIndex[publicKey.toString()]

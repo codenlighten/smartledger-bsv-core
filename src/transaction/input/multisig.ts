@@ -32,7 +32,7 @@ const MultiSigInput = function MultiSigInput (this: MSInput, input: Record<strin
   const keys = (pubkeys ?? input.publicKeys) as unknown[]
   const thr = (threshold ?? input.threshold) as number
   const sigs = (signatures ?? input.signatures) as unknown[] | undefined
-  this.publicKeys = keys.map((k: any) => k.toString('hex')).sort().map((k: string) => new (publicKeyClass())(k))
+  this.publicKeys = (keys as PublicKey[]).map((k) => k.toString()).sort().map((k: string) => new (publicKeyClass())(k))
   $.checkState(scriptClass().buildMultisigOut(this.publicKeys, thr).equals((this.output as OutputType).script),
     'Provided public keys don\'t match to the provided output script')
   this.publicKeyIndex = {}
@@ -147,7 +147,7 @@ MultiSigInput.prototype.countSignatures = function (this: MSInput): number {
   }, 0)
 }
 
-MultiSigInput.prototype.publicKeysWithoutSignature = function (this: MSInput): any[] {
+MultiSigInput.prototype.publicKeysWithoutSignature = function (this: MSInput): PublicKey[] {
   const self = this
   return _.filter(this.publicKeys, function (publicKey: PublicKey) {
     const idx = self.publicKeyIndex[publicKey.toString()]

@@ -17,6 +17,30 @@
  *
  * Counted: `: any`, `as any`, `any[]`, `<any>` in src/**.ts, excluding
  * comments and string literals.
+ *
+ * WHAT IS LEFT, AND WHY IT IS LEFT. The conversion started at 708. Everything
+ * remaining falls into one of six categories, each of which is `any` because
+ * a more precise type would be a guess dressed up as a fact:
+ *
+ *   1. Error-tree walkers. `errors` is built dynamically at load time and
+ *      reached by string path; `reduce<any>` is what walking it looks like.
+ *   2. Interpreter temporaries. A handful of `let` bindings reused across
+ *      dozens of opcode cases holding a different type in each. A union would
+ *      be a lie in every branch but one.
+ *   3. Dual-callable constructor returns. These functions return `this` when
+ *      called with `new` and a fresh instance otherwise; the declared
+ *      constructor interface is what callers actually see.
+ *   4. Computed-key accessors. The cached-property getters index the instance
+ *      by a '_'+name key that no declared shape can express.
+ *   5. Open records defined elsewhere — the BSV-20 rule table and the root
+ *      namespace object, whose members come from an external spec or are
+ *      assembled by assignment.
+ *   6. Two PRESERVED BUGS, cast deliberately so the broken line still
+ *      compiles: the OP_CHECKSEQUENCEVERIFY mask and the OP_PUSH_TX short-s
+ *      buffer. Both are documented in place and reported upstream.
+ *
+ * If you are adding one that is not in those categories, it is probably a
+ * shortcut. Type it instead.
  */
 
 const fs = require('fs')
@@ -25,7 +49,7 @@ const path = require('path')
 const SRC = path.join(__dirname, '..', 'src')
 
 // Lower this when you remove some. Raising it needs a reason.
-const BUDGET = Number(process.env.ANY_BUDGET ?? 82)
+const BUDGET = Number(process.env.ANY_BUDGET ?? 30)
 
 function walk (dir) {
   const out = []

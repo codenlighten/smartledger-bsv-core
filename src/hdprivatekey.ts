@@ -1,6 +1,6 @@
 'use strict'
 
-import type { HDPrivateKey, HDPrivateKeyConstructor, HDBuffers, NetworkLike } from './hdprivatekey.types'
+import type { HDPrivateKey, HDPrivateKeyConstructor, HDBuffers, NetworkLike , HDPrivateKeyObj } from './hdprivatekey.types'
 import type { HDPublicKey } from './hdpublickey.types'
 
 import assert = require('assert')
@@ -56,14 +56,14 @@ const HDPrivateKey = function HDPrivateKey (this: HDPrivateKey, arg?: unknown): 
     if ((HDPrivateKey as unknown as HDPrivateKeyConstructor).isValidSerialized(arg)) {
       this._buildFromSerialized(arg as string)
     } else if (JSUtil.isValidJSON(arg)) {
-      this._buildFromJSON(arg)
+      this._buildFromJSON(arg as string)
     } else if (Buffer.isBuffer(arg) && (HDPrivateKey as unknown as HDPrivateKeyConstructor).isValidSerialized(arg.toString())) {
       this._buildFromSerialized(arg.toString())
     } else {
       throw (HDPrivateKey as unknown as HDPrivateKeyConstructor).getSerializedError(arg)
     }
   } else if (_.isObject(arg)) {
-    this._buildFromObject(arg)
+    this._buildFromObject(arg as HDPrivateKeyObj)
   } else {
     throw new (err('HDPrivateKey.UnrecognizedArgument'))(arg)
   }
@@ -362,32 +362,40 @@ HDPrivateKey.fromString = function (arg: string) {
   return new HDPrivateKey(arg)
 }
 
-HDPrivateKey.fromObject = function (arg: any) {
+HDPrivateKey.fromObject = function (arg: HDPrivateKeyObj) {
   $.checkArgument(_.isObject(arg), 'No valid argument was provided')
   return new HDPrivateKey(arg)
 }
 
-HDPrivateKey.prototype._buildFromJSON = function (this: HDPrivateKey, arg: any) {
+HDPrivateKey.prototype._buildFromJSON = function (this: HDPrivateKey, arg: string) {
   return this._buildFromObject(JSON.parse(arg))
 }
 
-HDPrivateKey.prototype._buildFromObject = function (this: HDPrivateKey, arg: any) {
+HDPrivateKey.prototype._buildFromObject = function (this: HDPrivateKey, arg: HDPrivateKeyObj) {
   // TODO: Type validation
-  const buffers: HDBuffers = {
+  // Each field is normalized to a Buffer here, but a field the caller omitted
+  // stays undefined — _validateBufferArguments is what rejects that, further
+  // down. Typing the intermediate as complete would move the check nowhere and
+  // claim a guarantee this line does not make.
+  const buffers = {
     version: arg.network ? JSUtil.integerAsBuffer(Network.get(arg.network)!.xprivkey) : arg.version,
     depth: _.isNumber(arg.depth) ? Buffer.from([arg.depth & 0xff]) : arg.depth,
     parentFingerPrint: _.isNumber(arg.parentFingerPrint) ? JSUtil.integerAsBuffer(arg.parentFingerPrint) : arg.parentFingerPrint,
     childIndex: _.isNumber(arg.childIndex) ? JSUtil.integerAsBuffer(arg.childIndex) : arg.childIndex,
     chainCode: _.isString(arg.chainCode) ? Buffer.from(arg.chainCode, 'hex') : arg.chainCode,
     privateKey: (_.isString(arg.privateKey) && JSUtil.isHexa(arg.privateKey)) ? Buffer.from(arg.privateKey, 'hex') : arg.privateKey,
-    checksum: arg.checksum ? (arg.checksum.length ? arg.checksum : JSUtil.integerAsBuffer(arg.checksum)) : undefined
+    checksum: arg.checksum ? (Buffer.isBuffer(arg.checksum) ? arg.checksum : JSUtil.integerAsBuffer(arg.checksum)) : undefined
   }
-  return this._buildFromBuffers(buffers)
+  return this._buildFromBuffers(buffers as HDBuffers)
 }
 
 HDPrivateKey.prototype._buildFromSerialized = function (this: HDPrivateKey, arg: string) {
   const decoded = Base58Check.decode(arg)
-  const buffers: HDBuffers = {
+  // Each field is normalized to a Buffer here, but a field the caller omitted
+  // stays undefined — _validateBufferArguments is what rejects that, further
+  // down. Typing the intermediate as complete would move the check nowhere and
+  // claim a guarantee this line does not make.
+  const buffers = {
     version: decoded.slice(HDPrivateKey.VersionStart, HDPrivateKey.VersionEnd),
     depth: decoded.slice(HDPrivateKey.DepthStart, HDPrivateKey.DepthEnd),
     parentFingerPrint: decoded.slice(HDPrivateKey.ParentFingerPrintStart,
@@ -398,7 +406,7 @@ HDPrivateKey.prototype._buildFromSerialized = function (this: HDPrivateKey, arg:
     checksum: decoded.slice(HDPrivateKey.ChecksumStart, HDPrivateKey.ChecksumEnd),
     xprivkey: arg
   }
-  return this._buildFromBuffers(buffers)
+  return this._buildFromBuffers(buffers as HDBuffers)
 }
 
 HDPrivateKey.prototype._generateRandomly = function (this: HDPrivateKey, network?: NetworkLike) {

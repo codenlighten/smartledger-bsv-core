@@ -52,6 +52,24 @@ export type HDPrivateToPublicBuffers =
     xprivkey?: unknown
   }
 
+/**
+ * The plain-object form the constructor and fromObject() accept. Fields arrive
+ * in whichever representation the producer used — a network name or a version
+ * buffer, a number or a buffer for depth — and _buildFromObject normalizes
+ * each. That is why they are unions rather than one settled shape.
+ */
+export interface HDPublicKeyObj {
+  network?: NetworkLike | undefined
+  version?: Buffer | undefined
+  depth?: number | Buffer | undefined
+  parentFingerPrint?: number | Buffer | undefined
+  childIndex?: number | Buffer | undefined
+  chainCode?: string | Buffer | undefined
+  publicKey?: string | Buffer | undefined
+  checksum?: number | Buffer | undefined
+  [key: string]: unknown
+}
+
 export interface HDPublicKey {
   readonly _buffers: HDPublicBuffers
   readonly xpubkey: string
@@ -66,7 +84,7 @@ export interface HDPublicKey {
   _deriveFromString: (path: string) => HDPublicKey
 
   _buildFromPrivate: (arg: HDPrivateKeyLike) => HDPublicKey
-  _buildFromObject: (arg: any) => HDPublicKey
+  _buildFromObject: (arg: HDPublicKeyObj) => HDPublicKey
   _buildFromSerialized: (arg: string) => HDPublicKey
   _buildFromBuffers: (arg: HDPublicBuffers) => HDPublicKey
 
@@ -86,7 +104,7 @@ export interface HDPublicKeyConstructor {
 
   fromHDPrivateKey: (hdPrivateKey: HDPrivateKeyLike) => HDPublicKey
   fromString: (arg: string) => HDPublicKey
-  fromObject: (arg: any) => HDPublicKey
+  fromObject: (arg: HDPublicKeyObj) => HDPublicKey
   fromBuffer: (arg: Buffer) => HDPublicKey
   fromHex: (hex: string) => HDPublicKey
 

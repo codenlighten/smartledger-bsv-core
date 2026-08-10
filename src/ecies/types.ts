@@ -54,8 +54,8 @@ export interface ElectrumECIES {
   _privateKey?: PrivateKey | undefined
   _publicKey?: PublicKey | undefined
 
-  privateKey: (privateKey: PrivateKey | string) => ElectrumECIES
-  publicKey: (publicKey: PublicKey | string) => ElectrumECIES
+  privateKey: (privateKey: PrivateKey) => ElectrumECIES
+  publicKey: (publicKey: PublicKey) => ElectrumECIES
 
   /** Derived lazily and cached on first read. */
   readonly Rbuf: Buffer
@@ -74,8 +74,8 @@ export interface BitcoreECIES {
   _privateKey?: PrivateKey | undefined
   _publicKey?: PublicKey | undefined
 
-  privateKey: (privateKey: PrivateKey | string) => BitcoreECIES
-  publicKey: (publicKey: PublicKey | string) => BitcoreECIES
+  privateKey: (privateKey: PrivateKey) => BitcoreECIES
+  publicKey: (publicKey: PublicKey) => BitcoreECIES
 
   readonly Rbuf: Buffer
   readonly kEkM: Buffer

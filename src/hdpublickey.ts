@@ -1,6 +1,6 @@
 'use strict'
 
-import type { HDPublicKey, HDPublicKeyConstructor, HDPublicBuffers, NetworkLike, HDPrivateKeyLike, HDPrivateToPublicBuffers } from './hdpublickey.types'
+import type { HDPublicKey, HDPublicKeyConstructor, HDPublicBuffers, NetworkLike, HDPrivateKeyLike, HDPrivateToPublicBuffers , HDPublicKeyObj } from './hdpublickey.types'
 
 import _ = require('./util/_')
 import $ = require('./util/preconditions')
@@ -64,7 +64,7 @@ const HDPublicKey = function HDPublicKey (this: HDPublicKey, arg?: unknown): any
         if (arg instanceof HDPrivateKey()) {
           return this._buildFromPrivate(arg as unknown as HDPrivateKeyLike)
         } else {
-          return this._buildFromObject(arg)
+          return this._buildFromObject(arg as HDPublicKeyObj)
         }
       } else {
         throw new (err('HDPublicKey.UnrecognizedArgument'))(arg)
@@ -283,7 +283,7 @@ HDPublicKey.prototype._buildFromPrivate = function (this: HDPublicKey, arg: HDPr
   return this._buildFromBuffers(args as HDPublicBuffers)
 }
 
-HDPublicKey.prototype._buildFromObject = function (this: HDPublicKey, arg: any) {
+HDPublicKey.prototype._buildFromObject = function (this: HDPublicKey, arg: HDPublicKeyObj) {
   // TODO: Type validation
   const buffers = {
     version: arg.network ? JSUtil.integerAsBuffer(Network.get(arg.network)!.xpubkey) : arg.version,
@@ -292,11 +292,11 @@ HDPublicKey.prototype._buildFromObject = function (this: HDPublicKey, arg: any) 
     childIndex: _.isNumber(arg.childIndex) ? JSUtil.integerAsBuffer(arg.childIndex) : arg.childIndex,
     chainCode: _.isString(arg.chainCode) ? Buffer.from(arg.chainCode, 'hex') : arg.chainCode,
     publicKey: _.isString(arg.publicKey)
-      ? Buffer.from(arg.publicKey, 'hex')
-      : Buffer.isBuffer(arg.publicKey) ? arg.publicKey : arg.publicKey.toBuffer(),
+      ? Buffer.from(arg.publicKey as string, 'hex')
+      : Buffer.isBuffer(arg.publicKey) ? arg.publicKey : (arg.publicKey as unknown as { toBuffer: () => Buffer }).toBuffer(),
     checksum: _.isNumber(arg.checksum) ? JSUtil.integerAsBuffer(arg.checksum) : arg.checksum
   }
-  return this._buildFromBuffers(buffers)
+  return this._buildFromBuffers(buffers as HDPublicBuffers)
 }
 
 HDPublicKey.prototype._buildFromSerialized = function (this: HDPublicKey, arg: string) {
@@ -312,7 +312,7 @@ HDPublicKey.prototype._buildFromSerialized = function (this: HDPublicKey, arg: s
     checksum: decoded.slice(HDPublicKey.ChecksumStart, HDPublicKey.ChecksumEnd),
     xpubkey: arg
   }
-  return this._buildFromBuffers(buffers)
+  return this._buildFromBuffers(buffers as HDPublicBuffers)
 }
 
 /**
@@ -397,7 +397,7 @@ HDPublicKey.fromString = function (arg: string) {
   return new HDPublicKey(arg)
 }
 
-HDPublicKey.fromObject = function (arg: any) {
+HDPublicKey.fromObject = function (arg: HDPublicKeyObj) {
   $.checkArgument(_.isObject(arg), 'No valid argument was provided')
   return new HDPublicKey(arg)
 }

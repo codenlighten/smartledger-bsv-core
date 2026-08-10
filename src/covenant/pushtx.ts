@@ -146,7 +146,7 @@ function assertSighashType (script: Script, sighashType: number) {
 
 /** BIP-143 hashOutputs (SIGHASH_ALL) for a set of Transaction.Output objects. */
 function hashOutputs (outputs: Output[]) {
-  const ser = Buffer.concat(outputs.map(function (o: any) { return o.toBufferWriter().toBuffer() }))
+  const ser = Buffer.concat(outputs.map(function (o: Output) { return o.toBufferWriter().toBuffer() }))
   return Hash.sha256sha256(ser)
 }
 

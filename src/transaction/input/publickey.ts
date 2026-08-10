@@ -36,7 +36,7 @@ inherits(PublicKeyInput, Input)
  * @param {number=} sigtype - the type of signature, defaults to Signature.SIGHASH_ALL
  * @return {Array} of objects that can be
  */
-PublicKeyInput.prototype.getSignatures = function (this: SigningInput, transaction: Transaction, privateKey: PrivateKey, index: any, sigtype: any): unknown[] {
+PublicKeyInput.prototype.getSignatures = function (this: SigningInput, transaction: Transaction, privateKey: PrivateKey, index: number, sigtype?: number): unknown[] {
   $.checkState(this.output instanceof (OutputImpl as unknown as new () => unknown))
   sigtype = sigtype || (Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID)
   const publicKey = privateKey.toPublicKey()

@@ -13,21 +13,24 @@ import type { Script } from '../script/script.types'
 import type { PrivateKey } from '../privatekey.types'
 import type { PublicKey } from '../publickey.types'
 import type { InterpreterConstructor } from '../script/interpreter.types'
+import type { Transaction, Input, Output as OutputType } from './types'
+import type { ScriptConstructor } from '../script/script.types'
 
 // script/interpreter and ./transaction are both in this cycle, so they are
 // resolved on demand. `Script` above is a TYPE-only import and is erased.
 const interpreter = (): InterpreterConstructor => require('../script/interpreter')
-const scriptClass = (): any => require('../script')
+const scriptClass = (): ScriptConstructor => require('../script')
 
 /**
- * A transaction, structurally. Deliberately loose until ./transaction is
- * converted, at which point this becomes the real type. Narrowing it now would
- * mean inventing a shape that ./transaction might not match.
+ * ./transaction is converted now, so these point at the real types instead of
+ * standing in for them. They keep their own names because sighash is reached
+ * from Transaction, from the covenant helpers and from the interpreter, and
+ * the alias is what keeps the runtime import edge out of the cycle.
  */
-type TransactionLike = any
+type TransactionLike = Transaction
 
-/** An input, structurally, for the same reason. */
-type InputLike = any
+/** An input, for the same reason. */
+type InputLike = Input
 
 const SIGHASH_SINGLE_BUG = Buffer.from('0000000000000000000000000000000000000000000000000000000000000001', 'hex')
 const BITS_64_ON = 'ffffffffffffffff'
@@ -49,8 +52,8 @@ const sighashPreimageForForkId = function (transaction: TransactionLike, sighash
     const writer = new BufferWriter()
 
     _.each(tx.inputs, function (input: InputLike) {
-      writer.writeReverse(input.prevTxId)
-      writer.writeUInt32LE(input.outputIndex)
+      writer.writeReverse(input!.prevTxId)
+      writer.writeUInt32LE(input!.outputIndex)
     })
 
     const buf = writer.toBuffer()
@@ -62,7 +65,7 @@ const sighashPreimageForForkId = function (transaction: TransactionLike, sighash
     const writer = new BufferWriter()
 
     _.each(tx.inputs, function (input: InputLike) {
-      writer.writeUInt32LE(input.sequenceNumber)
+      writer.writeUInt32LE(input!.sequenceNumber)
     })
 
     const buf = writer.toBuffer()
@@ -74,11 +77,11 @@ const sighashPreimageForForkId = function (transaction: TransactionLike, sighash
     const writer = new BufferWriter()
 
     if (_.isUndefined(n)) {
-      _.each(tx.outputs, function (output: any) {
+      _.each(tx.outputs, function (output: OutputType) {
         output.toBufferWriter(writer)
       })
     } else {
-      tx.outputs[n].toBufferWriter(writer)
+      tx.outputs[n]!.toBufferWriter(writer)
     }
 
     const buf = writer.toBuffer()
@@ -116,8 +119,8 @@ const sighashPreimageForForkId = function (transaction: TransactionLike, sighash
   writer.write(hashSequence)
 
   //  outpoint (32-byte hash + 4-byte little endian)
-  writer.writeReverse(input.prevTxId)
-  writer.writeUInt32LE(input.outputIndex)
+  writer.writeReverse(input!.prevTxId)
+  writer.writeUInt32LE(input!.outputIndex)
 
   // scriptCode of the input (serialized as scripts inside CTxOuts)
   writer.writeVarintNum(subscript.toBuffer().length)
@@ -127,7 +130,7 @@ const sighashPreimageForForkId = function (transaction: TransactionLike, sighash
   writer.writeUInt64LEBN(satoshisBN)
 
   // nSequence of the input (4-byte little endian)
-  const sequenceNumber = input.sequenceNumber
+  const sequenceNumber = input!.sequenceNumber
   writer.writeUInt32LE(sequenceNumber)
 
   // Outputs (none/one/all, depending on flags)

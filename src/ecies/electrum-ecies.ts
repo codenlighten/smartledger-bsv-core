@@ -10,6 +10,8 @@ import $ = require('../util/preconditions')
 import bitcoreECIES = require('./bitcore-ecies')
 import errors = require('./errors')
 import type { ElectrumECIES, ElectrumECIESConstructor, ECIESOptions, AESCBCStatic } from './types'
+import type { PrivateKey as PrivateKeyType } from '../privatekey.types'
+import type { PublicKey as PublicKeyType } from '../publickey.types'
 
 // The error tree is built dynamically; members arrive via an index signature.
 type ErrCtor = new (...args: unknown[]) => Error
@@ -54,16 +56,16 @@ const ECIES = function ECIES (this: ElectrumECIES, opts?: ECIESOptions, algorith
   this.opts.ephemeralKey = true
 }
 
-ECIES.prototype.privateKey = function (this: ElectrumECIES, privateKey: any) {
+ECIES.prototype.privateKey = function (this: ElectrumECIES, privateKey: PrivateKeyType) {
   $.checkArgument(PrivateKey.isValid(privateKey), 'no private key provided')
   this._privateKey = PrivateKey(privateKey.toHex()) || null
   this.opts.ephemeralKey = false
   return this
 }
 
-ECIES.prototype.publicKey = function (this: ElectrumECIES, publicKey: any) {
+ECIES.prototype.publicKey = function (this: ElectrumECIES, publicKey: PublicKeyType) {
   $.checkArgument(PublicKey.isValid(publicKey), 'no public key provided')
-  this._publicKey = PublicKey(publicKey.toString()) || null
+  this._publicKey = PublicKey(publicKey.toString()) as PublicKeyType
   if (this._publicKey != null) this.opts.fixedPublicKey = true
   return this
 }
@@ -73,6 +75,8 @@ const defineProperty = function (name: string, getter: (this: ElectrumECIES) => 
   Object.defineProperty(ECIES.prototype, name, {
     configurable: false,
     enumerable: true,
+    // `this: any` on purpose: the body indexes the instance by a computed
+    // '_'+name key, which no declared shape can express.
     get: function (this: any) {
       let value = this[cachedName]
       value = this[cachedName] = getter.apply(this)
@@ -97,7 +101,7 @@ defineProperty('iv', function (this: ElectrumECIES) { return this.ivkEkM.slice(0
 defineProperty('kE', function (this: ElectrumECIES) { return this.ivkEkM.slice(16, 32) })
 defineProperty('kM', function (this: ElectrumECIES) { return this.ivkEkM.slice(32, 64) })
 
-ECIES.prototype.encrypt = function (this: ElectrumECIES, message: any) {
+ECIES.prototype.encrypt = function (this: ElectrumECIES, message: string | Buffer) {
   if (!Buffer.isBuffer(message)) message = Buffer.from(message)
   const ciphertext = AESCBC.encrypt(message, this.kE, this.iv)
   let encbuf
@@ -112,7 +116,7 @@ ECIES.prototype.encrypt = function (this: ElectrumECIES, message: any) {
   return Buffer.concat([encbuf, tag])
 }
 
-ECIES.prototype.decrypt = function (this: ElectrumECIES, encbuf: any) {
+ECIES.prototype.decrypt = function (this: ElectrumECIES, encbuf: Buffer) {
   $.checkArgument(Buffer.isBuffer(encbuf), 'ciphetext must be a buffer')
   const tagLength = this.opts.shortTag ? 4 : 32
   let offset = 4

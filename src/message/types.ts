@@ -45,7 +45,7 @@ export interface MessageConstructor {
   verify: (message: string | Buffer, address: Address | string, signature: string) => boolean
 
   fromString: (str: string | Buffer) => Message
-  fromJSON: (json: string) => Message
+  fromJSON: (json: string | { messageHex: string }) => Message
   fromObject: (obj: { messageHex: string }) => Message
 
   MAGIC_BYTES: Buffer

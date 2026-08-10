@@ -7,7 +7,7 @@
  * a caller change which key a wallet derives without changing the seed already
  * handed out.
  */
-import type { HDPrivateKey } from '../hdprivatekey.types'
+import type { HDPrivateKey, NetworkLike } from '../hdprivatekey.types'
 
 /** One BIP39 wordlist: exactly 2048 words. */
 export type Wordlist = string[]
@@ -22,7 +22,7 @@ export interface Mnemonic {
    * omitted one give the same seed, which is why it is optional here.
    */
   toSeed: (passphrase?: string) => Buffer
-  toHDPrivateKey: (passphrase?: string, network?: unknown) => HDPrivateKey
+  toHDPrivateKey: (passphrase?: string, network?: NetworkLike) => HDPrivateKey
   toString: () => string
   inspect: () => string
 }
@@ -32,7 +32,14 @@ export interface MnemonicConstructor {
   (data?: string | Buffer | number | Wordlist, wordlist?: Wordlist): Mnemonic
   prototype: Mnemonic
 
-  fromRandom: (wordlist?: Wordlist, ent?: number) => Mnemonic
+  /**
+   * EITHER argument order works: `fromRandom(wordlist, ent)` and
+   * `fromRandom(ent, wordlist)` both do the right thing, because the
+   * implementation swaps them when the first is a number.
+   */
+  fromRandom: (wordlist?: Wordlist | number, ent?: number | Wordlist) => Mnemonic
+  /** `wordlist` defaults to ENGLISH. That default decides which error an
+   *  unrecognized phrase produces — see the note in mnemonic.ts. */
   fromString: (mnemonic: string, wordlist?: Wordlist) => Mnemonic
   fromSeed: (seed: Buffer, wordlist?: Wordlist) => Mnemonic
 

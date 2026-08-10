@@ -8,7 +8,7 @@ import BufferWriter = require('../encoding/bufferwriter')
 import Hash = require('../crypto/hash')
 import Transaction = require('../transaction')
 import $ = require('../util/preconditions')
-import type { Block, BlockConstructor } from './types'
+import type { Block, BlockConstructor, BlockObject, BlockInfo } from './types'
 
 /**
  * Instantiate a Block from a Buffer, JSON object, or Object with
@@ -34,8 +34,8 @@ Block.MAX_BLOCK_SIZE = 128000000
  * @throws {TypeError} - If the argument was not recognized
  * @private
  */
-Block._from = function _from (arg: any) {
-  let info = {}
+Block._from = function _from (arg: BlockObject | Buffer | string): BlockInfo {
+  let info: BlockInfo
   if (Buffer.isBuffer(arg)) {
     info = Block._fromBufferReader(BufferReader(arg))
   } else if (_.isObject(arg)) {
@@ -51,7 +51,7 @@ Block._from = function _from (arg: any) {
  * @returns {Object} - An object representing block data
  * @private
  */
-Block._fromObject = function _fromObject (data: any) {
+Block._fromObject = function _fromObject (data: BlockObject) {
   const transactions: any[] = []
   data.transactions.forEach(function (tx: any) {
     if (tx instanceof Transaction) {
@@ -71,7 +71,7 @@ Block._fromObject = function _fromObject (data: any) {
  * @param {Object} - A plain JavaScript object
  * @returns {Block} - An instance of block
  */
-Block.fromObject = function fromObject (obj: any) {
+Block.fromObject = function fromObject (obj: BlockObject) {
   const info = Block._fromObject(obj)
   return new Block(info)
 }
@@ -81,7 +81,7 @@ Block.fromObject = function fromObject (obj: any) {
  * @returns {Object} - An object representing the block data
  * @private
  */
-Block._fromBufferReader = function _fromBufferReader (br: any) {
+Block._fromBufferReader = function _fromBufferReader (br: BufferReader) {
   const info: any = {}
   $.checkState(!br.finished(), 'No block data received')
   info.header = BlockHeader.fromBufferReader(br)
@@ -97,7 +97,7 @@ Block._fromBufferReader = function _fromBufferReader (br: any) {
  * @param {BufferReader} - A buffer reader of the block
  * @returns {Block} - An instance of block
  */
-Block.fromBufferReader = function fromBufferReader (br: any) {
+Block.fromBufferReader = function fromBufferReader (br: BufferReader) {
   $.checkArgument(br, 'br is required')
   const info = Block._fromBufferReader(br)
   return new Block(info)
@@ -107,7 +107,7 @@ Block.fromBufferReader = function fromBufferReader (br: any) {
  * @param {Buffer} - A buffer of the block
  * @returns {Block} - An instance of block
  */
-Block.fromBuffer = function fromBuffer (buf: any) {
+Block.fromBuffer = function fromBuffer (buf: Buffer) {
   return Block.fromBufferReader(new BufferReader(buf))
 }
 
@@ -115,7 +115,7 @@ Block.fromBuffer = function fromBuffer (buf: any) {
  * @param {string} - str - A hex encoded string of the block
  * @returns {Block} - A hex encoded string of the block
  */
-Block.fromString = function fromString (str: any) {
+Block.fromString = function fromString (str: string) {
   const buf = Buffer.from(str, 'hex')
   return Block.fromBuffer(buf)
 }
@@ -124,7 +124,7 @@ Block.fromString = function fromString (str: any) {
  * @param {Binary} - Raw block binary data or buffer
  * @returns {Block} - An instance of block
  */
-Block.fromRawBlock = function fromRawBlock (data: any) {
+Block.fromRawBlock = function fromRawBlock (data: Buffer | string) {
   if (!Buffer.isBuffer(data)) {
     data = Buffer.from(data, 'binary')
   }
@@ -166,7 +166,7 @@ Block.prototype.toString = function toString (this: Block) {
  * @param {BufferWriter} - An existing instance of BufferWriter
  * @returns {BufferWriter} - An instance of BufferWriter representation of the Block
  */
-Block.prototype.toBufferWriter = function toBufferWriter (this: Block, bw: any) {
+Block.prototype.toBufferWriter = function toBufferWriter (this: Block, bw?: BufferWriter) {
   if (!bw) {
     bw = new BufferWriter()
   }

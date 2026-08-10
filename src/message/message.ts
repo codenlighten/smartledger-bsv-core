@@ -12,6 +12,7 @@ const sha256sha256 = Hash.sha256sha256
 import JSUtil = require('../util/js')
 import $ = require('../util/preconditions')
 import type { Message, MessageConstructor } from './types'
+import type { Signature as SignatureType } from '../crypto/signature.types'
 
 /**
  * constructs a new message to sign and verify.
@@ -36,11 +37,11 @@ const Message = function Message (this: Message, message?: any): any {
   return this
 } as unknown as MessageConstructor
 
-Message.sign = function (message: any, privateKey: any) {
+Message.sign = function (message: string | Buffer, privateKey: PrivateKey) {
   return new Message(message).sign(privateKey)
 }
 
-Message.verify = function (message: any, address: any, signature: any) {
+Message.verify = function (message: string | Buffer, address: Address | string, signature: string) {
   return new Message(message).verify(address, signature)
 }
 
@@ -54,7 +55,7 @@ Message.prototype.magicHash = function magicHash (this: Message) {
   return hash
 }
 
-Message.prototype._sign = function _sign (this: Message, privateKey: any) {
+Message.prototype._sign = function _sign (this: Message, privateKey: PrivateKey) {
   $.checkArgument(privateKey instanceof PrivateKey,
     'First argument should be an instance of PrivateKey')
   const hash = this.magicHash()
@@ -67,12 +68,12 @@ Message.prototype._sign = function _sign (this: Message, privateKey: any) {
  * @param {PrivateKey} privateKey - An instance of PrivateKey
  * @returns {String} A base64 encoded compact signature
  */
-Message.prototype.sign = function sign (this: Message, privateKey: any) {
+Message.prototype.sign = function sign (this: Message, privateKey: PrivateKey) {
   const signature = this._sign(privateKey)
   return signature.toCompact().toString('base64')
 }
 
-Message.prototype._verify = function _verify (this: Message, publicKey: any, signature: any) {
+Message.prototype._verify = function _verify (this: Message, publicKey: PublicKey, signature: SignatureType) {
   $.checkArgument(publicKey instanceof PublicKey, 'First argument should be an instance of PublicKey')
   $.checkArgument(signature instanceof Signature, 'Second argument should be an instance of Signature')
   const hash = this.magicHash()
@@ -91,7 +92,7 @@ Message.prototype._verify = function _verify (this: Message, publicKey: any, sig
  * @param {String} signatureString - A base64 encoded compact signature
  * @returns {Boolean}
  */
-Message.prototype.verify = function verify (this: Message, bitcoinAddress: any, signatureString: any) {
+Message.prototype.verify = function verify (this: Message, bitcoinAddress: Address | string, signatureString: string) {
   $.checkArgument(bitcoinAddress)
   $.checkArgument(signatureString && _.isString(signatureString))
 
@@ -123,7 +124,7 @@ Message.prototype.verify = function verify (this: Message, bitcoinAddress: any, 
  * @param {String} str - A string of the message
  * @returns {Message} A new instance of a Message
  */
-Message.fromString = function (str: any) {
+Message.fromString = function (str: string | Buffer) {
   return new Message(str)
 }
 
@@ -133,11 +134,11 @@ Message.fromString = function (str: any) {
  * @param {String} json - An JSON string or Object with keys: message
  * @returns {Message} A new instance of a Message
  */
-Message.fromJSON = function fromJSON (json: any) {
-  if (JSUtil.isValidJSON(json)) {
-    json = JSON.parse(json)
-  }
-  return Message.fromObject(json)
+Message.fromJSON = function fromJSON (json: string | { messageHex: string }) {
+  // A JSON string or the already-parsed object; normalize to the object under
+  // its own name rather than writing back over the parameter.
+  const obj = JSUtil.isValidJSON(json) ? JSON.parse(json as string) : json
+  return Message.fromObject(obj as { messageHex: string })
 }
 
 /**
@@ -149,7 +150,7 @@ Message.prototype.toObject = function toObject (this: Message) {
   }
 }
 
-Message.fromObject = function (obj: any) {
+Message.fromObject = function (obj: { messageHex: string }) {
   const messageBuffer = Buffer.from(obj.messageHex, 'hex')
   return new Message(messageBuffer)
 }

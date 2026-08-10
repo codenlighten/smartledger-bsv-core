@@ -6,7 +6,7 @@
  * assignment alongside other exported members.
  */
 import type BN = require('bn.js')
-import type { BufferWriter } from '../encoding/types'
+import type { BufferReader, BufferWriter } from '../encoding/types'
 
 /**
  * The plain-object form ACCEPTED by the constructor and fromObject().
@@ -93,6 +93,33 @@ export interface BlockHeaderConstructor {
  * the tree's interior and pruned nodes, not transaction ids. Conflating them
  * would typecheck a caller that treats a partial tree as a complete one.
  */
+/** State threaded through _traverseMerkleTree; `txs` accumulates matches. */
+export interface MerkleTraversal {
+  hashesUsed?: number
+  flagBitsUsed?: number
+  txs?: string[]
+}
+
+/** The plain form of a Block. */
+export interface BlockObject {
+  header: BlockHeaderObj
+  transactions: unknown[]
+}
+
+/** The plain form of a MerkleBlock. */
+export interface MerkleBlockObject {
+  header: BlockHeaderObj
+  numTransactions: number
+  hashes: string[]
+  flags: number[]
+}
+
+/** The normalized intermediate the _from* helpers produce. */
+export interface BlockInfo {
+  header: BlockHeaderValue
+  transactions: unknown[]
+}
+
 import type BlockHeaderValue = require('./blockheader')
 import type TransactionValue = require('../transaction')
 
@@ -106,11 +133,11 @@ export interface Block {
   /** Memoized by the id/hash accessor. */
   _id?: string
 
-  toObject: () => Record<string, unknown>
-  toJSON: () => Record<string, unknown>
+  toObject: () => BlockObject
+  toJSON: () => BlockObject
   toBuffer: () => Buffer
   toString: () => string
-  toBufferWriter: (bw?: any) => any
+  toBufferWriter: (bw?: BufferWriter) => BufferWriter
   getTransactionHashes: () => Buffer[]
   getMerkleTree: () => Buffer[]
   getMerkleRoot: () => Buffer | undefined
@@ -124,14 +151,14 @@ export interface BlockConstructor {
   (arg?: unknown): Block
   prototype: Block
 
-  fromObject: (obj: any) => Block
+  fromObject: (obj: BlockObject) => Block
   fromBuffer: (buf: Buffer) => Block
   fromString: (str: string) => Block
-  fromBufferReader: (br: unknown) => Block
+  fromBufferReader: (br: BufferReader) => Block
   fromRawBlock: (data: Buffer | string) => Block
-  _from: (arg: any) => Record<string, unknown>
-  _fromObject: (data: any) => Record<string, unknown>
-  _fromBufferReader: (br: unknown) => Record<string, unknown>
+  _from: (arg: BlockObject | Buffer | string) => BlockInfo
+  _fromObject: (data: BlockObject) => BlockInfo
+  _fromBufferReader: (br: BufferReader) => BlockInfo
 
   MAX_BLOCK_SIZE: number
   /** Attached by ./index; absent when block.js is required directly. */
@@ -150,14 +177,20 @@ export interface MerkleBlock {
   _hashesUsed?: number
 
   toBuffer: () => Buffer
-  toBufferWriter: (bw?: any) => any
-  toObject: () => Record<string, unknown>
-  toJSON: () => Record<string, unknown>
+  toBufferWriter: (bw?: BufferWriter) => BufferWriter
+  toObject: () => MerkleBlockObject
+  toJSON: () => MerkleBlockObject
   validMerkleTree: () => boolean
   /** Misspelled in the shipped API; kept as an alias. */
-  filterdTxsHash: () => string[]
-  filteredTxsHash: () => string[]
-  _traverseMerkleTree: (depth: number, pos: number, opts?: any, checkForTxs?: boolean) => any
+  filterdTxsHash: () => Buffer | string[] | null
+  filteredTxsHash: () => Buffer | string[] | null
+  /**
+   * Two modes in one function: with `checkForTxs` it collects matched
+   * transaction hashes into opts.txs and returns them, otherwise it returns
+   * the node hash at that position. The return type is the union because the
+   * function genuinely returns both.
+   */
+  _traverseMerkleTree: (depth: number, pos: number, opts?: MerkleTraversal, checkForTxs?: boolean) => Buffer | string[] | null
   _calcTreeWidth: (height: number) => number
   _calcTreeHeight: () => number
   hasTransaction: (tx: TransactionValue | string) => boolean
@@ -169,7 +202,7 @@ export interface MerkleBlockConstructor {
   prototype: MerkleBlock
 
   fromBuffer: (buf: Buffer) => MerkleBlock
-  fromBufferReader: (br: unknown) => MerkleBlock
-  fromObject: (obj: any) => MerkleBlock
-  _fromBufferReader: (br: unknown) => Record<string, unknown>
+  fromBufferReader: (br: BufferReader) => MerkleBlock
+  fromObject: (obj: MerkleBlockObject) => MerkleBlock
+  _fromBufferReader: (br: BufferReader) => BlockInfo
 }

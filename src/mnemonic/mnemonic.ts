@@ -16,6 +16,7 @@ import Random = require('../crypto/random')
 
 import $ = require('../util/preconditions')
 import type { Mnemonic, MnemonicConstructor, Wordlist } from './types'
+import type { NetworkLike } from '../hdprivatekey.types'
 
 // TWO error trees, deliberately kept apart. `./errors` holds the BIP39-specific
 // ones (UnknownWordlist, InvalidMnemonic, InvalidEntropy); `../errors` holds the
@@ -128,20 +129,24 @@ const Mnemonic = function Mnemonic (this: Mnemonic, data?: any, wordlist?: any):
  * @param {number|Array<string>} [ent] - entropy bits, or wordlist
  * @returns {Mnemonic}
  */
-Mnemonic.fromRandom = function (wordlist: any, ent: any) {
+Mnemonic.fromRandom = function (wordlist?: Wordlist | number, ent?: number | Wordlist) {
   // A number in the first position is the entropy; normalise so `ent` holds it
   // and `wordlist` holds the array (either argument order is accepted).
   if (_.isNumber(wordlist)) {
     const swapped = ent
-    ent = wordlist
-    wordlist = swapped
+    ent = wordlist as number
+    wordlist = swapped as Wordlist
   }
   wordlist = wordlist || Mnemonic.Words.ENGLISH
   ent = ent || 128
-  return new Mnemonic(ent, wordlist)
+  return new Mnemonic(ent as number, wordlist as Wordlist)
 }
 
-Mnemonic.fromString = function (mnemonic: any, wordlist: any = Mnemonic.Words.ENGLISH) {
+// The DEFAULT IS LOAD-BEARING, not decoration: without it the constructor
+// falls back to _getDictionary, and a phrase whose first word is in no
+// wordlist then fails as UnknownWordlist instead of InvalidMnemonic. Dropping
+// it changed which error callers see.
+Mnemonic.fromString = function (mnemonic: string, wordlist: Wordlist = Mnemonic.Words.ENGLISH!) {
   return new Mnemonic(mnemonic, wordlist)
 }
 
@@ -159,18 +164,18 @@ Mnemonic.Words = require('./words')
  * @param {String} [wordlist] - The wordlist used
  * @returns {boolean}
  */
-Mnemonic.isValid = function (mnemonic: any, wordlist: any) {
-  mnemonic = unorm.nfkd(mnemonic)
-  wordlist = wordlist || Mnemonic._getDictionary(mnemonic)
+Mnemonic.isValid = function (mnemonic: string, wordlist?: Wordlist) {
+  const phrase = unorm.nfkd(mnemonic)
+  const list = wordlist ?? Mnemonic._getDictionary(phrase)
 
-  if (!wordlist) {
+  if (!list) {
     return false
   }
 
-  const words = mnemonic.split(' ')
+  const words = phrase.split(' ')
   let bin = ''
   for (var i = 0; i < words.length; i++) {
-    const ind = wordlist.indexOf(words[i])
+    const ind = list.indexOf(words[i]!)
     if (ind < 0) return false
     bin = bin + ('00000000000' + ind.toString(2)).slice(-11)
   }
@@ -193,10 +198,10 @@ Mnemonic.isValid = function (mnemonic: any, wordlist: any) {
  * @param {String} wordlist - The wordlist
  * @returns {boolean}
  */
-Mnemonic._belongsToWordlist = function (mnemonic: any, wordlist: any) {
+Mnemonic._belongsToWordlist = function (mnemonic: string, wordlist: Wordlist) {
   const words = unorm.nfkd(mnemonic).split(' ')
   for (let i = 0; i < words.length; i++) {
-    const ind = wordlist.indexOf(words[i])
+    const ind = wordlist.indexOf(words[i]!)
     if (ind < 0) return false
   }
   return true
@@ -208,7 +213,7 @@ Mnemonic._belongsToWordlist = function (mnemonic: any, wordlist: any) {
  * @param {String} mnemonic - The mnemonic string
  * @returns {Array} the wordlist or null
  */
-Mnemonic._getDictionary = function (mnemonic: any) {
+Mnemonic._getDictionary = function (mnemonic?: string) {
   if (!mnemonic) return null
 
   const dicts = Object.keys(Mnemonic.Words)
@@ -230,7 +235,7 @@ Mnemonic._getDictionary = function (mnemonic: any) {
  * @param {String} [passphrase]
  * @returns {Buffer}
  */
-Mnemonic.prototype.toSeed = function (this: Mnemonic, passphrase: any) {
+Mnemonic.prototype.toSeed = function (this: Mnemonic, passphrase?: string) {
   passphrase = passphrase || ''
   return pbkdf2(unorm.nfkd(this.phrase), unorm.nfkd('mnemonic' + passphrase), 2048, 64)
 }
@@ -242,7 +247,7 @@ Mnemonic.prototype.toSeed = function (this: Mnemonic, passphrase: any) {
  * @param {string} [wordlist]
  * @returns {Mnemonic}
  */
-Mnemonic.fromSeed = function (seed: any, wordlist: any) {
+Mnemonic.fromSeed = function (seed: Buffer, wordlist?: Wordlist) {
   $.checkArgument(Buffer.isBuffer(seed), 'seed must be a Buffer.')
   $.checkArgument(_.isArray(wordlist) || _.isString(wordlist), 'wordlist must be a string or an array.')
   return new Mnemonic(seed, wordlist)
@@ -257,7 +262,7 @@ Mnemonic.fromSeed = function (seed: any, wordlist: any) {
  * @param {Network|String|number=} [network] - The network: 'livenet' or 'testnet'
  * @returns {HDPrivateKey}
  */
-Mnemonic.prototype.toHDPrivateKey = function (this: Mnemonic, passphrase: any, network: any) {
+Mnemonic.prototype.toHDPrivateKey = function (this: Mnemonic, passphrase?: string, network?: NetworkLike) {
   const seed = this.toSeed(passphrase)
   return HDPrivateKey.fromSeed(seed, network)
 }
@@ -287,7 +292,7 @@ Mnemonic.prototype.inspect = function (this: Mnemonic) {
  * @param {Array} wordlist - Array of words to generate the mnemonic
  * @returns {String} Mnemonic string
  */
-Mnemonic._mnemonic = function (ENT: any, wordlist: any) {
+Mnemonic._mnemonic = function (ENT: number, wordlist: Wordlist) {
   const buf = Random.getRandomBuffer(ENT / 8)
   return Mnemonic._entropy2mnemonic(buf, wordlist)
 }
@@ -299,10 +304,10 @@ Mnemonic._mnemonic = function (ENT: any, wordlist: any) {
  * @param {Array} wordlist - Array of words to generate the mnemonic
  * @returns {String} Mnemonic string
  */
-Mnemonic._entropy2mnemonic = function (entropy: any, wordlist: any) {
+Mnemonic._entropy2mnemonic = function (entropy: Buffer, wordlist: Wordlist) {
   let bin = ''
   for (var i = 0; i < entropy.length; i++) {
-    bin = bin + ('00000000' + entropy[i].toString(2)).slice(-8)
+    bin = bin + ('00000000' + entropy[i]!.toString(2)).slice(-8)
   }
 
   bin = bin + Mnemonic._entropyChecksum(entropy)
@@ -330,7 +335,7 @@ Mnemonic._entropy2mnemonic = function (entropy: any, wordlist: any) {
  * @returns {string} Checksum of entropy length / 32
  * @private
  */
-Mnemonic._entropyChecksum = function (entropy: any) {
+Mnemonic._entropyChecksum = function (entropy: Buffer) {
   const hash = Hash.sha256(entropy)
   const bits = entropy.length * 8
   const cs = bits / 32

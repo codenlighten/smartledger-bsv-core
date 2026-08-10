@@ -65,7 +65,7 @@
     "@noble/ciphers": "2.2.0",
     "@noble/curves": "2.2.0",
     "@noble/hashes": "2.2.0",
-    "bn.js": "=4.12.3",
+    "bn.js": "=4.12.5",
     "bs58": "=4.0.1",
     "clone-deep": "^4.0.1",
     "hash.js": "^1.1.7",

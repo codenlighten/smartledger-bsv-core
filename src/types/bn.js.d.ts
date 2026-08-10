@@ -3,7 +3,7 @@
  *
  * Two things make this file necessary rather than `@types/bn.js`:
  *
- * 1. Those types describe bn.js v5. This package pins `bn.js` to `=4.12.3`
+ * 1. Those types describe bn.js v5. This package pins `bn.js` to `=4.12.5`
  *    deliberately — the v4 -> v5 upgrade was reviewed and rejected on semantic
  *    grounds, and the pin is load-bearing. Shipping v5 types over a v4 runtime
  *    would describe behavior we do not have, which is worse than no types

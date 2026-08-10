@@ -35,9 +35,9 @@
  *   5. Open records defined elsewhere — the BSV-20 rule table and the root
  *      namespace object, whose members come from an external spec or are
  *      assembled by assignment.
- *   6. Two PRESERVED BUGS, cast deliberately so the broken line still
- *      compiles: the OP_CHECKSEQUENCEVERIFY mask and the OP_PUSH_TX short-s
- *      buffer. Both are documented in place and reported upstream.
+ *   6. One PRESERVED BUG, cast deliberately so the broken line still compiles:
+ *      the OP_CHECKSEQUENCEVERIFY mask. Documented in place and fixed upstream
+ *      in smartledger-bsv#89.
  *
  * If you are adding one that is not in those categories, it is probably a
  * shortcut. Type it instead.
@@ -49,7 +49,7 @@ const path = require('path')
 const SRC = path.join(__dirname, '..', 'src')
 
 // Lower this when you remove some. Raising it needs a reason.
-const BUDGET = Number(process.env.ANY_BUDGET ?? 30)
+const BUDGET = Number(process.env.ANY_BUDGET ?? 29)
 
 function walk (dir) {
   const out = []

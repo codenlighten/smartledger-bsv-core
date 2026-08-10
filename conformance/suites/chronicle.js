@@ -479,7 +479,75 @@ const cases = {
     runChronicle(bsv, (s, O) => s.add(O.OP_7).add(O.OP_2).add(O.OP_VERIF).add(O.OP_ENDIF), 2),
 
   'enabled: OP_VERIF on an empty stack': (bsv) =>
-    runChronicle(bsv, (s, O) => s.add(O.OP_VERIF).add(O.OP_ENDIF).add(O.OP_1), 2)
+    runChronicle(bsv, (s, O) => s.add(O.OP_VERIF).add(O.OP_ENDIF).add(O.OP_1), 2),
+  // --- the shift opcodes, now implemented -----------------------------------
+  //
+  // Semantics come from SV Node's interpreter.cpp, not from the published
+  // spec, which gives only "Inputs: a, b. Output: Shifts a left b bits" and
+  // settles none of: operand order, what "preserving sign" means, negative or
+  // oversized counts, or result encoding. Every one of those is pinned here.
+
+  'enabled: OP_RSHIFTNUM over a range': (bsv) => {
+    const out = {}
+    for (const [v, k] of [[4, 1], [5, 1], [-5, 1], [-4, 1], [1, 3], [0, 5], [1024, 10]]) {
+      out[v + '>>' + k] = runChronicle(bsv, (s, O) => s.add(num(bsv, v)).add(num(bsv, k)).add(O.OP_RSHIFTNUM))
+    }
+    return out
+  },
+
+  'enabled: OP_LSHIFTNUM over a range': (bsv) => {
+    const out = {}
+    for (const [v, k] of [[3, 2], [-3, 2], [1, 0], [1, 8], [-1, 4]]) {
+      out[v + '<<' + k] = runChronicle(bsv, (s, O) => s.add(num(bsv, v)).add(num(bsv, k)).add(O.OP_LSHIFTNUM))
+    }
+    return out
+  },
+
+  /**
+   * Sign handling is the detail the spec does not settle, so it gets its own
+   * case: script numbers are sign-magnitude, so the shift moves the MAGNITUDE
+   * and carries the sign. `-5 1 OP_RSHIFTNUM` is -2, not -3 — division
+   * truncating toward zero, matching OP_DIV and OP_2DIV. A two's-complement
+   * arithmetic shift would floor to -3.
+   */
+  'enabled: OP_RSHIFTNUM truncates toward zero, matching OP_2DIV': (bsv) => {
+    const out = {}
+    for (const v of [-5, -4, -1, 5, 7]) {
+      const shift = runChronicle(bsv, (s, O) => s.add(num(bsv, v)).add(num(bsv, 1)).add(O.OP_RSHIFTNUM))
+      const div = runChronicle(bsv, (s, O) => s.add(num(bsv, v)).add(O.OP_2DIV))
+      out[v] = { rshiftnum: shift.stack, op2div: div.stack, agree: JSON.stringify(shift.stack) === JSON.stringify(div.stack) }
+    }
+    return out
+  },
+
+  'enabled: shift error cases': (bsv) => ({
+    negativeCount: runChronicle(bsv, (s, O) => s.add(num(bsv, 4)).add(num(bsv, -1)).add(O.OP_RSHIFTNUM)),
+    hugeRightCount: runChronicle(bsv, (s, O) => s.add(num(bsv, 4)).add(num(bsv, 1000)).add(O.OP_RSHIFTNUM)),
+    leftOverflow: runChronicle(bsv, (s, O) => s.add(num(bsv, 4)).add(num(bsv, 1000)).add(O.OP_LSHIFTNUM)),
+    emptyStack: runChronicle(bsv, (s, O) => s.add(O.OP_RSHIFTNUM))
+  }),
+
+  /**
+   * With Chronicle OFF these bytes are UPGRADABLE NOPS on the network, not
+   * errors. An earlier build returned BAD_OPCODE, which made this library
+   * refuse scripts the network accepts — the mirror of the bug that made them
+   * silently succeed.
+   */
+  'disabled: bytes 182/183 are upgradable NOPs, not errors': (bsv) => {
+    const I = bsv.Script.Interpreter
+    const runFlags = (byte, flags) => {
+      const i = new I()
+      const script = new bsv.Script().add(bsv.Opcode.OP_1).add(rawByte(bsv, byte))
+      const verified = i.verify(new bsv.Script(), script, new bsv.Transaction(), 0, flags, new bsv.crypto.BN(0))
+      return { verified, errstr: i.errstr || '' }
+    }
+    return {
+      lshiftnumDefault: runFlags(182, 0),
+      rshiftnumDefault: runFlags(183, 0),
+      lshiftnumDiscouraged: runFlags(182, I.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS),
+      rshiftnumDiscouraged: runFlags(183, I.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
+    }
+  }
 
 }
 

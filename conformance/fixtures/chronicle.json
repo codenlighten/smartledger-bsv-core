@@ -1,7 +1,7 @@
 {
   "suite": "chronicle",
   "generatedBy": "0.1.0",
-  "caseCount": 43,
+  "caseCount": 48,
   "cases": {
     "Chronicle opcode numbers as this library defines them": {
       "outcome": "ok",
@@ -180,7 +180,7 @@
     "byte 182 (OP_LSHIFTNUM in Chronicle) evaluated alone": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_BAD_OPCODE",
+        "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
         "stack": [],
         "verified": false
       }
@@ -188,18 +188,18 @@
     "byte 182 with shift operands on the stack": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_BAD_OPCODE",
+        "errstr": "",
         "stack": [
           "04",
           "01"
         ],
-        "verified": false
+        "verified": true
       }
     },
     "byte 183 (OP_RSHIFTNUM in Chronicle) evaluated alone": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_BAD_OPCODE",
+        "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
         "stack": [],
         "verified": false
       }
@@ -207,12 +207,12 @@
     "byte 183 with shift operands on the stack": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_BAD_OPCODE",
+        "errstr": "",
         "stack": [
           "04",
           "01"
         ],
-        "verified": false
+        "verified": true
       }
     },
     "bytes 184..188 evaluated alone": {
@@ -256,6 +256,27 @@
     "digest: OTDA reproduces the SIGHASH_SINGLE bug": {
       "outcome": "ok",
       "value": "0000000000000000000000000000000000000000000000000000000000000001"
+    },
+    "disabled: bytes 182/183 are upgradable NOPs, not errors": {
+      "outcome": "ok",
+      "value": {
+        "lshiftnumDefault": {
+          "errstr": "",
+          "verified": true
+        },
+        "lshiftnumDiscouraged": {
+          "errstr": "SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS",
+          "verified": false
+        },
+        "rshiftnumDefault": {
+          "errstr": "",
+          "verified": true
+        },
+        "rshiftnumDiscouraged": {
+          "errstr": "SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS",
+          "verified": false
+        }
+      }
     },
     "enabled: OP_2DIV agrees with OP_DIV by 2": {
       "outcome": "ok",
@@ -423,6 +444,150 @@
         }
       }
     },
+    "enabled: OP_LSHIFTNUM over a range": {
+      "outcome": "ok",
+      "value": {
+        "-1<<4": {
+          "errstr": "",
+          "stack": [
+            "-16"
+          ],
+          "verified": true
+        },
+        "-3<<2": {
+          "errstr": "",
+          "stack": [
+            "-12"
+          ],
+          "verified": true
+        },
+        "1<<0": {
+          "errstr": "",
+          "stack": [
+            "1"
+          ],
+          "verified": true
+        },
+        "1<<8": {
+          "errstr": "",
+          "stack": [
+            "256"
+          ],
+          "verified": true
+        },
+        "3<<2": {
+          "errstr": "",
+          "stack": [
+            "12"
+          ],
+          "verified": true
+        }
+      }
+    },
+    "enabled: OP_RSHIFTNUM over a range": {
+      "outcome": "ok",
+      "value": {
+        "-4>>1": {
+          "errstr": "",
+          "stack": [
+            "-2"
+          ],
+          "verified": true
+        },
+        "-5>>1": {
+          "errstr": "",
+          "stack": [
+            "-2"
+          ],
+          "verified": true
+        },
+        "0>>5": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
+          "stack": [
+            "0"
+          ],
+          "verified": false
+        },
+        "1024>>10": {
+          "errstr": "",
+          "stack": [
+            "1"
+          ],
+          "verified": true
+        },
+        "1>>3": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
+          "stack": [
+            "0"
+          ],
+          "verified": false
+        },
+        "4>>1": {
+          "errstr": "",
+          "stack": [
+            "2"
+          ],
+          "verified": true
+        },
+        "5>>1": {
+          "errstr": "",
+          "stack": [
+            "2"
+          ],
+          "verified": true
+        }
+      }
+    },
+    "enabled: OP_RSHIFTNUM truncates toward zero, matching OP_2DIV": {
+      "outcome": "ok",
+      "value": {
+        "5": {
+          "agree": true,
+          "op2div": [
+            "2"
+          ],
+          "rshiftnum": [
+            "2"
+          ]
+        },
+        "7": {
+          "agree": true,
+          "op2div": [
+            "3"
+          ],
+          "rshiftnum": [
+            "3"
+          ]
+        },
+        "-1": {
+          "agree": true,
+          "op2div": [
+            "0"
+          ],
+          "rshiftnum": [
+            "0"
+          ]
+        },
+        "-4": {
+          "agree": true,
+          "op2div": [
+            "-2"
+          ],
+          "rshiftnum": [
+            "-2"
+          ]
+        },
+        "-5": {
+          "agree": true,
+          "op2div": [
+            "-2"
+          ],
+          "rshiftnum": [
+            "-2"
+          ]
+        }
+      }
+    },
     "enabled: OP_VER pushes the transaction version": {
       "outcome": "ok",
       "value": {
@@ -502,6 +667,36 @@
             "1"
           ],
           "verified": true
+        }
+      }
+    },
+    "enabled: shift error cases": {
+      "outcome": "ok",
+      "value": {
+        "emptyStack": {
+          "errstr": "SCRIPT_ERR_INVALID_STACK_OPERATION",
+          "stack": [],
+          "verified": false
+        },
+        "hugeRightCount": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
+          "stack": [
+            "0"
+          ],
+          "verified": false
+        },
+        "leftOverflow": {
+          "errstr": "SCRIPT_ERR_SCRIPTNUM_OVERFLOW",
+          "stack": [],
+          "verified": false
+        },
+        "negativeCount": {
+          "errstr": "SCRIPT_ERR_INVALID_NUMBER_RANGE",
+          "stack": [
+            "4",
+            "-1"
+          ],
+          "verified": false
         }
       }
     },

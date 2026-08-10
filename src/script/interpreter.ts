@@ -1011,6 +1011,85 @@ Interpreter.prototype.step = function (this: Interpreter) {
         }
         break
 
+      case Opcode.OP_LSHIFTNUM:
+      case Opcode.OP_RSHIFTNUM:
+        // Chronicle numeric shifts, ported from SV Node's
+        // src/script/interpreter.cpp.
+        //
+        // Before Chronicle activates for the UTXO these bytes are UPGRADABLE
+        // NOPS on the network, not errors — the node does exactly this:
+        //
+        //   if(!utxo_after_chronicle) {
+        //     if(IsDiscourageUpgradableNops(flags))
+        //       return SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS;
+        //     else break;
+        //   }
+        //
+        // An earlier version here returned SCRIPT_ERR_BAD_OPCODE instead,
+        // which made this library REFUSE SCRIPTS THE NETWORK ACCEPTS — the
+        // mirror of the bug that previously made them silently succeed.
+        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+          if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
+            this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
+            return false
+          }
+          break
+        }
+
+        // (x n -- out): the shift COUNT is on top, the value beneath.
+        if (this.stack.length < 2) {
+          this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
+          return false
+        }
+        {
+          const maxNumSize = Interpreter.MAXIMUM_ELEMENT_SIZE
+          const shiftBn = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, maxNumSize)
+          if (shiftBn.isNeg()) {
+            this.errstr = 'SCRIPT_ERR_INVALID_NUMBER_RANGE'
+            return false
+          }
+          this.stack.pop()
+          const valueBn = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, maxNumSize)
+          this.stack.pop()
+
+          const shiftBy = shiftBn.toNumber()
+          const negative = valueBn.isNeg()
+          // Shift the MAGNITUDE and carry the sign. That is what "preserving
+          // sign" means: CScriptNum is sign-magnitude, its bignum path being
+          // OpenSSL BN_lshift/BN_rshift, and the int64 path spells out the
+          // same rule — division truncating toward zero, so -5 RSHIFTNUM 1 is
+          // -2, NOT -3. An arithmetic two's-complement shift would floor to
+          // -3. This matches OP_DIV and OP_2DIV. bn.js shrn/shln assert on
+          // negatives, so operating on abs() is required regardless.
+          const magnitude = valueBn.abs()
+          let shifted: BN
+          if (opcodenum === Opcode.OP_LSHIFTNUM) {
+            // Bound the result BEFORE shifting, as CScriptNum does, so an
+            // enormous count cannot allocate an enormous number on the way to
+            // being rejected.
+            const currentSize = valueBn.toScriptNumBuffer().length
+            if (currentSize + Math.floor(shiftBy / 8) > maxNumSize) {
+              this.errstr = 'SCRIPT_ERR_SCRIPTNUM_OVERFLOW'
+              return false
+            }
+            shifted = magnitude.shln(shiftBy)
+          } else {
+            // Right-shifting by at least the bit length is zero. Checking that
+            // first keeps an arbitrarily large count cheap and matches the
+            // node, whose int64 path returns 0 for counts >= 64.
+            shifted = shiftBy >= magnitude.bitLength() ? new BN(0) : magnitude.shrn(shiftBy)
+          }
+          if (negative && !shifted.isZero()) {
+            shifted = shifted.neg()
+          }
+          if (shifted.toScriptNumBuffer().length > maxNumSize) {
+            this.errstr = 'SCRIPT_ERR_SCRIPTNUM_OVERFLOW'
+            return false
+          }
+          this.stack.push(shifted.toScriptNumBuffer())
+        }
+        break
+
       case Opcode.OP_VER:
         // Chronicle: pushes the executing transaction's version.
         if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {

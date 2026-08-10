@@ -28,64 +28,47 @@ The full Genesis-restored set — `OP_CAT`, `OP_SPLIT`, `OP_AND`, `OP_OR`,
 
 ## Gaps
 
-### 1. `OP_LSHIFTNUM` / `OP_RSHIFTNUM` — numbering FIXED, semantics still missing
+### 1. `OP_LSHIFTNUM` / `OP_RSHIFTNUM` — DONE
 
-**Fixed.** The opcode map now reads:
-
-```
-179  OP_SUBSTR      was OP_NOP4
-180  OP_LEFT        was OP_NOP5
-181  OP_RIGHT       was OP_NOP6
-182  OP_LSHIFTNUM   was OP_NOP7
-183  OP_RSHIFTNUM   was OP_NOP8
-184  OP_NOP9
-185  OP_NOP10
-186+ unassigned
-```
-
-The spec fixes this itself by naming which NOP each reassigned byte used to
-be. An earlier version of the map slid the NOP names upward instead, which put
-`OP_NOP4`/`OP_NOP5` on the shift opcodes' bytes and invented `OP_NOP8`–
-`OP_NOP10` at 186–188 — three bytes that are not valid opcodes at all.
-
-The consequence of that was the worst kind of bug: byte 182 parsed as a NOP
-and **verified as true with both operands still on the stack**. A shift that
-never happened, reported as success. It now fails closed:
-
-```
-byte 182 -> SCRIPT_ERR_BAD_OPCODE
-byte 183 -> SCRIPT_ERR_BAD_OPCODE
-byte 184 -> no-op (OP_NOP9)
-byte 185 -> no-op (OP_NOP10)
-byte 186..188 -> SCRIPT_ERR_BAD_OPCODE
-```
-
-Refusing to validate is safe; validating wrongly is not. Until the semantics
-are implemented, rejecting is the correct posture for a validation library.
-
-**Still missing: the semantics.** They are deliberately not implemented,
-because the specification does not contain enough to implement them
-correctly. The
-[Chronicle spec](https://github.com/bitcoin-sv-specs/protocol/blob/master/updates/chronicle-spec.md)
-says, in full:
+Implemented from SV Node's `src/script/interpreter.cpp`, behind
+`SCRIPT_ENABLE_CHRONICLE`. This section previously said the semantics were
+blocked on the specification, which gives only:
 
 > `OP_LSHIFTNUM` — Performs a numerical shift to left, preserving sign.
 > Inputs: a, b. Output: Shifts a left b bits
 
-That leaves at least four things undetermined, each of which changes the
-result:
+That settles none of the four things an implementation needs. The node source
+settles all of them:
 
-1. **Operand order.** Which of `a`/`b` is on top of the stack?
-2. **What "preserving sign" means.** Script numbers are sign-magnitude — the
-   sign lives in the high bit of the last byte — not two's complement. An
-   arithmetic shift in one encoding is not the other.
-3. **Negative or oversized shift counts.** Error, clamp, or wrap?
-4. **Result encoding.** Minimally encoded, and subject to which element-size
-   limit?
+- **Operand order** is `(x n -- out)`: the shift COUNT is on top, the value
+  beneath.
+- **"Preserving sign"** means shift the MAGNITUDE and carry the sign. Script
+  numbers are sign-magnitude, so `-5 1 OP_RSHIFTNUM` is `-2`, **not** `-3` —
+  division truncating toward zero, matching `OP_DIV` and `OP_2DIV`. A
+  two's-complement arithmetic shift would floor to `-3`. (`bn.js` `shrn`/`shln`
+  assert on negatives, so working on `abs()` is forced anyway.)
+- **Negative counts** are `SCRIPT_ERR_INVALID_NUMBER_RANGE`. Left shifts are
+  bounded BEFORE shifting, as `CScriptNum` does, so an enormous count cannot
+  allocate an enormous number on the way to being rejected. Right shifts by at
+  least the bit length are zero.
+- **Result encoding** is a script number bounded by `MAXIMUM_ELEMENT_SIZE`.
 
-Guessing any of these produces a library that computes confident wrong
-answers, which is precisely the failure mode this section began with. These
-need the node implementation or a clarified spec before they are written.
+And it corrects something this library had wrong. With Chronicle off, bytes
+182/183 are **upgradable NOPs on the network, not errors**:
+
+```
+if(!utxo_after_chronicle) {
+  if(IsDiscourageUpgradableNops(flags))
+    return SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS;
+  else break;
+}
+```
+
+An earlier build here returned `SCRIPT_ERR_BAD_OPCODE`, which made this library
+**refuse scripts the network accepts** — the mirror image of the bug that made
+them silently succeed, and no better. Both are now wrong-answer-free: NOP by
+default, honouring `DISCOURAGE_UPGRADABLE_NOPS`, and a real shift once
+Chronicle is enabled.
 
 ### 2. `OP_2MUL` / `OP_2DIV` — DONE
 
@@ -185,13 +168,10 @@ Done:
 - **`OP_2MUL`/`OP_2DIV` and the `OP_VER` family**, behind
   `SCRIPT_ENABLE_CHRONICLE`.
 
-Remaining:
+- **`OP_LSHIFTNUM`/`OP_RSHIFTNUM`**, ported from the node source.
 
-1. **`OP_LSHIFTNUM`/`OP_RSHIFTNUM` semantics** — the only gap left, and blocked
-   on the four questions above rather than on effort. Needs the node
-   implementation or a clarified spec. The numbering and the fail-closed
-   behaviour are already in place, so scripts using them are rejected rather
-   than mis-evaluated in the meantime.
+Nothing is outstanding. Every Chronicle change is opt-in via
+`SCRIPT_ENABLE_CHRONICLE`.
 
 Everything Chronicle changes is opt-in via `SCRIPT_ENABLE_CHRONICLE`, which is
 off by default. Pre-Chronicle behaviour is byte-identical — verified by the

@@ -389,8 +389,8 @@
         "380:fail:DISAGREES:OK",
         "381:fail:DISAGREES:OK",
         "382:fail:DISAGREES:OK",
-        "383:fail:DISAGREES:OK",
-        "384:fail:DISAGREES:OK",
+        "383:pass:agrees:OK",
+        "384:pass:agrees:OK",
         "385:pass:agrees:OK",
         "386:pass:agrees:OK",
         "387:pass:agrees:OK",
@@ -1269,8 +1269,8 @@
         "1260:fail:agrees:SIG_NULLDUMMY",
         "1261:pass:agrees:OK",
         "1262:fail:agrees:SIG_PUSHONLY",
-        "1263:fail:DISAGREES:OK",
-        "1264:fail:DISAGREES:OK",
+        "1263:pass:agrees:OK",
+        "1264:pass:agrees:OK",
         "1265:fail:agrees:SIG_PUSHONLY",
         "1266:fail:agrees:SIG_PUSHONLY",
         "1267:pass:agrees:OK",
@@ -1350,8 +1350,6 @@
           "380:OK:",
           "381:OK:",
           "382:OK:",
-          "383:OK:",
-          "384:OK:",
           "663:DISABLED_OPCODE:CAT disabled",
           "665:DISABLED_OPCODE:CAT disabled",
           "667:DISABLED_OPCODE:SPLIT disabled",
@@ -1364,11 +1362,9 @@
           "750:DISABLED_OPCODE:DIV disabled",
           "752:DISABLED_OPCODE:MOD disabled",
           "904:DISABLED_OPCODE:disabled",
-          "910:DISABLED_OPCODE:disabled",
-          "1263:OK:P2SH(P2PK) with non-push scriptSig but no P2SH or SIGPUSHONLY",
-          "1264:OK:P2PK with non-push scriptSig but with P2SH validation"
+          "910:DISABLED_OPCODE:disabled"
         ],
-        "count": 22
+        "count": 18
       }
     },
     "castToBool cases": {

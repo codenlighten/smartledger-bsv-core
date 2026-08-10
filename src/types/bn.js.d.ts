@@ -62,6 +62,9 @@ declare module 'bn.js' {
     neg: () => BN
     invm: (b: BN) => BN
     shrn: (b: number) => BN
+    shln: (b: number) => BN
+    abs: () => BN
+    bitLength: () => number
     /** Bitwise AND. Used by the CSV sequence-mask checks. */
     and: (b: BN) => BN
 

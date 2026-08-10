@@ -17,6 +17,10 @@ import Signature = require('../../crypto/signature')
 import Sighash = require('../sighash')
 import TransactionSignature = require('../signature')
 import Varint = require('../../encoding/varint')
+import type { Transaction, TransactionSignatureObj } from '../types'
+import type { PrivateKey } from '../../privatekey.types'
+import type { PublicKey } from '../../publickey.types'
+import type { BufferReader, BufferWriter } from '../../encoding/types'
 
 /**
  * @constructor
@@ -31,12 +35,12 @@ const MultiSigInput = function MultiSigInput (this: MSInput, input: Record<strin
   $.checkState(scriptClass().buildMultisigOut(this.publicKeys, thr).equals((this.output as OutputType).script),
     'Provided public keys don\'t match to the provided output script')
   this.publicKeyIndex = {}
-  _.each(this.publicKeys, function (publicKey: any, index: number) {
+  _.each(this.publicKeys, function (publicKey: PublicKey, index: number) {
     self.publicKeyIndex[publicKey.toString()] = index
   })
   this.threshold = thr
   // Empty array of signatures
-  this.signatures = sigs != null ? this._deserializeSignatures(sigs) : new Array(this.publicKeys.length)
+  this.signatures = sigs != null ? this._deserializeSignatures(sigs as Array<TransactionSignatureObj | TransactionSignature>) : new Array(this.publicKeys.length)
 } as unknown as MultiSigInputConstructor
 inherits(MultiSigInput, Input)
 
@@ -48,10 +52,10 @@ MultiSigInput.prototype.toObject = function (this: MSInput): Record<string, unkn
   return obj
 }
 
-MultiSigInput.prototype._deserializeSignatures = function (this: MSInput, signatures: unknown[]): Array<unknown | undefined> {
+MultiSigInput.prototype._deserializeSignatures = function (this: MSInput, signatures: Array<TransactionSignatureObj | TransactionSignature | undefined>): Array<TransactionSignature | undefined> {
   // Sparse by design: an empty slot means "no signature for publicKeys[i]",
   // so the falsy check must stay — the array is pre-sized with holes.
-  return _.map(signatures, function (signature: any) {
+  return _.map(signatures, function (signature?: TransactionSignatureObj | TransactionSignature) {
     if (!signature) {
       return undefined
     }
@@ -59,8 +63,8 @@ MultiSigInput.prototype._deserializeSignatures = function (this: MSInput, signat
   })
 }
 
-MultiSigInput.prototype._serializeSignatures = function (this: MSInput): Array<unknown | undefined> {
-  return _.map(this.signatures, function (signature: any) {
+MultiSigInput.prototype._serializeSignatures = function (this: MSInput): Array<TransactionSignatureObj | undefined> {
+  return _.map(this.signatures, function (signature?: TransactionSignature) {
     if (!signature) {
       return undefined
     }
@@ -68,13 +72,13 @@ MultiSigInput.prototype._serializeSignatures = function (this: MSInput): Array<u
   })
 }
 
-MultiSigInput.prototype.getSignatures = function (this: MSInput, transaction: any, privateKey: any, index: number, sigtype?: number): unknown[] {
+MultiSigInput.prototype.getSignatures = function (this: MSInput, transaction: Transaction, privateKey: PrivateKey, index: number, sigtype?: number): unknown[] {
   $.checkState(this.output instanceof (OutputImpl as unknown as new () => unknown))
   sigtype = sigtype || (Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID)
 
   const self = this
   const results: unknown[] = []
-  _.each(this.publicKeys, function (publicKey: any) {
+  _.each(this.publicKeys, function (publicKey: PublicKey) {
     if (publicKey.toString() === privateKey.publicKey.toString()) {
       results.push(new TransactionSignature({
         publicKey: privateKey.publicKey,
@@ -90,7 +94,7 @@ MultiSigInput.prototype.getSignatures = function (this: MSInput, transaction: an
   return results
 }
 
-MultiSigInput.prototype.addSignature = function (this: MSInput, transaction: any, signature: any): MSInput {
+MultiSigInput.prototype.addSignature = function (this: MSInput, transaction: Transaction, signature: TransactionSignature): MSInput {
   $.checkState(!this.isFullySigned(), 'All needed signatures have already been added')
   $.checkArgument(!_.isUndefined(this.publicKeyIndex[signature.publicKey.toString()]),
     'Signature has no matching public key')
@@ -112,8 +116,8 @@ MultiSigInput.prototype._updateScript = function (this: MSInput): MSInput {
 
 MultiSigInput.prototype._createSignatures = function (this: MSInput): Buffer[] {
   return _.map(
-    _.filter(this.signatures, function (signature: any) { return !_.isUndefined(signature) }),
-    function (signature: any) {
+    _.filter(this.signatures, function (signature?: TransactionSignature) { return !_.isUndefined(signature) }) as TransactionSignature[],
+    function (signature: TransactionSignature) {
       return Buffer.concat([
         signature.signature.toDER(),
         Buffer.from([signature.sigtype & 0xff])
@@ -144,13 +148,13 @@ MultiSigInput.prototype.countSignatures = function (this: MSInput): number {
 
 MultiSigInput.prototype.publicKeysWithoutSignature = function (this: MSInput): any[] {
   const self = this
-  return _.filter(this.publicKeys, function (publicKey: any) {
+  return _.filter(this.publicKeys, function (publicKey: PublicKey) {
     const idx = self.publicKeyIndex[publicKey.toString()]
     return idx === undefined || self.signatures[idx] == null
   })
 }
 
-MultiSigInput.prototype.isValidSignature = function (this: MSInput, transaction: any, signature: any): boolean {
+MultiSigInput.prototype.isValidSignature = function (this: MSInput, transaction: Transaction, signature: TransactionSignature): boolean {
   // FIXME: Refactor signature so this is not necessary
   signature.signature.nhashtype = signature.sigtype
   return Sighash.verify(
@@ -172,9 +176,9 @@ MultiSigInput.prototype.isValidSignature = function (this: MSInput, transaction:
  * @param {Input} input
  * @returns {TransactionSignature[]}
  */
-MultiSigInput.normalizeSignatures = function (transaction: any, input: any, inputIndex: number, signatures: any[], publicKeys: any[]): any[] {
+MultiSigInput.normalizeSignatures = function (transaction: Transaction, input: Input, inputIndex: number, signatures: Buffer[], publicKeys: PublicKey[]): Array<TransactionSignature | null> {
   return publicKeys.map(function (pubKey) {
-    let signatureMatch: any = null
+    let signatureMatch: TransactionSignature | null = null
     signatures = signatures.filter(function (signatureBuffer) {
       if (signatureMatch) {
         return true
@@ -195,7 +199,7 @@ MultiSigInput.normalizeSignatures = function (transaction: any, input: any, inpu
         signature.signature,
         signature.publicKey,
         signature.inputIndex,
-        input.output.script
+        input.output!.script
       )
 
       if (isMatch) {

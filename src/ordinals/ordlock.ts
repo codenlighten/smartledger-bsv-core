@@ -392,7 +392,7 @@ function purchase (params?: UnlockParams) {
   const trailing = Buffer.concat(outs.slice(payoutIndex + payoutCount).map(serializeOutput))
 
   const grindOpts = Object.assign({ sighashType: ORDLOCK_SIGHASH }, params.grind || {})
-  const g = P.grind(spend, inputIndex, lockingScript, satoshis, grindOpts)
+  const g = P.grind(spend, inputIndex, coerceScript(lockingScript), satoshis, grindOpts)
 
   const us = new Script()
   pushData(us, trailing)
@@ -428,7 +428,7 @@ function cancel (params?: UnlockParams) {
   const satoshis = params.satoshis != null ? params.satoshis : 1
   const sighashType = params.sighashType != null ? params.sighashType : H.SIGHASH
 
-  const sig = H.signInput(spend, privateKey, inputIndex, lockingScript, satoshis, sighashType)
+  const sig = H.signInput(spend, privateKey as PrivateKey, inputIndex, coerceScript(lockingScript), satoshis, sighashType)
   const us = new Script()
   us.add(Buffer.from(sig))
   us.add((privateKey as PrivateKey).toPublicKey().toBuffer())

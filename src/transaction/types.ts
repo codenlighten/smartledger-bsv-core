@@ -32,8 +32,8 @@ export interface SerializeOptions {
 export interface TransactionObject {
   hash?: string
   version: number
-  inputs: unknown[]
-  outputs: unknown[]
+  inputs: Input[]
+  outputs: Output[]
   nLockTime: number
   changeScript?: string
   changeIndex?: number
@@ -64,8 +64,8 @@ export interface TransactionSignature extends Signature {
 
   _fromObject: (arg: TransactionSignatureObj) => TransactionSignature
   _checkObjectArgs: (arg: TransactionSignatureObj) => void
-  toObject: () => Record<string, unknown>
-  toJSON: () => Record<string, unknown>
+  toObject: () => TransactionSignatureObj
+  toJSON: () => TransactionSignatureObj
 }
 
 export interface TransactionSignatureConstructor {
@@ -76,7 +76,7 @@ export interface TransactionSignatureConstructor {
 
 /** A spendable output, as accepted by Transaction#from(). */
 export interface UnspentOutput {
-  readonly address?: unknown
+  readonly address?: Address
   readonly txId: string
   readonly outputIndex: number
   readonly script: import('../script/script.types').Script
@@ -139,7 +139,7 @@ export interface Output {
   toObject: () => Record<string, unknown>
   toJSON: () => Record<string, unknown>
   setScriptFromBuffer: (buffer: Buffer) => void
-  setScript: (script: unknown) => Output
+  setScript: (script: Script | Buffer | string) => Output
   inspect: () => string
   toBufferWriter: (writer?: BufferWriter) => BufferWriter
   getSize: () => number
@@ -149,7 +149,7 @@ export interface OutputConstructor {
   new (args: { satoshis?: unknown, script?: unknown }): Output
   (args: { satoshis?: unknown, script?: unknown }): Output
   fromObject: (data: Record<string, unknown>) => Output
-  fromBufferReader: (br: unknown) => Output
+  fromBufferReader: (br: BufferReader) => Output
 }
 
 /**
@@ -172,14 +172,14 @@ export interface Input {
   toObject: () => Record<string, unknown>
   toJSON: () => Record<string, unknown>
   toBufferWriter: (writer?: BufferWriter) => BufferWriter
-  setScript: (script: unknown) => Input
+  setScript: (script: Script | Buffer | string) => Input
   getSignatures: (...args: unknown[]) => TransactionSignature[]
   isFullySigned: () => boolean
   isFinal: () => boolean
   addSignature: (...args: unknown[]) => Input
   /** See SigningInput: the return value is not uniform across subclasses. */
   clearSignatures: () => Input | void
-  isValidSignature: (transaction: unknown, signature: unknown) => boolean
+  isValidSignature: (transaction: Transaction, signature: TransactionSignature) => boolean
   isNull: () => boolean
   _estimateSize: () => number
 }
@@ -193,7 +193,7 @@ export interface InputConstructor {
   DEFAULT_RBF_SEQNUMBER: number
   BASE_SIZE: number
   fromObject: (obj: Record<string, unknown>) => Input
-  fromBufferReader: (br: unknown) => Input
+  fromBufferReader: (br: BufferReader) => Input
 
   // Attached by transaction/input/index, not by input/input itself.
   PublicKey: SigningInputConstructor
@@ -243,10 +243,10 @@ export interface MultiSigInput extends SigningInput {
   publicKeyIndex: Record<string, number>
   threshold: number
   /** Sparse: index i holds the signature for publicKeys[i], or is empty. */
-  signatures: Array<unknown | undefined>
+  signatures: Array<TransactionSignature | undefined>
 
-  _deserializeSignatures: (signatures: unknown[]) => Array<unknown | undefined>
-  _serializeSignatures: () => Array<unknown | undefined>
+  _deserializeSignatures: (signatures: Array<TransactionSignatureObj | TransactionSignature | undefined>) => Array<TransactionSignature | undefined>
+  _serializeSignatures: () => Array<TransactionSignatureObj | undefined>
   /** Returns undefined, unlike the PublicKey/PublicKeyHash inputs. */
   clearSignatures: () => void
   _updateScript: () => MultiSigInput
@@ -254,7 +254,7 @@ export interface MultiSigInput extends SigningInput {
   countMissingSignatures: () => number
   countSignatures: () => number
   publicKeysWithoutSignature: () => Array<import('../publickey.types').PublicKey>
-  isValidSignature: (transaction: unknown, signature: unknown) => boolean
+  isValidSignature: (transaction: Transaction, signature: TransactionSignature) => boolean
 }
 
 /**
@@ -266,12 +266,12 @@ export interface MultiSigScriptHashInput extends MultiSigInput {
 }
 
 export interface MultiSigInputConstructor {
-  new (input: Record<string, unknown>, pubkeys?: unknown[], threshold?: number, signatures?: unknown[]): MultiSigInput
-  (input: Record<string, unknown>, pubkeys?: unknown[], threshold?: number, signatures?: unknown[]): MultiSigInput
+  new (input: Record<string, unknown>, pubkeys?: PublicKey[], threshold?: number, signatures?: Array<TransactionSignature | Buffer>): MultiSigInput
+  (input: Record<string, unknown>, pubkeys?: PublicKey[], threshold?: number, signatures?: Array<TransactionSignature | Buffer>): MultiSigInput
   SIGNATURE_SIZE?: number
   OPCODES_SIZE?: number
   PUBKEY_SIZE?: number
-  normalizeSignatures?: (transaction: unknown, input: unknown, inputIndex: number, signatures: unknown[], publicKeys: unknown[]) => unknown[]
+  normalizeSignatures?: (transaction: Transaction, input: Input, inputIndex: number, signatures: Buffer[], publicKeys: PublicKey[]) => Array<TransactionSignature | null>
 }
 
 /** A transaction. */

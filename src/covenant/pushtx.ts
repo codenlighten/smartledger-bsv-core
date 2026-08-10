@@ -23,6 +23,8 @@ import Signature = require('../crypto/signature')
 import BN = require('../crypto/bn')
 import Hash = require('../crypto/hash')
 import H = require('./helpers')
+import type { PushTxOptions, GrindOptions } from './types'
+import type { Transaction, Output } from '../transaction/types'
 
 const SIGHASH = H.SIGHASH
 const scriptNum = H.scriptNum
@@ -40,7 +42,7 @@ const N_LE = Buffer.concat([Buffer.from(N.toBuffer()).reverse(), Buffer.from([0x
 const DER_PREFIX = Buffer.concat([Buffer.from([0x30, 0x44, 0x02, 0x20]), Gx, Buffer.from([0x02, 0x20])])
 
 /** Reverse a fixed n-byte buffer on top of the stack (big-endian <-> little-endian). */
-function reverseBytes (script: any, n: any) {
+function reverseBytes (script: Script, n: number) {
   let i
   for (i = 0; i < n - 1; i++) script.add(Opcode.OP_1).add(Opcode.OP_SPLIT)
   for (i = 0; i < n - 1; i++) script.add(Opcode.OP_SWAP).add(Opcode.OP_CAT)
@@ -74,7 +76,7 @@ const SIGHASH_ALL_ANYONECANPAY_FORKID =
  *   so the spender must push the matching BIP-143 preimage (grind with the same
  *   sighashType). Defaults to SIGHASH_ALL|FORKID — existing covenants are unchanged.
  */
-function pushTxCore (script: any, opts?: any) {
+function pushTxCore (script: Script, opts?: PushTxOptions) {
   const sighashType = (opts && opts.sighashType) || SIGHASH
   script.add(Opcode.OP_HASH256) // z = HASH256(preimage), 32B BE
   reverseBytes(script, 32) // -> little-endian = e. The grind guarantees e is
@@ -104,7 +106,7 @@ function authenticator () {
 }
 
 /** Extract the committed hashOutputs (item 9, offsetFromEnd 40, len 32) from a preimage on-stack. */
-function extractHashOutputs (script: any) {
+function extractHashOutputs (script: Script) {
   // last 40 bytes, then the first 32 of those = hashOutputs. (BSV string opcodes.)
   script.add(scriptNum(40)).add(Opcode.OP_RIGHT).add(scriptNum(32)).add(Opcode.OP_LEFT)
   return script
@@ -125,7 +127,7 @@ function extractHashOutputs (script: any) {
  * recreated OUTPUT (HASH256(nextOutput) == hashOutputs). This guard makes the
  * flag assumption explicit and fails fast — and survives any refactor of the core.
  */
-function assertSighashAll (script: any) {
+function assertSighashAll (script: Script) {
   return assertSighashType(script, SIGHASH)
 }
 
@@ -135,7 +137,7 @@ function assertSighashAll (script: any) {
  * equal `sighashType`. Use with pushTxCore({ sighashType }) + grind({ sighashType })
  * to build covenants under SIGHASH_SINGLE|ANYONECANPAY (marketplace) etc.
  */
-function assertSighashType (script: any, sighashType: any) {
+function assertSighashType (script: Script, sighashType: number) {
   const word = Buffer.from([sighashType & 0xff, 0x00, 0x00, 0x00])
   script.add(Opcode.OP_DUP).add(scriptNum(4)).add(Opcode.OP_RIGHT)
     .add(word).add(Opcode.OP_EQUALVERIFY)
@@ -143,7 +145,7 @@ function assertSighashType (script: any, sighashType: any) {
 }
 
 /** BIP-143 hashOutputs (SIGHASH_ALL) for a set of Transaction.Output objects. */
-function hashOutputs (outputs: any) {
+function hashOutputs (outputs: Output[]) {
   const ser = Buffer.concat(outputs.map(function (o: any) { return o.toBufferWriter().toBuffer() }))
   return Hash.sha256sha256(ser)
 }
@@ -152,7 +154,7 @@ function hashOutputs (outputs: any) {
  * Value/output covenant: the spend is valid only if its outputs hash to
  * `expectedHashOutputs` — coins can only go where the covenant says.
  */
-function valueCovenant (expectedHashOutputs: any) {
+function valueCovenant (expectedHashOutputs: Buffer) {
   const script = new Script().add(Opcode.OP_DUP)
   pushTxCore(script)
   script.add(Opcode.OP_VERIFY)
@@ -171,7 +173,7 @@ const HALF_N = new BN('7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F466
  * so it passes nodes enforcing SCRIPT_VERIFY_LOW_S — at zero script-size cost
  * (the burden is on the spender's grind, not extra opcodes).
  */
-function sFromPreimage (preimage: any) {
+function sFromPreimage (preimage: Buffer) {
   const z = Hash.sha256sha256(preimage)
   // Script no longer sign-extends z, so e (= reverse(z) as a number) must be
   // positive AND minimally encoded: its little-endian MSB (= z[0]) in 0x01..0x7f.
@@ -206,7 +208,7 @@ function sFromPreimage (preimage: any) {
  *       nLockTime. (Not for CSV/relative-locktime covenants, which encode meaning
  *       in the sequence number itself.)
  */
-function grind (spend: any, inputIndex: any, lockingScript: any, satoshis: any, opts: any) {
+function grind (spend: Transaction, inputIndex: number, lockingScript: Script, satoshis: number, opts?: number | GrindOptions) {
   if (typeof opts === 'number') opts = { maxTries: opts } // back-compat: legacy maxTries arg
   opts = opts || {}
   const maxTries = opts.maxTries || 5000
@@ -216,7 +218,7 @@ function grind (spend: any, inputIndex: any, lockingScript: any, satoshis: any, 
   if (field !== 'nLockTime' && field !== 'sequence') {
     throw new Error("grind field must be 'nLockTime' or 'sequence'")
   }
-  const input = spend.inputs[inputIndex]
+  const input = spend.inputs[inputIndex]!
   for (let i = 0; i < maxTries; i++) {
     const nonce = start + i
     if (field === 'nLockTime') spend.nLockTime = nonce

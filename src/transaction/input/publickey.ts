@@ -15,6 +15,10 @@ import type { Output as OutputType } from '../types'
 const scriptClass = (): ScriptConstructor => require('../../script')
 import Signature = require('../../crypto/signature')
 import TransactionSignature = require('../signature')
+import type { Transaction } from '../types'
+import type { PrivateKey } from '../../privatekey.types'
+import type { PublicKey } from '../../publickey.types'
+import type { BufferReader, BufferWriter } from '../../encoding/types'
 
 /**
  * Represents a special kind of input of PayToPublicKey kind.
@@ -32,7 +36,7 @@ inherits(PublicKeyInput, Input)
  * @param {number=} sigtype - the type of signature, defaults to Signature.SIGHASH_ALL
  * @return {Array} of objects that can be
  */
-PublicKeyInput.prototype.getSignatures = function (this: SigningInput, transaction: any, privateKey: any, index: any, sigtype: any): unknown[] {
+PublicKeyInput.prototype.getSignatures = function (this: SigningInput, transaction: Transaction, privateKey: PrivateKey, index: any, sigtype: any): unknown[] {
   $.checkState(this.output instanceof (OutputImpl as unknown as new () => unknown))
   sigtype = sigtype || (Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID)
   const publicKey = privateKey.toPublicKey()
@@ -58,7 +62,7 @@ PublicKeyInput.prototype.getSignatures = function (this: SigningInput, transacti
  * @param {number=} signature.sigtype
  * @return {PublicKeyInput} this, for chaining
  */
-PublicKeyInput.prototype.addSignature = function (this: SigningInput, transaction: any, signature: any): SigningInput {
+PublicKeyInput.prototype.addSignature = function (this: SigningInput, transaction: Transaction, signature: TransactionSignature): SigningInput {
   $.checkState(this.isValidSignature(transaction, signature), 'Signature is invalid')
   this.setScript(scriptClass().buildPublicKeyIn(
     signature.signature.toDER(),

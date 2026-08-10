@@ -14,6 +14,10 @@ type ErrCtor = new (...args: unknown[]) => Error
 const abstractMethod = (): ErrCtor => errors.AbstractMethodInvoked as ErrCtor
 import OutputImpl = require('../output')
 import type { ScriptConstructor } from '../../script/script.types'
+import type { Transaction, TransactionSignature } from '../types'
+import type { PrivateKey } from '../../privatekey.types'
+import type { PublicKey } from '../../publickey.types'
+import type { BufferReader } from '../../encoding/types'
 
 // script is in this cycle, so it is resolved on demand.
 const scriptClass = (): ScriptConstructor => require('../../script')
@@ -83,7 +87,7 @@ Input.prototype._fromObject = function (this: Input, params: Record<string, unkn
   if (_.isUndefined(params.script) && _.isUndefined(params.scriptBuffer)) {
     throw new (((errors.Transaction as Record<string, unknown>).Input as Record<string, unknown>).MissingScript as new () => Error)()
   }
-  this.setScript(params.scriptBuffer ?? params.script)
+  this.setScript((params.scriptBuffer ?? params.script) as Buffer | string)
   return this
 }
 
@@ -106,7 +110,7 @@ Input.prototype.toObject = Input.prototype.toJSON = function toObject (this: Inp
   return obj
 }
 
-Input.fromBufferReader = function (br: any): Input {
+Input.fromBufferReader = function (br: BufferReader): Input {
   const input = new Input()
   input.prevTxId = br.readReverse(32)
   input.outputIndex = br.readUInt32LE()
@@ -117,7 +121,7 @@ Input.fromBufferReader = function (br: any): Input {
   return input
 }
 
-Input.prototype.toBufferWriter = function (this: Input, writer?: any): any {
+Input.prototype.toBufferWriter = function (this: Input, writer?: BufferWriter): any {
   if (writer == null) {
     writer = new BufferWriter()
   }
@@ -195,7 +199,7 @@ Input.prototype.clearSignatures = function (this: Input): Input {
   throw new (abstractMethod())('Input#clearSignatures')
 }
 
-Input.prototype.isValidSignature = function (this: Input, transaction: any, signature: any): boolean {
+Input.prototype.isValidSignature = function (this: Input, transaction: Transaction, signature: TransactionSignature): boolean {
   // FIXME: Refactor signature so this is not necessary
   signature.signature.nhashtype = signature.sigtype
   return Sighash.verify(

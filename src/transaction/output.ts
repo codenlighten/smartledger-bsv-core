@@ -30,7 +30,7 @@ const Output = function Output (this: Output, args: { satoshis?: unknown, script
       } else {
         script = args.script
       }
-      this.setScript(script)
+      this.setScript(script as Buffer | string)
     }
   } else {
     throw new TypeError('Unrecognized argument for Output')

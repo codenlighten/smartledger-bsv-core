@@ -1,0 +1,278 @@
+{
+  "suite": "chronicle",
+  "generatedBy": "0.1.0",
+  "caseCount": 25,
+  "cases": {
+    "Chronicle opcode numbers as this library defines them": {
+      "outcome": "ok",
+      "value": {
+        "OP_2DIV": 142,
+        "OP_2MUL": 141,
+        "OP_LEFT": 180,
+        "OP_LSHIFTNUM": null,
+        "OP_RIGHT": 181,
+        "OP_RSHIFTNUM": null,
+        "OP_SUBSTR": 179,
+        "OP_VER": 98,
+        "OP_VERIF": 101,
+        "OP_VERNOTIF": 102
+      }
+    },
+    "Chronicle opcode numbers: agreement with the spec": {
+      "outcome": "ok",
+      "value": {
+        "OP_2DIV": "ok",
+        "OP_2MUL": "ok",
+        "OP_LEFT": "ok",
+        "OP_LSHIFTNUM": "MISSING",
+        "OP_RIGHT": "ok",
+        "OP_RSHIFTNUM": "MISSING",
+        "OP_SUBSTR": "ok",
+        "OP_VER": "ok",
+        "OP_VERIF": "ok",
+        "OP_VERNOTIF": "ok"
+      }
+    },
+    "OP_2DIV on a value": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_DISABLED_OPCODE",
+        "stack": [
+          "04"
+        ],
+        "verified": false
+      }
+    },
+    "OP_2MUL inside a false branch": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_DISABLED_OPCODE",
+        "stack": [],
+        "verified": false
+      }
+    },
+    "OP_2MUL on a value": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_DISABLED_OPCODE",
+        "stack": [
+          "04"
+        ],
+        "verified": false
+      }
+    },
+    "OP_LEFT keeps the leading bytes": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "",
+        "stack": [
+          "6865"
+        ],
+        "verified": true
+      }
+    },
+    "OP_LEFT on an empty stack": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_INVALID_STACK_OPERATION",
+        "stack": [],
+        "verified": false
+      }
+    },
+    "OP_LEFT with a length of zero": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
+        "stack": [
+          ""
+        ],
+        "verified": false
+      }
+    },
+    "OP_RIGHT keeps the trailing bytes": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "",
+        "stack": [
+          "6c6f"
+        ],
+        "verified": true
+      }
+    },
+    "OP_SUBSTR extracts a substring": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "",
+        "stack": [
+          "656c6c"
+        ],
+        "verified": true
+      }
+    },
+    "OP_SUBSTR past the end of the string": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "",
+        "stack": [
+          "69"
+        ],
+        "verified": true
+      }
+    },
+    "OP_SUBSTR with a zero length": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_EVAL_FALSE_IN_STACK",
+        "stack": [
+          ""
+        ],
+        "verified": false
+      }
+    },
+    "OP_VER alone": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_BAD_OPCODE",
+        "stack": [],
+        "verified": false
+      }
+    },
+    "OP_VERIF alone": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_BAD_OPCODE",
+        "stack": [],
+        "verified": false
+      }
+    },
+    "OP_VERIF inside a false branch": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_BAD_OPCODE",
+        "stack": [],
+        "verified": false
+      }
+    },
+    "OP_VERNOTIF alone": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_BAD_OPCODE",
+        "stack": [],
+        "verified": false
+      }
+    },
+    "a sighash flag with value 0x20 exists": {
+      "outcome": "ok",
+      "value": {
+        "names": [],
+        "present": false
+      }
+    },
+    "byte 182 (OP_LSHIFTNUM in Chronicle) evaluated alone": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+        "stack": [],
+        "verified": false
+      }
+    },
+    "byte 182 with shift operands on the stack": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "",
+        "stack": [
+          "04",
+          "01"
+        ],
+        "verified": true
+      }
+    },
+    "byte 183 (OP_RSHIFTNUM in Chronicle) evaluated alone": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+        "stack": [],
+        "verified": false
+      }
+    },
+    "byte 183 with shift operands on the stack": {
+      "outcome": "ok",
+      "value": {
+        "errstr": "",
+        "stack": [
+          "04",
+          "01"
+        ],
+        "verified": true
+      }
+    },
+    "bytes 184..188 evaluated alone": {
+      "outcome": "ok",
+      "value": {
+        "184": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+          "stack": [],
+          "verified": false
+        },
+        "185": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+          "stack": [],
+          "verified": false
+        },
+        "186": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+          "stack": [],
+          "verified": false
+        },
+        "187": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+          "stack": [],
+          "verified": false
+        },
+        "188": {
+          "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
+          "stack": [],
+          "verified": false
+        }
+      }
+    },
+    "names assigned to bytes 176..190": {
+      "outcome": "ok",
+      "value": {
+        "176": "OP_NOP1",
+        "177": "OP_CHECKLOCKTIMEVERIFY|OP_NOP2",
+        "178": "OP_CHECKSEQUENCEVERIFY|OP_NOP3",
+        "179": "OP_SUBSTR",
+        "180": "OP_LEFT",
+        "181": "OP_RIGHT",
+        "182": "OP_NOP4",
+        "183": "OP_NOP5",
+        "184": "OP_NOP6",
+        "185": "OP_NOP7",
+        "186": "OP_NOP8",
+        "187": "OP_NOP9",
+        "188": "OP_NOP10",
+        "189": null,
+        "190": null
+      }
+    },
+    "sighash type with the 0x20 bit set": {
+      "outcome": "ok",
+      "value": {
+        "digest": "4ec9da5c537a7ff36b5af1c8c71d432b225bb9e1608b944ffe1f3f89a7f400f4",
+        "preimageLength": 182,
+        "sighashType": 97
+      }
+    },
+    "signature SIGHASH constants": {
+      "outcome": "ok",
+      "value": {
+        "SIGHASH_ALL": 1,
+        "SIGHASH_ANYONECANPAY": 128,
+        "SIGHASH_FORKID": 64,
+        "SIGHASH_NONE": 2,
+        "SIGHASH_SINGLE": 3
+      }
+    }
+  }
+}

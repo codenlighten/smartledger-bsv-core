@@ -5,8 +5,8 @@
   ],
   "lastVerifiedBy": "0.1.0",
   "node": "v22.23.1",
-  "suiteCount": 12,
-  "caseCount": 399,
+  "suiteCount": 13,
+  "caseCount": 424,
   "rejectCount": 76,
   "suites": [
     {
@@ -14,6 +14,12 @@
       "generatedBy": "v7.5.5",
       "cases": 11,
       "throws": 1
+    },
+    {
+      "suite": "chronicle",
+      "generatedBy": "0.1.0",
+      "cases": 25,
+      "throws": 0
     },
     {
       "suite": "crypto-misc",

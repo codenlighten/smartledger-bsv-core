@@ -23,6 +23,8 @@ import type { Script } from './script.types'
  * changes them for every interpreter in the process. Declaring them readonly
  * would have been a tidier-looking lie.
  */
+import type Transaction = require('../transaction')
+
 export interface InterpreterFlags {
   LOCKTIME_THRESHOLD: number
   MAXIMUM_ELEMENT_SIZE: number
@@ -55,6 +57,47 @@ export interface InterpreterFlags {
   LOCKTIME_THRESHOLD_BN: BN
 }
 
+/**
+ * What the constructor, initialize() and set() accept — a partial snapshot of
+ * the evaluation state, applied over the defaults. Not the same as
+ * `Interpreter`: every field is optional here because a caller may set only
+ * `flags`, or only `script` and `tx`.
+ */
+export interface InterpreterState {
+  stack?: Buffer[] | undefined
+  altstack?: Buffer[] | undefined
+  pc?: number | undefined
+  pbegincodehash?: number | undefined
+  nOpCount?: number | undefined
+  vfExec?: boolean[] | undefined
+  errstr?: string | undefined
+  flags?: number | undefined
+  script?: Script | undefined
+  tx?: Transaction | undefined
+  nin?: number | undefined
+  satoshisBN?: BN | undefined
+  stepListener?: (step: StepInfo, stack: Buffer[], altstack: Buffer[]) => void
+}
+
+/**
+ * The four limits setLimits() can move, in the spelling IT uses — not the
+ * spelling of the constants they write to.
+ */
+export interface ScriptLimits {
+  maxScriptElementSize?: number
+  maximumElementSize?: number
+  maxOpsPerScript?: number
+  maxScriptSize?: number
+}
+
+/** One evaluation step, handed to a stepListener. */
+export interface StepInfo {
+  pc: number
+  opcode: unknown
+  fExec?: boolean
+  [key: string]: unknown
+}
+
 /** The mutable evaluation state. */
 export interface Interpreter {
   stack: Buffer[]
@@ -66,17 +109,17 @@ export interface Interpreter {
   errstr: string
   flags: number
 
-  script?: Script
-  tx?: any
-  nin?: number
-  satoshisBN?: BN
+  script?: Script | undefined
+  tx?: Transaction | undefined
+  nin?: number | undefined
+  satoshisBN?: BN | undefined
 
-  initialize: (obj?: unknown) => void
-  set: (obj: Record<string, unknown>) => void
-  verify: (scriptSig: Script, scriptPubkey: Script, tx?: any, nin?: number, flags?: number, satoshisBN?: BN) => boolean
+  initialize: (obj?: InterpreterState) => void
+  set: (obj: InterpreterState) => void
+  verify: (scriptSig: Script, scriptPubkey: Script, tx?: Transaction, nin?: number, flags?: number, satoshisBN?: BN) => boolean
   evaluate: () => boolean
   step: () => boolean
-  _callbackStep: (...args: unknown[]) => void
+  _callbackStep: (thisStep: StepInfo) => void
   checkSignatureEncoding: (buf: Buffer) => boolean
   checkPubkeyEncoding: (buf: Buffer) => boolean
   checkLockTime: (nLockTime: BN) => boolean
@@ -86,21 +129,30 @@ export interface Interpreter {
    * Optional debugging hook, invoked after each step with clones of the
    * stacks. Set by callers (the script debugger); never by the interpreter.
    */
-  stepListener?: (step: unknown, stack: Buffer[], altstack: Buffer[]) => void
+  stepListener?: (step: StepInfo, stack: Buffer[], altstack: Buffer[]) => void
 }
 
 export interface InterpreterConstructor extends InterpreterFlags {
-  new (obj?: unknown): Interpreter
-  (obj?: unknown): Interpreter
+  new (obj?: InterpreterState): Interpreter
+  (obj?: InterpreterState): Interpreter
 
   true: Buffer
   false: Buffer
 
   useGenesisLimits: (max?: number) => void
   getLimits: () => Record<string, number>
-  setLimits: (limits: Record<string, number>) => void
+  /**
+   * Partial by design: pass only the limits you want to move; anything omitted
+   * keeps its current value.
+   *
+   * Note the KEYS ARE camelCase and do not match the SCREAMING_SNAKE constants
+   * they write to — `maxScriptElementSize` sets MAX_SCRIPT_ELEMENT_SIZE. Only
+   * these four can be set this way; the other limits on the constructor are
+   * not reachable through setLimits at all.
+   */
+  setLimits: (limits?: ScriptLimits) => InterpreterConstructor
 
   castToBool: (buf: Buffer) => boolean
-  _isMinimallyEncoded: (buf: Buffer, maxNumSize?: number) => boolean
+  _isMinimallyEncoded: (buf: Buffer, nMaxNumSize?: number) => boolean
   _minimallyEncode: (buf: Buffer) => Buffer
 }

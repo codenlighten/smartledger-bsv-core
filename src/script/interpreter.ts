@@ -8,7 +8,8 @@ import BN = require('../crypto/bn')
 import Hash = require('../crypto/hash')
 import Signature = require('../crypto/signature')
 import cloneDeep = require('clone-deep')
-import type { Interpreter, InterpreterConstructor } from './interpreter.types'
+import type { Interpreter, InterpreterConstructor, InterpreterState, InterpreterFlags, StepInfo, ScriptLimits } from './interpreter.types'
+import type Transaction = require('../transaction')
 import type { Script as ScriptType, ScriptChunk } from './script.types'
 
 // publickey is in this cycle, so it resolves on demand.
@@ -33,7 +34,7 @@ const publicKeyClass = (): any => require('../publickey')
  */
 const Interpreter = function Interpreter (this: Interpreter, obj?: unknown) {
   if (!(this instanceof Interpreter)) {
-    return new (Interpreter as unknown as InterpreterConstructor)(obj)
+    return new (Interpreter as unknown as InterpreterConstructor)(obj as InterpreterState)
   }
   if (obj) {
     this.initialize()
@@ -57,7 +58,7 @@ const Interpreter = function Interpreter (this: Interpreter, obj?: unknown) {
  *
  * Translated from bitcoind's VerifyScript
  */
-Interpreter.prototype.verify = function (this: Interpreter, scriptSig: any, scriptPubkey: any, tx: any, nin: any, flags: any, satoshisBN: any) {
+Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, scriptPubkey: Script, tx?: Transaction, nin?: number, flags?: number, satoshisBN?: BN) {
   const Transaction = require('../transaction')
 
   if (_.isUndefined(tx)) {
@@ -198,7 +199,7 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: any, scri
 
 export = Interpreter
 
-Interpreter.prototype.initialize = function (this: Interpreter, obj: any) {
+Interpreter.prototype.initialize = function (this: Interpreter, obj?: InterpreterState) {
   this.stack = []
   this.altstack = []
   this.pc = 0
@@ -209,7 +210,7 @@ Interpreter.prototype.initialize = function (this: Interpreter, obj: any) {
   this.flags = 0
 }
 
-Interpreter.prototype.set = function (this: Interpreter, obj: any) {
+Interpreter.prototype.set = function (this: Interpreter, obj: InterpreterState) {
   this.script = obj.script || this.script
   this.tx = obj.tx || this.tx
   this.nin = typeof obj.nin !== 'undefined' ? obj.nin : this.nin!
@@ -267,7 +268,7 @@ Interpreter.LOCKTIME_THRESHOLD_BN = new BN(Interpreter.LOCKTIME_THRESHOLD)
  * @param {number} [max=0x7fffffff] Ceiling applied to all four caps.
  * @returns {Interpreter} the Interpreter constructor (for chaining)
  */
-Interpreter.useGenesisLimits = function (max: any) {
+Interpreter.useGenesisLimits = function (max?: number) {
   max = max || 0x7fffffff
   Interpreter.MAX_SCRIPT_ELEMENT_SIZE = max
   Interpreter.MAXIMUM_ELEMENT_SIZE = max
@@ -300,8 +301,8 @@ Interpreter.getLimits = function () {
  * @param {object} limits as returned by getLimits()
  * @returns {Interpreter} the Interpreter constructor (for chaining)
  */
-Interpreter.setLimits = function (limits: any) {
-  limits = limits || {}
+Interpreter.setLimits = function (limits?: ScriptLimits) {
+  limits = limits ?? {}
   if (limits.maxScriptElementSize != null) Interpreter.MAX_SCRIPT_ELEMENT_SIZE = limits.maxScriptElementSize
   if (limits.maximumElementSize != null) Interpreter.MAXIMUM_ELEMENT_SIZE = limits.maximumElementSize
   if (limits.maxOpsPerScript != null) Interpreter.MAX_OPS_PER_SCRIPT = limits.maxOpsPerScript
@@ -416,7 +417,7 @@ Interpreter.SEQUENCE_LOCKTIME_TYPE_FLAG = (1 << 22)
  */
 Interpreter.SEQUENCE_LOCKTIME_MASK = 0x0000ffff
 
-Interpreter.castToBool = function (buf: any) {
+Interpreter.castToBool = function (buf: Buffer) {
   for (let i = 0; i < buf.length; i++) {
     if (buf[i] !== 0) {
       // can be negative zero
@@ -432,7 +433,7 @@ Interpreter.castToBool = function (buf: any) {
 /**
  * Translated from bitcoind's CheckSignatureEncoding
  */
-Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf: any) {
+Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf: Buffer) {
   let sig
 
   // Empty signature. Not strictly DER encoded, but allowed to provide a
@@ -476,7 +477,7 @@ Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf:
 /**
  * Translated from bitcoind's CheckPubKeyEncoding
  */
-Interpreter.prototype.checkPubkeyEncoding = function (this: Interpreter, buf: any) {
+Interpreter.prototype.checkPubkeyEncoding = function (this: Interpreter, buf: Buffer) {
   if ((this.flags & Interpreter.SCRIPT_VERIFY_STRICTENC) !== 0 && !publicKeyClass().isValid(buf)) {
     this.errstr = 'SCRIPT_ERR_PUBKEYTYPE'
     return false
@@ -491,7 +492,7 @@ Interpreter.prototype.checkPubkeyEncoding = function (this: Interpreter, buf: an
   *
   */
 
-Interpreter._isMinimallyEncoded = function (buf: any, nMaxNumSize: any) {
+Interpreter._isMinimallyEncoded = function (buf: Buffer, nMaxNumSize?: number) {
   nMaxNumSize = nMaxNumSize || Interpreter.MAXIMUM_ELEMENT_SIZE
   if (buf.length > nMaxNumSize) {
     return false
@@ -504,13 +505,13 @@ Interpreter._isMinimallyEncoded = function (buf: any, nMaxNumSize: any) {
     // If the most-significant-byte - excluding the sign bit - is zero
     // then we're not minimal. Note how this test also rejects the
     // negative-zero encoding, 0x80.
-    if ((buf[buf.length - 1] & 0x7f) === 0) {
+    if ((buf[buf.length - 1]! & 0x7f) === 0) {
       // One exception: if there's more than one byte and the most
       // significant bit of the second-most-significant-byte is set it
       // would conflict with the sign bit. An example of this case is
       // +-255, which encode to 0xff00 and 0xff80 respectively.
       // (big-endian).
-      if (buf.length <= 1 || (buf[buf.length - 2] & 0x80) === 0) {
+      if (buf.length <= 1 || (buf[buf.length - 2]! & 0x80) === 0) {
         return false
       }
     }
@@ -524,13 +525,13 @@ Interpreter._isMinimallyEncoded = function (buf: any, nMaxNumSize: any) {
   *
   * @param {number} nMaxNumSize (max allowed size)
   */
-Interpreter._minimallyEncode = function (buf: any) {
+Interpreter._minimallyEncode = function (buf: Buffer) {
   if (buf.length === 0) {
     return buf
   }
 
   // If the last byte is not 0x00 or 0x80, we are minimally encoded.
-  const last = buf[buf.length - 1]
+  const last = buf[buf.length - 1]!
   if (last & 0x7f) {
     return buf
   }
@@ -542,21 +543,21 @@ Interpreter._minimallyEncode = function (buf: any) {
   }
 
   // If the next byte has it sign bit set, then we are minimaly encoded.
-  if (buf[buf.length - 2] & 0x80) {
+  if (buf[buf.length - 2]! & 0x80) {
     return buf
   }
 
   // We are not minimally encoded, we need to figure out how much to trim.
   for (let i = buf.length - 1; i > 0; i--) {
     // We found a non zero byte, time to encode.
-    if (buf[i - 1] !== 0) {
-      if (buf[i - 1] & 0x80) {
+    if (buf[i - 1]! !== 0) {
+      if (buf[i - 1]! & 0x80) {
         // We found a byte with it sign bit set so we need one more
         // byte.
-        buf[i++] = last
+        buf[i++] = last!
       } else {
         // the sign bit is clear, we can use it.
-        buf[i - 1] |= last
+        buf[i - 1] = buf[i - 1]! | last!
       }
 
       return buf.slice(0, i)
@@ -606,7 +607,7 @@ Interpreter.prototype.evaluate = function (this: Interpreter) {
   return true
 }
 
-Interpreter.prototype._callbackStep = function (this: Interpreter, thisStep: any) {
+Interpreter.prototype._callbackStep = function (this: Interpreter, thisStep: StepInfo) {
   if (typeof this.stepListener === 'function') {
     try {
       this.stepListener(thisStep, cloneDeep(this.stack, true), cloneDeep(this.altstack, true))
@@ -628,7 +629,7 @@ Interpreter.prototype._callbackStep = function (this: Interpreter, thisStep: any
  * @return {boolean} true if the transaction's locktime is less than or equal to
  *                   the transaction's locktime
  */
-Interpreter.prototype.checkLockTime = function (this: Interpreter, nLockTime: any) {
+Interpreter.prototype.checkLockTime = function (this: Interpreter, nLockTime: BN) {
   // We want to compare apples to apples, so fail the script
   // unless the type of nLockTime being tested is the same as
   // the nLockTime in the transaction.
@@ -655,7 +656,7 @@ Interpreter.prototype.checkLockTime = function (this: Interpreter, nLockTime: an
   // prevent this condition. Alternatively we could test all
   // inputs, but testing just this input minimizes the data
   // required to prove correct CHECKLOCKTIMEVERIFY execution.
-  if (this.tx!.inputs[this.nin!].isFinal()) {
+  if (this.tx!.inputs[this.nin!]!.isFinal()) {
     return false
   }
 
@@ -668,10 +669,10 @@ Interpreter.prototype.checkLockTime = function (this: Interpreter, nLockTime: an
  * @return {boolean} true if the transaction's sequence is less than or equal to
  *                   the transaction's sequence
  */
-Interpreter.prototype.checkSequence = function (this: Interpreter, nSequence: any) {
+Interpreter.prototype.checkSequence = function (this: Interpreter, nSequence: BN) {
   // Relative lock times are supported by comparing the passed in operand to
   // the sequence number of the input.
-  const txToSequence = this.tx!.inputs[this.nin!].sequenceNumber
+  const txToSequence = this.tx!.inputs[this.nin!]!.sequenceNumber
 
   // Fail if the transaction's version number is not set high enough to
   // trigger BIP 68 rules.
@@ -692,7 +693,14 @@ Interpreter.prototype.checkSequence = function (this: Interpreter, nSequence: an
   const nLockTimeMask =
         Interpreter.SEQUENCE_LOCKTIME_TYPE_FLAG | Interpreter.SEQUENCE_LOCKTIME_MASK
   const txToSequenceMasked = new BN(txToSequence & nLockTimeMask)
-  const nSequenceMasked = nSequence.and(nLockTimeMask)
+  // BUG, PRESERVED: bn.js `and` takes a BN, and `nLockTimeMask` is a plain
+  // number, so this throws `num.clone is not a function`. The interpreter's
+  // try/catch swallows it and reports SCRIPT_ERR_UNKNOWN_ERROR, which makes
+  // OP_CHECKSEQUENCEVERIFY unusable — every CSV script fails verification with
+  // a misleading error. The fix is `nSequence.and(new BN(nLockTimeMask))`.
+  // The line above already does the same masking correctly, with JS numbers.
+  // Left as-is: this pass changes no behaviour. Recorded separately.
+  const nSequenceMasked = nSequence.and(nLockTimeMask as unknown as BN)
 
   // There are two kinds of nSequence: lock-by-blockheight and
   // lock-by-blocktime, distinguished by whether nSequenceMasked <

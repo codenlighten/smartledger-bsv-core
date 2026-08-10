@@ -1180,7 +1180,7 @@ Transaction.prototype.isValidSignature = function (this: Transaction, signature:
 /**
  * @returns {bool} whether the signature is valid for this transaction input
  */
-Transaction.prototype.verifySignature = function (this: Transaction, sig: Signature, pubkey: PublicKey, nin: number, subscript: ScriptType, satoshisBN: BN, flags?: number) {
+Transaction.prototype.verifySignature = function (this: Transaction, sig: Signature, pubkey: PublicKey, nin: number, subscript: ScriptType, satoshisBN?: BN, flags?: number) {
   return Sighash.verify(this, sig, pubkey, nin, subscript, satoshisBN, flags)
 }
 

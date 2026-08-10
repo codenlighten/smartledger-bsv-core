@@ -391,7 +391,10 @@ export interface Transaction {
   isFullySigned: () => boolean
   isValidSignature: (signature: TransactionSignature) => boolean
   _clearSignatures: () => void
-  verifySignature: (sig: Signature, pubkey: PublicKey, nin: number, subscript: Script, satoshisBN: BN, flags?: number) => boolean
+  /** `satoshisBN` is optional here only because Sighash accepts it that way
+   *  — it is REQUIRED for a correct BIP-143 preimage, and omitting it signs
+   *  over the wrong amount rather than failing. */
+  verifySignature: (sig: Signature, pubkey: PublicKey, nin: number, subscript: Script, satoshisBN?: BN, flags?: number) => boolean
   sighash: (inputIndex: number, sighashType: number, subscript: Script, satoshisBN?: BN, flags?: number) => Buffer
 
   /**

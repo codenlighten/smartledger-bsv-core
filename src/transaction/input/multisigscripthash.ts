@@ -12,7 +12,7 @@ import type { Output as OutputType } from '../types'
 
 // script and publickey are in this cycle, so both resolve on demand.
 const scriptClass = (): ScriptConstructor => require('../../script')
-const publicKeyClass = (): any => require('../../publickey')
+const publicKeyClass = (): PublicKeyConstructor => require('../../publickey')
 import Signature = require('../../crypto/signature')
 import Sighash = require('../sighash')
 import TransactionSignature = require('../signature')
@@ -21,6 +21,7 @@ import type { Transaction, TransactionSignatureObj } from '../types'
 import type { PrivateKey } from '../../privatekey.types'
 import type { PublicKey } from '../../publickey.types'
 import type { BufferReader, BufferWriter } from '../../encoding/types'
+import type { PublicKeyConstructor } from '../../publickey.types'
 
 /**
  * @constructor

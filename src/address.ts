@@ -9,6 +9,8 @@ import Hash = require('./crypto/hash')
 import JSUtil = require('./util/js')
 import type { Address, AddressConstructor, AddressInfo, AddressType } from './address.types'
 import type { PublicKeyConstructor } from './publickey.types'
+import type { Script, ScriptConstructor, PublicKeyLike } from './script/script.types'
+import type { PrivateKey } from './privatekey.types'
 
 // Resolved on demand for the same reason as scriptClass() below: publickey is
 // in this cycle, so capturing it at load time is order dependent.
@@ -103,7 +105,7 @@ Address.prototype._classifyArguments = function (this: Address, data: unknown, n
   } else if (data instanceof (publicKeyClass() as unknown as new () => unknown)) {
     return (Address as AddressConstructor)._transformPublicKey(data)
   } else if (isScript(data)) {
-    return (Address as AddressConstructor)._transformScript(data, network)
+    return (Address as AddressConstructor)._transformScript(data as Script, network)
   } else if (typeof (data) === 'string') {
     return (Address as AddressConstructor)._transformString(data, network, type)
   } else if (_.isObject(data)) {
@@ -245,9 +247,9 @@ Address._transformPublicKey = function (pubkey: unknown): AddressInfo {
  * @returns {Object} An object with keys: hashBuffer, type
  * @private
  */
-Address._transformScript = function (script: any, network?: unknown): AddressInfo {
+Address._transformScript = function (script: Script, network?: unknown): AddressInfo {
   $.checkArgument(isScript(script), 'script must be a Script instance')
-  const info = script.getAddressInfo(network)
+  const info = script.getAddressInfo(network as Parameters<Script['getAddressInfo']>[0])
   // NOTE: getAddressInfo() returns `false` (not null/undefined) for a script
   // that is not p2pkh/p2sh, so this must stay a FALSY check. Narrowing it to
   // `info == null` lets `false` through, and the caller then tries to set
@@ -272,7 +274,7 @@ Address._transformScript = function (script: any, network?: unknown): AddressInf
  */
 Address.createMultisig = function (publicKeys: unknown[], threshold: number, network?: unknown): Address {
   const net = network ?? (publicKeys[0] as { network?: unknown })?.network ?? Networks.defaultNetwork
-  return (Address as AddressConstructor).payingTo(scriptClass().buildMultisigOut(publicKeys, threshold), net)
+  return (Address as AddressConstructor).payingTo(scriptClass().buildMultisigOut(publicKeys as PublicKeyLike[], threshold), net)
 }
 
 /**
@@ -322,7 +324,7 @@ Address.fromPublicKey = function (data: unknown, network?: unknown): Address {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.fromPrivateKey = function (privateKey: any, network?: unknown): Address {
+Address.fromPrivateKey = function (privateKey: PrivateKey, network?: unknown): Address {
   const publicKey = publicKeyClass().fromPrivateKey(privateKey)
   network = network || privateKey.network || Networks.defaultNetwork
   return Address.fromPublicKey(publicKey, network)
@@ -363,7 +365,7 @@ Address.fromScriptHash = function (hash: Buffer, network?: unknown): Address {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.payingTo = function (script: any, network?: unknown): Address {
+Address.payingTo = function (script: Script, network?: unknown): Address {
   $.checkArgument(script, 'script is required')
   $.checkArgument(isScript(script), 'script must be instance of Script')
 
@@ -382,7 +384,7 @@ Address.payingTo = function (script: any, network?: unknown): Address {
  * @param {String|Network} network - either a Network instance, 'livenet', or 'testnet'
  * @returns {Address} A new valid and frozen instance of an Address
  */
-Address.fromScript = function (script: any, network?: unknown): Address {
+Address.fromScript = function (script: Script, network?: unknown): Address {
   $.checkArgument(isScript(script), 'script must be a Script instance')
   const info = Address._transformScript(script, network)
   return new (Address as AddressConstructor)(info.hashBuffer, network, info.type)
@@ -546,7 +548,7 @@ export = Address
 // "Right-hand side of 'instanceof' is not callable". That is reachable in the
 // wild, since deep imports are public API. Resolving at call time instead
 // always yields the finished module.
-function scriptClass (): any {
+function scriptClass (): ScriptConstructor {
   return require('./script')
 }
 

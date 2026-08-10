@@ -10,7 +10,13 @@ export type AddressType = 'pubkeyhash' | 'scripthash'
 /** The normalized form produced by the _transform* helpers. */
 export interface AddressInfo {
   hashBuffer?: Buffer
-  network?: Network
+  /**
+   * May be UNRESOLVED. `_transformScript` passes through whatever
+   * `Script#getAddressInfo` recovered, which can be a network name or version
+   * byte rather than a Network object; the Address constructor resolves it.
+   * Typing this as `Network` alone would be a claim the producers do not meet.
+   */
+  network?: Network | string | number | undefined
   type?: AddressType
 }
 
@@ -39,11 +45,11 @@ export interface AddressConstructor {
 
   createMultisig: (publicKeys: unknown[], threshold: number, network?: unknown) => Address
   fromPublicKey: (data: unknown, network?: unknown) => Address
-  fromPrivateKey: (privateKey: unknown, network?: unknown) => Address
+  fromPrivateKey: (privateKey: import('./privatekey.types').PrivateKey, network?: unknown) => Address
   fromPublicKeyHash: (hash: Buffer, network?: unknown) => Address
   fromScriptHash: (hash: Buffer, network?: unknown) => Address
-  payingTo: (script: unknown, network?: unknown) => Address
-  fromScript: (script: unknown, network?: unknown) => Address
+  payingTo: (script: import('./script/script.types').Script, network?: unknown) => Address
+  fromScript: (script: import('./script/script.types').Script, network?: unknown) => Address
   fromBuffer: (buffer: Buffer, network?: unknown, type?: AddressType) => Address
   fromHex: (hex: string, network?: unknown, type?: AddressType) => Address
   fromString: (str: string, network?: unknown, type?: AddressType) => Address
@@ -56,6 +62,6 @@ export interface AddressConstructor {
   _classifyFromVersion: (buffer: Buffer) => AddressInfo
   _transformBuffer: (buffer: Buffer, network?: unknown, type?: AddressType) => AddressInfo
   _transformPublicKey: (pubkey: unknown) => AddressInfo
-  _transformScript: (script: unknown, network?: unknown) => AddressInfo
+  _transformScript: (script: import('./script/script.types').Script, network?: unknown) => AddressInfo
   _transformString: (data: string, network?: unknown, type?: AddressType) => AddressInfo
 }

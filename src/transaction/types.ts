@@ -132,8 +132,17 @@ export interface Output {
   _satoshisBN?: import('bn.js')
 
   readonly script: import('../script/script.types').Script
-  satoshis: number | string | import('bn.js')
-  satoshisBN: import('bn.js')
+  /**
+   * Read and write types differ, and deliberately: the SETTER coerces a
+   * number, a decimal string or a BN into satoshis, while the GETTER always
+   * returns the coerced number. Declaring one union for both would force every
+   * arithmetic use of `output.satoshis` to re-narrow a value that is already a
+   * number.
+   */
+  get satoshis (): number
+  set satoshis (value: number | string | import('bn.js'))
+  get satoshisBN (): import('bn.js')
+  set satoshisBN (value: import('bn.js'))
 
   invalidSatoshis: () => string | false
   toObject: () => Record<string, unknown>

@@ -24,7 +24,7 @@ const err = (path: string): ErrCtor =>
  * @returns {MerkleBlock}
  * @constructor
  */
-const MerkleBlock = function MerkleBlock (this: MerkleBlock, arg?: any): any {
+const MerkleBlock = function MerkleBlock (this: MerkleBlock, arg?: MerkleBlockObject | Buffer | string): any {
   if (!(this instanceof MerkleBlock)) {
     return new (MerkleBlock as unknown as MerkleBlockConstructor)(arg)
   }
@@ -34,10 +34,10 @@ const MerkleBlock = function MerkleBlock (this: MerkleBlock, arg?: any): any {
     info = (MerkleBlock as unknown as MerkleBlockConstructor)._fromBufferReader(BufferReader(arg))
   } else if (_.isObject(arg)) {
     let header
-    if ((arg as any).header instanceof BlockHeader) {
-      header = (arg as any).header
+    if (arg.header instanceof BlockHeader) {
+      header = arg.header
     } else {
-      header = BlockHeader.fromObject((arg as any).header)
+      header = BlockHeader.fromObject(arg.header)
     }
     info = {
       /**
@@ -49,17 +49,17 @@ const MerkleBlock = function MerkleBlock (this: MerkleBlock, arg?: any): any {
        * @name MerkleBlock#numTransactions
        * @type {Number}
        */
-      numTransactions: (arg as any).numTransactions,
+      numTransactions: arg.numTransactions,
       /**
        * @name MerkleBlock#hashes
        * @type {String[]}
        */
-      hashes: (arg as any).hashes,
+      hashes: arg.hashes,
       /**
        * @name MerkleBlock#flags
        * @type {Number[]}
        */
-      flags: (arg as any).flags
+      flags: arg.flags
     }
   } else {
     throw new TypeError('Unrecognized argument for MerkleBlock')

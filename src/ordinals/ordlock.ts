@@ -139,7 +139,7 @@ function resolvePayOutputs (params: OrdLockParams) {
     // A pre-built Output as payTo is used verbatim (its own value); otherwise build P2PKH(price).
     const first = (payTo instanceof Output) ? payTo : payOutputFor(payTo as PayeeLike, params.price)
     const arr = [first]
-    if (params.royalties) params.royalties.forEach(function (r: any) { arr.push(outputFromSpec(r)) })
+    if (params.royalties) params.royalties.forEach(function (r: PayOutputLike) { arr.push(outputFromSpec(r)) })
     return arr
   }
   throw new Error('buildOrdLock requires a price, a payOutput, or payOutputs')
@@ -198,7 +198,7 @@ function buildOrdLock (params?: OrdLockParams) {
       contentType: params.inscription.contentType,
       content: params.inscription.content
     })
-    env.chunks.forEach(function (c: any) { s.chunks.push(c) })
+    env.chunks.forEach(function (c: ScriptChunk) { s.chunks.push(c) })
   }
   return s
 }
@@ -210,7 +210,7 @@ function chunkIsOp (chunk: ScriptChunk | undefined, opcodenum: number) {
 /** Split a pinned payBlob back into its constituent Transaction.Outputs. */
 function splitPayBlob (blob: Buffer) {
   const br = new BufferReader(blob)
-  const outs: any[] = []
+  const outs: Output[] = []
   while (!br.eof()) outs.push(Output.fromBufferReader(br))
   return outs
 }
@@ -280,12 +280,12 @@ function parseOrdLock (script: Script | Buffer | string, opts?: ParseOrdLockOpti
     }
     if (!payBlob) return null
 
-    const payOutputs = splitPayBlob(payBlob).map(function (o: any) {
+    const payOutputs = splitPayBlob(payBlob).map(function (o: Output) {
       let addr = null
       try { if (o.script.isPublicKeyHashOut()) addr = o.script.toAddress(network).toString() } catch (e) {}
       return { satoshis: o.satoshis, script: o.script, address: addr }
     })
-    const totalPrice = payOutputs.reduce(function (a: any, o: any) { return a + o.satoshis }, 0)
+    const totalPrice = payOutputs.reduce(function (a: number, o: { satoshis: number }) { return a + o.satoshis }, 0)
 
     let insc = null
     const parsedInsc = inscription.parseInscription(s)
@@ -486,7 +486,7 @@ function buildListingTx (params?: ListingTxParams & OrdLockParams) {
 
   const funding = params.funding || []
   const fee = params.fee != null ? params.fee : 500
-  const fundingTotal = funding.reduce(function (a: any, f: any) { return a + assertSats(f.satoshis, 'funding satoshis') }, 0)
+  const fundingTotal = funding.reduce(function (a: number, f: FundingCoin) { return a + assertSats(f.satoshis, 'funding satoshis') }, 0)
   const change = fundingTotal - fee
   if (change < 0) {
     throw new Error('buildListingTx: insufficient funding — need ' + fee + ' sat fee, funded ' + fundingTotal)
@@ -494,7 +494,7 @@ function buildListingTx (params?: ListingTxParams & OrdLockParams) {
 
   const tx = new Transaction()
   addSpendInput(tx, ordinal, ordinal.script, ordSats) // input 0 = the ordinal (P2PKH)
-  funding.forEach(function (f: any) { addSpendInput(tx, f, f.script, f.satoshis) })
+  funding.forEach(function (f: FundingCoin) { addSpendInput(tx, f, f.script, f.satoshis) })
 
   tx.addOutput(new Output({ script: lock, satoshis: ordSats })) // output 0 = listing
   if (change > 0) {
@@ -504,7 +504,7 @@ function buildListingTx (params?: ListingTxParams & OrdLockParams) {
   // Sign the ordinal input with the RESOLVED value (ordSats), not the raw (maybe-omitted)
   // ordinal.satoshis — else the signature commits to the wrong amount and fails on-chain.
   signP2PKHInput(tx, 0, { script: ordinal.script, privateKey: ordinal.privateKey, satoshis: ordSats })
-  funding.forEach(function (f: any, i: any) { signP2PKHInput(tx, 1 + i, f) })
+  funding.forEach(function (f: FundingCoin, i: number) { signP2PKHInput(tx, 1 + i, f) })
 
   return { tx, listingScript: lock, listingOutpoint: { txid: tx.hash, outputIndex: 0 } }
 }
@@ -545,13 +545,13 @@ function buildPurchaseTx (params?: PurchaseTxParams) {
 
   const payOuts = params.payOutputs
     ? params.payOutputs.map(outputFromSpec)
-    : parsed.payOutputs.map(function (p: any) {
+    : parsed.payOutputs.map(function (p: { satoshis: number, script: Script, address: string | null }) {
       return new Output({ script: p.script, satoshis: p.satoshis })
     })
-  const paidTotal = payOuts.reduce(function (a: any, o: any) { return a + o.satoshis }, 0)
+  const paidTotal = payOuts.reduce(function (a: number, o: Output) { return a + o.satoshis }, 0)
 
   const fee = params.fee != null ? params.fee : 500
-  const fundingTotal = params.funding.reduce(function (a: any, f: any) { return a + assertSats(f.satoshis, 'funding satoshis') }, 0)
+  const fundingTotal = params.funding.reduce(function (a: number, f: FundingCoin) { return a + assertSats(f.satoshis, 'funding satoshis') }, 0)
   const change = fundingTotal - paidTotal - fee
   if (change < 0) {
     throw new Error('buildPurchaseTx: insufficient funding — need ' + (paidTotal + fee) +
@@ -560,10 +560,10 @@ function buildPurchaseTx (params?: PurchaseTxParams) {
 
   const tx = new Transaction()
   addSpendInput(tx, listing, lockingScript, ordSats) // input 0 = the listing (covenant)
-  params.funding.forEach(function (f: any) { addSpendInput(tx, f, f.script, f.satoshis) })
+  params.funding.forEach(function (f: FundingCoin) { addSpendInput(tx, f, f.script, f.satoshis) })
 
   tx.addOutput(payOutputFor(params.ordinalDestination, ordSats)) // output 0 = ordinal -> buyer
-  payOuts.forEach(function (o: any) { tx.addOutput(o) }) // pinned payment(s)
+  payOuts.forEach(function (o: Output) { tx.addOutput(o) }) // pinned payment(s)
   if (change > 0) {
     tx.addOutput(payOutputFor(params.changeAddress || params.ordinalDestination, change))
   }
@@ -581,7 +581,7 @@ function buildPurchaseTx (params?: PurchaseTxParams) {
   })
 
   // Now sign the P2PKH funding inputs over the finalized transaction.
-  params.funding.forEach(function (f: any, i: any) { signP2PKHInput(tx, 1 + i, f) })
+  params.funding.forEach(function (f: FundingCoin, i: number) { signP2PKHInput(tx, 1 + i, f) })
 
   return tx
 }

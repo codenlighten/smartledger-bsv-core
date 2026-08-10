@@ -38,10 +38,13 @@ const err = (path: string): ErrCtor =>
 // script, address, privatekey and the interpreter are all in this cycle, so
 // each resolves on demand rather than at module scope.
 const Script = (): ScriptConstructor => require('../script')
-const Address = (): any => require('../address')
-const PrivateKey = (): any => require('../privatekey')
-const Interpreter = (): any => require('../script/interpreter')
+const Address = (): AddressConstructor => require('../address')
+const PrivateKey = (): PrivateKeyConstructor => require('../privatekey')
+const Interpreter = (): InterpreterConstructor => require('../script/interpreter')
 import BN = require('../crypto/bn')
+import type { PrivateKeyConstructor } from '../privatekey.types'
+import type { InterpreterConstructor } from '../script/interpreter.types'
+import type { AddressConstructor } from '../address.types'
 
 // By default, we sign with sighash_forkid.
 //
@@ -118,7 +121,7 @@ Transaction.CHANGE_OUTPUT_MAX_SIZE = 20 + 4 + 34 + 4
  * @param {Transaction} transaction
  * @return {Transaction}
  */
-Transaction.shallowCopy = function (transaction: any) {
+Transaction.shallowCopy = function (transaction: Transaction) {
   const copy = new Transaction(transaction.toBuffer())
   return copy
 }
@@ -300,11 +303,11 @@ Transaction.prototype.toBuffer = function (this: Transaction) {
 Transaction.prototype.toBufferWriter = function (this: Transaction, writer: BufferWriter) {
   writer.writeInt32LE(this.version)
   writer.writeVarintNum(this.inputs.length)
-  _.each(this.inputs, function (input: any) {
+  _.each(this.inputs, function (input: InputType) {
     input.toBufferWriter(writer)
   })
   writer.writeVarintNum(this.outputs.length)
-  _.each(this.outputs, function (output: any) {
+  _.each(this.outputs, function (output: OutputType) {
     output.toBufferWriter(writer)
   })
   writer.writeUInt32LE(this.nLockTime)
@@ -336,11 +339,11 @@ Transaction.prototype.fromBufferReader = function (this: Transaction, reader: Bu
 
 Transaction.prototype.toObject = Transaction.prototype.toJSON = function toObject (this: Transaction) {
   const inputs: unknown[] = []
-  this.inputs.forEach(function (input: any) {
+  this.inputs.forEach(function (input: InputType) {
     inputs.push(input.toObject())
   })
   const outputs: unknown[] = []
-  this.outputs.forEach(function (output: any) {
+  this.outputs.forEach(function (output: OutputType) {
     outputs.push(output.toObject())
   })
   const obj: Record<string, unknown> = {
@@ -379,19 +382,19 @@ Transaction.prototype.fromObject = function fromObject (this: Transaction, arg: 
   }
   _.each(transaction.inputs, function (input: any) {
     if (!input.output || !input.output.script) {
-      self.uncheckedAddInput(new (Input as any)(input))
+      self.uncheckedAddInput(new Input(input))
       return
     }
     const script = new (Script())(input.output.script)
     let txin
     if (script.isPublicKeyHashOut()) {
-      txin = new (Input.PublicKeyHash as new (...a: any[]) => any)(input)
+      txin = new Input.PublicKeyHash(input)
     } else if (script.isScriptHashOut() && input.publicKeys && input.threshold) {
-      txin = new (Input.MultiSigScriptHash as new (...a: any[]) => any)(
+      txin = new Input.MultiSigScriptHash(
         input, input.publicKeys, input.threshold, input.signatures
       )
     } else if (script.isPublicKeyOut()) {
-      txin = new (Input.PublicKey as new (...a: any[]) => any)(input)
+      txin = new Input.PublicKey(input)
     } else {
       throw new (err('Transaction.Input.UnsupportedScript'))(input.output.script)
     }
@@ -850,8 +853,8 @@ Transaction.prototype._getOutputAmount = function (this: Transaction) {
   if (_.isUndefined(this._outputAmount)) {
     const self = this
     this._outputAmount = 0
-    _.each(this.outputs, function (output: any) {
-      self._outputAmount += output.satoshis
+    _.each(this.outputs, function (output: OutputType) {
+      self._outputAmount! += output.satoshis
     })
   }
   return this._outputAmount
@@ -866,11 +869,11 @@ Transaction.prototype._getInputAmount = function (this: Transaction) {
   if (_.isUndefined(this._inputAmount)) {
     const self = this
     this._inputAmount = 0
-    _.each(this.inputs, function (input: any) {
+    _.each(this.inputs, function (input: InputType) {
       if (_.isUndefined(input.output)) {
         throw new (err('Transaction.Input.MissingPreviousOutput'))()
       }
-      self._inputAmount += input.output.satoshis
+      self._inputAmount! += input.output!.satoshis
     })
   }
   return this._inputAmount
@@ -947,7 +950,7 @@ Transaction.prototype._getUnspentValue = function (this: Transaction) {
 }
 
 Transaction.prototype._clearSignatures = function (this: Transaction) {
-  _.each(this.inputs, function (input: any) {
+  _.each(this.inputs, function (input: InputType) {
     // Custom-script inputs (bare Input base class — e.g. covenant or other
     // non-standard locking scripts) have no library-managed signatures to
     // clear; the caller owns input.script. Mirror the guard pattern used by
@@ -974,10 +977,10 @@ Transaction.prototype._estimateSize = function (this: Transaction) {
   let result = 4 + 4 // size of version + size of locktime
   result += Varint(this.inputs.length).toBuffer().length
   result += Varint(this.outputs.length).toBuffer().length
-  _.each(this.inputs, function (input: any) {
+  _.each(this.inputs, function (input: InputType) {
     result += input._estimateSize()
   })
-  _.each(this.outputs, function (output: any) {
+  _.each(this.outputs, function (output: OutputType) {
     result += output.getSize()
   })
   return result
@@ -1153,7 +1156,7 @@ Transaction.prototype.applySignature = function (this: Transaction, signature: T
 }
 
 Transaction.prototype.isFullySigned = function (this: Transaction) {
-  _.each(this.inputs, function (input: any) {
+  _.each(this.inputs, function (input: InputType) {
     if (input.isFullySigned === Input.prototype.isFullySigned) {
       throw new (err('Transaction.UnableToVerifySignature'))(
         'Unrecognized script kind, or not enough information to execute script.' +

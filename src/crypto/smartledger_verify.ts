@@ -8,6 +8,8 @@
 import BN = require('./bn')
 import Point = require('./point')
 import ECDSA = require('./ecdsa')
+import type { Signature } from './signature.types'
+import type { PublicKey } from '../publickey.types'
 
 // Cache curve constants for performance
 const n = Point.getN()
@@ -20,7 +22,7 @@ const nh = n.shrn(1) // n / 2
  * @param {PublicKey} pubkey - Public key for verification
  * @returns {boolean} - true if signature is valid and canonical
  */
-function smartVerify (msgHash: any, sig: any, pubkey: any) {
+function smartVerify (msgHash: Buffer, sig: Signature, pubkey: PublicKey) {
   // Strict input validation
   if (!Buffer.isBuffer(msgHash) || msgHash.length !== 32) {
     throw new Error('Invalid message hash: must be 32-byte buffer')
@@ -80,7 +82,7 @@ function smartVerify (msgHash: any, sig: any, pubkey: any) {
  * @param {Object|Buffer} sig - Signature with r,s components or DER buffer
  * @returns {boolean} - true if signature is canonical
  */
-function isCanonical (sig: any) {
+function isCanonical (sig: Signature): boolean {
   if (!sig) {
     return false
   }
@@ -109,7 +111,7 @@ function isCanonical (sig: any) {
  * @param {Object} sig - Signature object to canonicalize
  * @returns {Object} - New signature object with canonical s
  */
-function canonicalize (sig: any) {
+function canonicalize (sig: Signature): { r: BN, s: BN } {
   if (!sig || !sig.r || !sig.s) {
     throw new Error('Invalid signature object')
   }

@@ -126,7 +126,7 @@ export interface OrdLockParams {
  */
 export interface ParsedOrdLock {
   seller: { pubKeyHash: Buffer, address: string }
-  payOutputs: Array<{ satoshis: number, script: string, address: string | null }>
+  payOutputs: Array<{ satoshis: number, script: Script, address: string | null }>
   /** The pinned payment bytes the covenant commits to. */
   payBlob: Buffer
   /** Sum of every payout leg — what a buyer must pay in total. */

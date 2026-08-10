@@ -39,7 +39,7 @@ const HDPrivateKey = () => require('./hdprivatekey')
  * @constructor
  * @param {Object|string|Buffer} arg
  */
-const HDPublicKey = function HDPublicKey (this: HDPublicKey, arg?: any): any {
+const HDPublicKey = function HDPublicKey (this: HDPublicKey, arg?: unknown): any {
   if (arg instanceof HDPublicKey) {
     return arg
   }
@@ -203,7 +203,7 @@ HDPublicKey.prototype._deriveFromString = function (this: HDPublicKey, path: str
   }
 
   const indexes = HDPrivateKey()._getDerivationIndexes(path)
-  const derived = indexes!.reduce(function (prev: any, index: any) {
+  const derived = indexes!.reduce(function (prev: HDPublicKey, index: number) {
     return prev._deriveWithNumber(index)
   }, this)
 

@@ -18,11 +18,11 @@ import type { Block, BlockConstructor, BlockObject, BlockInfo } from './types'
  * @returns {Block}
  * @constructor
  */
-const Block = function Block (this: Block, arg?: any): any {
+const Block = function Block (this: Block, arg?: BlockObject | Buffer | string): any {
   if (!(this instanceof Block)) {
     return new (Block as unknown as BlockConstructor)(arg)
   }
-  _.extend(this, (Block as unknown as BlockConstructor)._from(arg))
+  _.extend(this, (Block as unknown as BlockConstructor)._from(arg as BlockObject | Buffer | string))
   return this
 } as unknown as BlockConstructor
 
@@ -52,8 +52,8 @@ Block._from = function _from (arg: BlockObject | Buffer | string): BlockInfo {
  * @private
  */
 Block._fromObject = function _fromObject (data: BlockObject) {
-  const transactions: any[] = []
-  data.transactions.forEach(function (tx: any) {
+  const transactions: Transaction[] = []
+  ;(data.transactions as Transaction[]).forEach(function (tx: Transaction) {
     if (tx instanceof Transaction) {
       transactions.push(tx)
     } else {
@@ -82,7 +82,7 @@ Block.fromObject = function fromObject (obj: BlockObject) {
  * @private
  */
 Block._fromBufferReader = function _fromBufferReader (br: BufferReader) {
-  const info: any = {}
+  const info: BlockInfo = {} as BlockInfo
   $.checkState(!br.finished(), 'No block data received')
   info.header = BlockHeader.fromBufferReader(br)
   const transactions = br.readVarintNum()
@@ -138,8 +138,8 @@ Block.fromRawBlock = function fromRawBlock (data: Buffer | string) {
  * @returns {Object} - A plain object with the block properties
  */
 Block.prototype.toObject = Block.prototype.toJSON = function toObject (this: Block) {
-  const transactions: any[] = []
-  this.transactions.forEach(function (tx: any) {
+  const transactions: unknown[] = []
+  this.transactions.forEach(function (tx: Transaction) {
     transactions.push(tx.toObject())
   })
   return {

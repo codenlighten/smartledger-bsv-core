@@ -12,10 +12,11 @@ import _ = require('../util/_')
 import type { Script } from '../script/script.types'
 import type { PrivateKey } from '../privatekey.types'
 import type { PublicKey } from '../publickey.types'
+import type { InterpreterConstructor } from '../script/interpreter.types'
 
 // script/interpreter and ./transaction are both in this cycle, so they are
 // resolved on demand. `Script` above is a TYPE-only import and is erased.
-const interpreter = (): any => require('../script/interpreter')
+const interpreter = (): InterpreterConstructor => require('../script/interpreter')
 const scriptClass = (): any => require('../script')
 
 /**

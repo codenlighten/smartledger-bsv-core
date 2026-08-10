@@ -13,10 +13,12 @@ import JSUtil = require('../util/js')
 import type { Script, ScriptConstructor, ScriptChunk, ScriptAddressInfo, ScriptAddable, AddressLike, PublicKeyLike, NetworkLike, MultisigOpts } from './script.types'
 import type { PublicKey } from '../publickey.types'
 import type { Address } from '../address.types'
+import type { PublicKeyConstructor } from '../publickey.types'
+import type { AddressConstructor } from '../address.types'
 
 // address and publickey are in this cycle, so both resolve on demand.
-const addressClass = (): any => require('../address')
-const publicKeyClass = (): any => require('../publickey')
+const addressClass = (): AddressConstructor => require('../address')
+const publicKeyClass = (): PublicKeyConstructor => require('../publickey')
 
 // The error tree is built dynamically; its members arrive via an index
 // signature, so they are narrowed once here.
@@ -48,7 +50,7 @@ const Script = function Script (this: Script, from?: unknown) {
 
   if (Buffer.isBuffer(from)) {
     return (Script as unknown as ScriptConstructor).fromBuffer(from)
-  } else if (from instanceof (addressClass() as new () => unknown)) {
+  } else if (from instanceof addressClass()) {
     return (Script as unknown as ScriptConstructor).fromAddress(from as AddressLike)
   } else if (from instanceof (Script as unknown as new () => unknown)) {
     return (Script as unknown as ScriptConstructor).fromBuffer((from as Script).toBuffer())
@@ -866,11 +868,11 @@ Script.buildP2SHMultisigIn = function (pubkeys: PublicKeyLike[], threshold: numb
  */
 Script.buildPublicKeyHashOut = function (to: AddressLike) {
   $.checkArgument(!_.isUndefined(to))
-  $.checkArgument(to instanceof (publicKeyClass() as new () => unknown) || to instanceof (addressClass() as new () => unknown) || _.isString(to))
+  $.checkArgument(to instanceof publicKeyClass() || to instanceof addressClass() || _.isString(to))
   // Three accepted inputs, one internal form. The Address gets its own binding
   // rather than being written back over the parameter.
   let addr: Address
-  if (to instanceof (publicKeyClass() as new () => unknown)) {
+  if (to instanceof publicKeyClass()) {
     addr = (to as PublicKey).toAddress() as Address
   } else if (_.isString(to)) {
     addr = new (addressClass())(to)
@@ -892,7 +894,7 @@ Script.buildPublicKeyHashOut = function (to: AddressLike) {
  *  public key
  */
 Script.buildPublicKeyOut = function (pubkey: PublicKey) {
-  $.checkArgument(pubkey instanceof (publicKeyClass() as new () => unknown))
+  $.checkArgument(pubkey instanceof publicKeyClass())
   const s = new Script()
   s.add(pubkey.toBuffer())
     .add(Opcode.OP_CHECKSIG)
@@ -942,10 +944,10 @@ Script.buildSafeDataOut = function (data?: string | Buffer | Array<string | Buff
  */
 Script.buildScriptHashOut = function (script: Script | Address) {
   $.checkArgument(script instanceof Script ||
-    (script instanceof (addressClass() as new () => unknown) && (script as { isPayToScriptHash: () => boolean }).isPayToScriptHash()))
+    (script instanceof addressClass() && (script as { isPayToScriptHash: () => boolean }).isPayToScriptHash()))
   const s = new Script()
   s.add(Opcode.OP_HASH160)
-    .add(script instanceof (addressClass() as new () => unknown) ? (script as { hashBuffer: Buffer }).hashBuffer : Hash.sha256ripemd160(script.toBuffer()))
+    .add(script instanceof addressClass() ? (script as { hashBuffer: Buffer }).hashBuffer : Hash.sha256ripemd160(script.toBuffer()))
     .add(Opcode.OP_EQUAL)
 
   s._network = (script as Script)._network ?? (script as Address).network

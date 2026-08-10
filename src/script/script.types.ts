@@ -46,8 +46,9 @@ export interface ScriptChunk {
 /** What the address helpers return, or false when no address is derivable. */
 export interface ScriptAddressInfo {
   hashBuffer: Buffer
-  type: string
-  network?: NetworkLike
+  /** Only ever 'pubkeyhash' or 'scripthash' — the two forms a script yields. */
+  type: 'pubkeyhash' | 'scripthash'
+  network?: NetworkLike | undefined
 }
 
 export interface Script {

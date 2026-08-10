@@ -39,7 +39,7 @@ const MAXIMUM_ENTROPY_BITS = 512
  * @constructor
  * @param {string|Buffer|Object} arg
  */
-const HDPrivateKey = function HDPrivateKey (this: HDPrivateKey, arg?: any): any {
+const HDPrivateKey = function HDPrivateKey (this: HDPrivateKey, arg?: unknown): any {
   if (arg instanceof HDPrivateKey) {
     return arg
   }
@@ -50,8 +50,8 @@ const HDPrivateKey = function HDPrivateKey (this: HDPrivateKey, arg?: any): any 
     return this._generateRandomly()
   }
 
-  if (Network.get(arg)) {
-    return this._generateRandomly(arg)
+  if (Network.get(arg as NetworkLike)) {
+    return this._generateRandomly(arg as NetworkLike)
   } else if (_.isString(arg) || Buffer.isBuffer(arg)) {
     if ((HDPrivateKey as unknown as HDPrivateKeyConstructor).isValidSerialized(arg)) {
       this._buildFromSerialized(arg as string)
@@ -120,7 +120,7 @@ HDPrivateKey._getDerivationIndexes = function (path: string) {
     return null
   }
 
-  const indexes = steps.slice(1).map(function (step: any) {
+  const indexes = steps.slice(1).map(function (step: string) {
     const isHardened = step.slice(-1) === '\''
     if (isHardened) {
       step = step.slice(0, -1)
@@ -292,7 +292,7 @@ HDPrivateKey.prototype._deriveFromString = function (this: HDPrivateKey, path: s
   }
 
   const indexes = HDPrivateKey._getDerivationIndexes(path)
-  const derived = indexes!.reduce(function (prev: any, index: any) {
+  const derived = indexes!.reduce(function (prev: HDPrivateKey, index: number) {
     return prev._deriveWithNumber(index, null, nonCompliant)
   }, this)
 

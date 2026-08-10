@@ -11,9 +11,10 @@ import cloneDeep = require('clone-deep')
 import type { Interpreter, InterpreterConstructor, InterpreterState, InterpreterFlags, StepInfo, ScriptLimits } from './interpreter.types'
 import type Transaction = require('../transaction')
 import type { Script as ScriptType, ScriptChunk } from './script.types'
+import type { PublicKeyConstructor } from '../publickey.types'
 
 // publickey is in this cycle, so it resolves on demand.
-const publicKeyClass = (): any => require('../publickey')
+const publicKeyClass = (): PublicKeyConstructor => require('../publickey')
 
 // NOTE ON THE `as ScriptChunk` / `as Buffer` CASTS BELOW: the interpreter
 // indexes chunks and the stack constantly, always after an explicit bounds or

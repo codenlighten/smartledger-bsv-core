@@ -1,7 +1,7 @@
 {
   "suite": "chronicle",
   "generatedBy": "0.1.0",
-  "caseCount": 53,
+  "caseCount": 56,
   "cases": {
     "Chronicle opcode numbers as this library defines them": {
       "outcome": "ok",
@@ -707,6 +707,32 @@
             "-1"
           ],
           "verified": false
+        }
+      }
+    },
+    "mainnet: CHRONICLE_ACTIVATION_HEIGHT": {
+      "outcome": "ok",
+      "value": 943816
+    },
+    "mainnet: flags exclude CLTV and CSV": {
+      "outcome": "ok",
+      "value": {
+        "chronicle": true,
+        "cltv": false,
+        "csv": false,
+        "preActivation": false
+      }
+    },
+    "mainnet: timelock scripts verify under mainnetFlags": {
+      "outcome": "ok",
+      "value": {
+        "cltv": {
+          "errstr": "",
+          "verified": true
+        },
+        "csv": {
+          "errstr": "",
+          "verified": true
         }
       }
     },

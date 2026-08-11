@@ -621,7 +621,44 @@ const cases = {
     substrExact: runChronicle(bsv, (s, O) => s.add(Buffer.from('hi')).add(num(bsv, 0)).add(num(bsv, 2)).add(O.OP_SUBSTR)),
     leftTooLong: runChronicle(bsv, (s, O) => s.add(Buffer.from('hi')).add(num(bsv, 9)).add(O.OP_LEFT)),
     rightTooLong: runChronicle(bsv, (s, O) => s.add(Buffer.from('hi')).add(num(bsv, 9)).add(O.OP_RIGHT))
-  })
+  }),
+
+  // --- mainnet consensus helpers --------------------------------------------
+  //
+  // Pinned in the corpus rather than only in mocha because these decide which
+  // scripts this library calls valid, and the failure mode is being STRICTER
+  // than the network — invisible to any test written against the library alone.
+
+  'mainnet: flags exclude CLTV and CSV': (bsv) => {
+    const I = bsv.Script.Interpreter
+    const f = I.mainnetFlags()
+    return {
+      cltv: (f & I.SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY) !== 0,
+      csv: (f & I.SCRIPT_VERIFY_CHECKSEQUENCEVERIFY) !== 0,
+      chronicle: (f & I.SCRIPT_ENABLE_CHRONICLE) !== 0,
+      preActivation: (I.mainnetFlags({ afterChronicle: false }) & I.SCRIPT_ENABLE_CHRONICLE) !== 0
+    }
+  },
+
+  /** Genesis made both NOPs, so mainnet accepts these; the flags would reject them. */
+  'mainnet: timelock scripts verify under mainnetFlags': (bsv) => {
+    const I = bsv.Script.Interpreter
+    const run = (build) => {
+      const i = new I()
+      const s = new bsv.Script()
+      build(s, bsv.Opcode, bsv)
+      const tx = new bsv.Transaction()
+      tx.version = 2
+      const verified = i.verify(new bsv.Script(), s, tx, 0, I.mainnetFlags(), new bsv.crypto.BN(0))
+      return { verified, errstr: i.errstr || '' }
+    }
+    return {
+      cltv: run((s, O) => s.add(num(bsv, 500000000)).add(O.OP_CHECKLOCKTIMEVERIFY).add(O.OP_DROP).add(O.OP_1)),
+      csv: run((s, O) => s.add(num(bsv, 1000)).add(O.OP_CHECKSEQUENCEVERIFY).add(O.OP_DROP).add(O.OP_1))
+    }
+  },
+
+  'mainnet: CHRONICLE_ACTIVATION_HEIGHT': (bsv) => bsv.Script.Interpreter.CHRONICLE_ACTIVATION_HEIGHT
 
 }
 

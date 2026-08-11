@@ -152,6 +152,11 @@ export interface InterpreterConstructor extends InterpreterFlags {
    * not reachable through setLimits at all.
    */
   setLimits: (limits?: ScriptLimits) => InterpreterConstructor
+  /** BSV mainnet consensus flags. Excludes CLTV/CSV — Genesis made both NOPs. */
+  mainnetFlags: (opts?: { afterChronicle?: boolean }) => number
+  /** Applies Genesis limits AND returns mainnet flags. Mutates process-wide state. */
+  useMainnetConsensus: (opts?: { afterChronicle?: boolean, max?: number }) => number
+  CHRONICLE_ACTIVATION_HEIGHT: number
 
   castToBool: (buf: Buffer) => boolean
   _isMinimallyEncoded: (buf: Buffer, nMaxNumSize?: number) => boolean

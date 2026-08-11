@@ -302,6 +302,69 @@ Interpreter.getLimits = function () {
  * @param {object} limits as returned by getLimits()
  * @returns {Interpreter} the Interpreter constructor (for chaining)
  */
+/**
+ * The script-verification flags matching BSV mainnet consensus.
+ *
+ * There is no default flag set — `verify()` falls back to 0, enabling nothing — and that
+ * stays: a validator should state the consensus context it is validating against rather
+ * than inherit one. But leaving callers to assemble the set by hand invites a verdict
+ * that disagrees with the network.
+ *
+ * `afterChronicle` defaults to true: Chronicle activated at block 943,816 and every
+ * output created since is subject to it. Pass false for a pre-activation UTXO, which is
+ * the distinction the node makes — `utxo_after_chronicle` is a property of the OUTPUT
+ * BEING SPENT, not of the chain or the validator.
+ *
+ * CLTV and CSV are deliberately ABSENT. Genesis reverted both to OP_NOP2/OP_NOP3, and
+ * the node ignores their flags once the UTXO is post-Genesis:
+ *
+ *   if (!(flags & SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY) || utxo_after_genesis) {
+ *       // not enabled; treat as a NOP2
+ *
+ * Setting them yields a validator STRICTER than consensus, which is as wrong as a loose
+ * one and much harder to notice: nothing that tests this library against itself can see
+ * it. The flags remain for callers deliberately emulating pre-Genesis rules.
+ *
+ * Limits are NOT flags — they are statics — so this cannot set them. Use
+ * useMainnetConsensus() unless you are managing them yourself.
+ */
+Interpreter.mainnetFlags = function (opts?: { afterChronicle?: boolean }): number {
+  opts = opts ?? {}
+  let flags = Interpreter.SCRIPT_VERIFY_P2SH |
+    Interpreter.SCRIPT_VERIFY_STRICTENC |
+    Interpreter.SCRIPT_VERIFY_DERSIG |
+    Interpreter.SCRIPT_VERIFY_LOW_S |
+    Interpreter.SCRIPT_VERIFY_NULLFAIL |
+    Interpreter.SCRIPT_VERIFY_MINIMALDATA |
+    Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID |
+    Interpreter.SCRIPT_ENABLE_MAGNETIC_OPCODES |
+    Interpreter.SCRIPT_ENABLE_MONOLITH_OPCODES
+  if (opts.afterChronicle !== false) {
+    flags |= Interpreter.SCRIPT_ENABLE_CHRONICLE
+  }
+  return flags
+}
+
+/**
+ * Configure this process for BSV mainnet consensus and return the matching flags.
+ *
+ * Flags are an argument to verify(); limits are process-wide statics. That split is why
+ * mainnetFlags() alone is not enough — it returns mainnet flags while the interpreter
+ * still holds the PRE-Genesis 520/201/10,000 caps, so a 12,801-byte script that mainnet
+ * accepts is rejected with SCRIPT_ERR_SCRIPT_SIZE.
+ *
+ * This is the one call that makes both agree. It MUTATES process-wide state, which is
+ * why it is named `use*` like useGenesisLimits() rather than reading like a getter.
+ */
+Interpreter.useMainnetConsensus = function (opts?: { afterChronicle?: boolean, max?: number }): number {
+  opts = opts ?? {}
+  Interpreter.useGenesisLimits(opts.max)
+  return Interpreter.mainnetFlags(opts)
+}
+
+/** Chronicle activated on BSV mainnet at this height, 2026-04-07. */
+Interpreter.CHRONICLE_ACTIVATION_HEIGHT = 943816
+
 Interpreter.setLimits = function (limits?: ScriptLimits) {
   limits = limits ?? {}
   if (limits.maxScriptElementSize != null) Interpreter.MAX_SCRIPT_ELEMENT_SIZE = limits.maxScriptElementSize

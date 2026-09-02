@@ -1450,7 +1450,7 @@
           "maxOpsPerScript": 2147483647,
           "maxScriptElementSize": 2147483647,
           "maxScriptSize": 2147483647,
-          "maximumElementSize": 2147483647
+          "maximumElementSize": 4
         },
         "before": {
           "maxOpsPerScript": 201,
@@ -1586,8 +1586,8 @@
       "outcome": "ok",
       "value": {
         "SCRIPT_ENABLE_CHRONICLE": 1048576,
-        "SCRIPT_ENABLE_MAGNETIC_OPCODES": 524288,
-        "SCRIPT_ENABLE_MONOLITH_OPCODES": 262144,
+        "SCRIPT_ENABLE_MAGNETIC_OPCODES": 4096,
+        "SCRIPT_ENABLE_MONOLITH_OPCODES": 2048,
         "SCRIPT_ENABLE_REPLAY_PROTECTION": 131072,
         "SCRIPT_ENABLE_SIGHASH_FORKID": 65536,
         "SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY": 512,

@@ -27,11 +27,35 @@ describe('Interpreter post-Genesis limits', function () {
     Interpreter.MAX_OPS_PER_SCRIPT.should.equal(201)
   })
 
-  it('useGenesisLimits() lifts all three caps', function () {
+  // MAXIMUM_ELEMENT_SIZE is no longer among them. It is CScriptNum's max_length,
+  // and since the limits became era-derived it is only the PRE-Genesis fallback —
+  // raising it could not enable post-Genesis arithmetic, only corrupt pre-Genesis
+  // validation.
+  it('useGenesisLimits() lifts the size caps but not the script-number bound', function () {
     Interpreter.useGenesisLimits()
     Interpreter.MAX_SCRIPT_ELEMENT_SIZE.should.equal(0x7fffffff)
-    Interpreter.MAXIMUM_ELEMENT_SIZE.should.equal(0x7fffffff)
     Interpreter.MAX_OPS_PER_SCRIPT.should.equal(0x7fffffff)
+    Interpreter.MAXIMUM_ELEMENT_SIZE.should.equal(4)
+  })
+
+  // The reason it must not be raised, stated as a test: a 5-byte operand is an
+  // overflow before Genesis, and no process-wide call may turn that into an accept.
+  it('cannot be made to accept a pre-Genesis script-number overflow', function () {
+    const overflow = new Script()
+      .add(Buffer.from('1234567890', 'hex'))
+      .add(Buffer.from([2]))
+      .add(Opcode.OP_MUL)
+    const flags = Interpreter.SCRIPT_VERIFY_P2SH | Interpreter.SCRIPT_VERIFY_STRICTENC |
+      Interpreter.SCRIPT_ENABLE_MONOLITH_OPCODES | Interpreter.SCRIPT_ENABLE_MAGNETIC_OPCODES
+    Interpreter.useGenesisLimits()
+    const interp = new Interpreter()
+    interp.verify(new Script(), overflow, new Transaction(), 0, flags).should.equal(false)
+    // Asserted on substance, not on the exact string. @smartledger/bsv normalises
+    // this to SCRIPT_ERR_SCRIPTNUM_OVERFLOW; this port still leaks the raw throw as
+    // SCRIPT_ERR_UNKNOWN_ERROR. That divergence is real and worth closing, but it is
+    // about error normalisation rather than era derivation, so it is recorded here
+    // rather than fixed in the same change.
+    interp.errstr.should.match(/script number overflow|SCRIPTNUM_OVERFLOW/)
   })
 
   // <2^32> <2^32> OP_ADD <2^33> OP_NUMEQUAL  — operands exceed the 4-byte cap.
@@ -53,9 +77,18 @@ describe('Interpreter post-Genesis limits', function () {
     run(bigAdd).should.equal(false)
   })
 
-  it('allows >4-byte arithmetic after useGenesisLimits()', function () {
+  // Post-Genesis arithmetic is reached through the ERA, not through the static.
+  // useGenesisLimits() used to be the only route; it no longer is, and using it for
+  // this would corrupt pre-Genesis validation elsewhere in the same process.
+  it('allows >4-byte arithmetic when the post-Genesis era is asked for', function () {
+    const interp = new Interpreter()
+    interp.verify(new Script(), bigAdd, new Transaction(), 0,
+      Interpreter.SCRIPT_UTXO_AFTER_GENESIS).should.equal(true)
+  })
+
+  it('still rejects it under pre-Genesis rules, whatever the statics say', function () {
     Interpreter.useGenesisLimits()
-    run(bigAdd).should.equal(true)
+    run(bigAdd).should.equal(false)
   })
 
   // 220 OP_NOPs then OP_1 — more non-push opcodes than the 201 cap allows.
@@ -100,13 +133,15 @@ describe('Interpreter post-Genesis limits', function () {
     run(scriptOfSize(20 * 1024)).should.equal(true)
   })
 
-  it('useGenesisLimits raises all four caps, and getLimits/setLimits round-trip', function () {
+  it('useGenesisLimits raises the size caps, and getLimits/setLimits round-trip', function () {
     const before = Interpreter.getLimits()
     before.maxScriptSize.should.equal(10000)
     Interpreter.useGenesisLimits(64 * 1024)
     const after = Interpreter.getLimits()
     after.maxScriptElementSize.should.equal(64 * 1024)
-    after.maximumElementSize.should.equal(64 * 1024)
+    // Not raised — see the note on useGenesisLimits. setLimits() can still set it
+    // explicitly, which is what the round-trip below checks.
+    after.maximumElementSize.should.equal(4)
     after.maxOpsPerScript.should.equal(64 * 1024)
     after.maxScriptSize.should.equal(64 * 1024)
     Interpreter.setLimits(before)

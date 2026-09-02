@@ -31,10 +31,20 @@ export interface InterpreterFlags {
   MAX_OPS_PER_SCRIPT: number
   MAX_SCRIPT_ELEMENT_SIZE: number
   MAX_SCRIPT_SIZE: number
+  /** What a limit reads as once the era removed it. */
+  UNLIMITED: number
+  MAX_SCRIPT_NUM_LENGTH_AFTER_GENESIS: number
+  MAX_SCRIPT_NUM_LENGTH_AFTER_CHRONICLE: number
+  MAX_PUBKEYS_PER_MULTISIG_AFTER_GENESIS: number
   SCRIPT_ENABLE_MAGNETIC_OPCODES: number
   SCRIPT_ENABLE_MONOLITH_OPCODES: number
   SCRIPT_ENABLE_REPLAY_PROTECTION: number
   SCRIPT_ENABLE_CHRONICLE: number
+  /** The node's name for the SCRIPT_ENABLE_CHRONICLE bit. */
+  SCRIPT_CHRONICLE: number
+  SCRIPT_GENESIS: number
+  SCRIPT_UTXO_AFTER_GENESIS: number
+  SCRIPT_UTXO_AFTER_CHRONICLE: number
   SCRIPT_ENABLE_SIGHASH_FORKID: number
   SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY: number
   SCRIPT_VERIFY_CHECKSEQUENCEVERIFY: number
@@ -127,6 +137,20 @@ export interface Interpreter {
   checkSequence: (nSequence: BN) => boolean
 
   /**
+   * Which consensus era this evaluation belongs to, and the limits that follow
+   * from it. Read the SCRIPT_UTXO_AFTER_* flags on the instance, because the node
+   * decides almost everything by the era of the OUTPUT BEING SPENT — an output
+   * made before an upgrade is spent under the old rules forever.
+   */
+  isAfterGenesis: () => boolean
+  isAfterChronicle: () => boolean
+  maxScriptElementSize: () => number
+  maxScriptSize: () => number
+  maxOpsPerScript: () => number
+  maxScriptNumLength: () => number
+  maxPubKeysPerMultisig: () => number
+
+  /**
    * Optional debugging hook, invoked after each step with clones of the
    * stacks. Set by callers (the script debugger); never by the interpreter.
    */
@@ -156,6 +180,11 @@ export interface InterpreterConstructor extends InterpreterFlags {
   mainnetFlags: (opts?: { afterChronicle?: boolean }) => number
   /** Applies Genesis limits AND returns mainnet flags. Mutates process-wide state. */
   useMainnetConsensus: (opts?: { afterChronicle?: boolean, max?: number }) => number
+  /**
+   * The flags verify() uses when a caller passes none. Every bit here is also in
+   * mainnetFlags(); a test asserts that rather than naming individual rules.
+   */
+  currentConsensusFlags: () => number
   CHRONICLE_ACTIVATION_HEIGHT: number
 
   castToBool: (buf: Buffer) => boolean

@@ -229,12 +229,20 @@ Interpreter.prototype.set = function (this: Interpreter, obj: InterpreterState) 
 Interpreter.true = Buffer.from([1])
 Interpreter.false = Buffer.from([])
 
+// The PRE-Genesis caps. Since the limits became era-derived these are the fallback
+// for a caller that sets no era flag, not the answer for every script — the
+// prototype methods further down decide by era. Kept mutable so useGenesisLimits()
+// and setLimits() behave exactly as they did.
 Interpreter.MAX_SCRIPT_ELEMENT_SIZE = 520
 Interpreter.MAXIMUM_ELEMENT_SIZE = 4
-// Maximum number of non-push opcodes per script. Pre-Genesis consensus is 201;
-// post-Genesis BSV removed this limit. Exposed as a constant (instead of a magic
-// number) so applications can opt into post-Genesis rules — e.g. OP_PUSH_TX
-// covenants, which need a few hundred opcodes — without forking the interpreter.
+// Maximum number of non-push opcodes per script, PRE-Genesis; post-Genesis there
+// is no cap and maxOpsPerScript() returns UNLIMITED.
+//
+// Left at Core's 201 rather than BSV's 500 on purpose. @smartledger/bsv uses 500,
+// but this repo is measured against test/data/bitcoind, whose OP_COUNT vectors
+// assert failure at exactly 201 — five of them turn into false accepts at 500.
+// Which corpus is authoritative is a separate question from era derivation, and
+// answering it belongs in its own change, with the post-Genesis SV vectors in hand.
 Interpreter.MAX_OPS_PER_SCRIPT = 201
 // Maximum total serialized script size. Pre-Genesis consensus is 10,000 bytes;
 // post-Genesis BSV removed this limit too. It was previously a literal inside
@@ -242,6 +250,17 @@ Interpreter.MAX_OPS_PER_SCRIPT = 201
 // a large 1Sat Ordinals inscription, for instance — failed SCRIPT_ERR_SCRIPT_SIZE
 // no matter what the caller asked for.
 Interpreter.MAX_SCRIPT_SIZE = 10000
+
+/** What a limit reads as once the era removed it. */
+Interpreter.UNLIMITED = Number.MAX_SAFE_INTEGER
+
+// Genesis and Chronicle raised the script-number width rather than removing it:
+// 4 bytes before Genesis — which is why pre-Genesis contracts cannot do arithmetic
+// on satoshi amounts — then 750KB, then 32MB.
+Interpreter.MAX_SCRIPT_NUM_LENGTH_AFTER_GENESIS = 750000
+Interpreter.MAX_SCRIPT_NUM_LENGTH_AFTER_CHRONICLE = 32000000
+// Genesis raised this one rather than removing it too: the node caps at UINT32_MAX.
+Interpreter.MAX_PUBKEYS_PER_MULTISIG_AFTER_GENESIS = 4294967295
 
 Interpreter.LOCKTIME_THRESHOLD = 500000000
 Interpreter.LOCKTIME_THRESHOLD_BN = new BN(Interpreter.LOCKTIME_THRESHOLD)
@@ -272,7 +291,11 @@ Interpreter.LOCKTIME_THRESHOLD_BN = new BN(Interpreter.LOCKTIME_THRESHOLD)
 Interpreter.useGenesisLimits = function (max?: number) {
   max = max || 0x7fffffff
   Interpreter.MAX_SCRIPT_ELEMENT_SIZE = max
-  Interpreter.MAXIMUM_ELEMENT_SIZE = max
+  // MAXIMUM_ELEMENT_SIZE is deliberately NOT raised. It is CScriptNum's max_length,
+  // and since the limits became era-derived it is only the PRE-Genesis fallback —
+  // raising it could not enable post-Genesis arithmetic (ask for the era instead),
+  // only turn a pre-Genesis overflow into an accept. setLimits() can still set it
+  // explicitly for a caller managing the caps by hand.
   Interpreter.MAX_OPS_PER_SCRIPT = max
   Interpreter.MAX_SCRIPT_SIZE = max
   return Interpreter
@@ -333,16 +356,56 @@ Interpreter.mainnetFlags = function (opts?: { afterChronicle?: boolean }): numbe
   let flags = Interpreter.SCRIPT_VERIFY_P2SH |
     Interpreter.SCRIPT_VERIFY_STRICTENC |
     Interpreter.SCRIPT_VERIFY_DERSIG |
+    // The three signature-encoding rules BSV enforces as CONSENSUS, not as
+    // standardness. Each was broadcast to mainnet in a transaction violating it
+    // and nothing else, and the node answered code 16
+    // `mandatory-script-verify-flag-failed` — as against code 64
+    // `non-mandatory-script-verify-flag`, which it returns for MINIMALDATA,
+    // CLEANSTACK, NULLDUMMY and the upgradable NOPs.
+    Interpreter.SCRIPT_VERIFY_SIGPUSHONLY |
     Interpreter.SCRIPT_VERIFY_LOW_S |
     Interpreter.SCRIPT_VERIFY_NULLFAIL |
     Interpreter.SCRIPT_VERIFY_MINIMALDATA |
     Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID |
     Interpreter.SCRIPT_ENABLE_MAGNETIC_OPCODES |
-    Interpreter.SCRIPT_ENABLE_MONOLITH_OPCODES
+    Interpreter.SCRIPT_ENABLE_MONOLITH_OPCODES |
+    // Genesis is unconditional: it activated in 2020 and cannot be opted out of by
+    // anything still being spent. Without it the limit methods fall back to the
+    // pre-Genesis statics, so a helper named after mainnet applied 2019 rules —
+    // most sharply the 4-byte script-number bound.
+    Interpreter.SCRIPT_GENESIS |
+    Interpreter.SCRIPT_UTXO_AFTER_GENESIS
   if (opts.afterChronicle !== false) {
-    flags |= Interpreter.SCRIPT_ENABLE_CHRONICLE
+    flags |= Interpreter.SCRIPT_ENABLE_CHRONICLE | Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE
   }
   return flags
+}
+
+/**
+ * The flags `verify()` uses when a caller passes none.
+ *
+ * Every bit here must also be in `mainnetFlags()`, and a test asserts exactly that
+ * rather than naming individual rules. The two drifting apart is not hypothetical:
+ * @smartledger/bsv shipped for several versions with LOW_S and NULLFAIL in one
+ * helper and not the other, so the default silently resolved to the weaker of two
+ * answers both meant to be mainnet — and the test that was supposed to guard it
+ * named two of the three rules and missed the third.
+ *
+ * MINIMALDATA, DERSIG and P2SH are deliberately absent. MINIMALDATA measured as
+ * code 64, non-mandatory, so it is relay policy rather than consensus; P2SH does
+ * not apply to an output created after Genesis.
+ */
+Interpreter.currentConsensusFlags = function (): number {
+  return Interpreter.SCRIPT_ENABLE_MONOLITH_OPCODES |
+    Interpreter.SCRIPT_ENABLE_MAGNETIC_OPCODES |
+    Interpreter.SCRIPT_GENESIS |
+    Interpreter.SCRIPT_UTXO_AFTER_GENESIS |
+    Interpreter.SCRIPT_ENABLE_CHRONICLE |
+    Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE |
+    Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID |
+    Interpreter.SCRIPT_VERIFY_SIGPUSHONLY |
+    Interpreter.SCRIPT_VERIFY_LOW_S |
+    Interpreter.SCRIPT_VERIFY_NULLFAIL
 }
 
 /**
@@ -468,11 +531,40 @@ Interpreter.SCRIPT_ENABLE_REPLAY_PROTECTION = (1 << 17)
 
 // Enable new opcodes.
 //
-Interpreter.SCRIPT_ENABLE_MONOLITH_OPCODES = (1 << 18)
+// MOVED from 1<<18 to 1<<11, and MAGNETIC from 1<<19 to 1<<12, to match
+// @smartledger/bsv. Those two bits are where the era flags below live, and a
+// numeric flag word has to mean the same thing in both implementations or
+// cross-checking one against the other compares nothing. Neither name is one the
+// node's own corpus ever uses — the vectors map flags by NAME, and MONOLITH and
+// MAGNETIC are not node flags at all, since those opcodes were restored on BSV in
+// 2018 and are simply enabled. So nothing derived from the corpus moves with them.
+Interpreter.SCRIPT_ENABLE_MONOLITH_OPCODES = (1 << 11)
 
 // Are the Magnetic upgrade opcodes enabled?
 //
-Interpreter.SCRIPT_ENABLE_MAGNETIC_OPCODES = (1 << 19)
+Interpreter.SCRIPT_ENABLE_MAGNETIC_OPCODES = (1 << 12)
+
+// The era flags.
+//
+// The distinction between the pairs matters. SCRIPT_UTXO_AFTER_* describes the
+// OUTPUT BEING SPENT and governs almost every rule, because an output made before
+// an upgrade is spent under the old rules forever. SCRIPT_GENESIS and
+// SCRIPT_CHRONICLE describe the block the spending transaction is in.
+//
+// Without these the interpreter falls back to the pre-Genesis statics, so a
+// validator built from a helper named after mainnet was applying 2019 limits —
+// most sharply the 4-byte script-number bound, where post-Genesis is 750,000 and
+// post-Chronicle 32,000,000.
+Interpreter.SCRIPT_GENESIS = (1 << 18)
+Interpreter.SCRIPT_UTXO_AFTER_GENESIS = (1 << 19)
+
+// The node's name for the SCRIPT_ENABLE_CHRONICLE bit: Chronicle rules apply to
+// the block the spending transaction is in.
+Interpreter.SCRIPT_CHRONICLE = Interpreter.SCRIPT_ENABLE_CHRONICLE
+
+// Was the output being spent created after Chronicle activated? This is what the
+// node gates the restored opcodes on.
+Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE = (1 << 21)
 
 /* Below flags apply in the context of BIP 68 */
 /**
@@ -560,6 +652,67 @@ Interpreter.prototype.checkPubkeyEncoding = function (this: Interpreter, buf: Bu
     return false
   }
   return true
+}
+
+/**
+ * Which consensus era the script being evaluated belongs to.
+ *
+ * The node decides almost everything by the era of the OUTPUT BEING SPENT, so
+ * these read the SCRIPT_UTXO_AFTER_* flags rather than a process-wide setting. A
+ * caller that sets no era flag gets the previous behaviour exactly: the limit
+ * methods below fall back to the mutable statics, so useGenesisLimits() and
+ * setLimits() keep working as they did.
+ */
+Interpreter.prototype.isAfterGenesis = function (this: Interpreter): boolean {
+  return (this.flags & Interpreter.SCRIPT_UTXO_AFTER_GENESIS) !== 0
+}
+
+/**
+ * SCRIPT_ENABLE_CHRONICLE is accepted alongside SCRIPT_UTXO_AFTER_CHRONICLE. The
+ * former is this library's existing opt-in and sits on the node's SCRIPT_CHRONICLE
+ * bit; the latter is what the node actually gates the restored opcodes on. Either
+ * enables them, so existing callers are unaffected.
+ */
+Interpreter.prototype.isAfterChronicle = function (this: Interpreter): boolean {
+  return (this.flags &
+    (Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE | Interpreter.SCRIPT_ENABLE_CHRONICLE)) !== 0
+}
+
+/** Genesis removed this limit; before it, whatever the statics say. */
+Interpreter.prototype.maxScriptElementSize = function (this: Interpreter): number {
+  return this.isAfterGenesis() ? Interpreter.UNLIMITED : Interpreter.MAX_SCRIPT_ELEMENT_SIZE
+}
+
+/** Genesis removed this limit too. */
+Interpreter.prototype.maxScriptSize = function (this: Interpreter): number {
+  return this.isAfterGenesis() ? Interpreter.UNLIMITED : Interpreter.MAX_SCRIPT_SIZE
+}
+
+/** And this one. Note the pre-Genesis figure on BSV is 500, not Core's 201. */
+Interpreter.prototype.maxOpsPerScript = function (this: Interpreter): number {
+  return this.isAfterGenesis() ? Interpreter.UNLIMITED : Interpreter.MAX_OPS_PER_SCRIPT
+}
+
+/**
+ * The widest a script number may be. Four bytes before Genesis, which is why
+ * pre-Genesis contracts cannot do arithmetic on satoshi amounts; Genesis raised it
+ * to 750KB and Chronicle to 32MB.
+ */
+Interpreter.prototype.maxScriptNumLength = function (this: Interpreter): number {
+  if (this.isAfterChronicle()) {
+    return Interpreter.MAX_SCRIPT_NUM_LENGTH_AFTER_CHRONICLE
+  }
+  if (this.isAfterGenesis()) {
+    return Interpreter.MAX_SCRIPT_NUM_LENGTH_AFTER_GENESIS
+  }
+  return Interpreter.MAXIMUM_ELEMENT_SIZE
+}
+
+/** Genesis raised this rather than removing it: the node caps at UINT32_MAX. */
+Interpreter.prototype.maxPubKeysPerMultisig = function (this: Interpreter): number {
+  return this.isAfterGenesis()
+    ? Interpreter.MAX_PUBKEYS_PER_MULTISIG_AFTER_GENESIS
+    : 20
 }
 
 /**
@@ -651,7 +804,7 @@ Interpreter._minimallyEncode = function (buf: Buffer) {
  * bitcoind commit: b5d1b1092998bc95313856d535c632ea5a8f9104
  */
 Interpreter.prototype.evaluate = function (this: Interpreter) {
-  if (this.script!.toBuffer().length > Interpreter.MAX_SCRIPT_SIZE) {
+  if (this.script!.toBuffer().length > this.maxScriptSize()) {
     this.errstr = 'SCRIPT_ERR_SCRIPT_SIZE'
     return false
   }
@@ -845,7 +998,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         // "disabled" is stronger than "unimplemented": a disabled opcode fails
         // the script even in an UNEXECUTED branch, which is why this lives in
         // isOpcodeDisabled rather than in the evaluation switch.
-        if ((self.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+        if (!self.isAfterChronicle()) {
           return true
         }
         break
@@ -912,18 +1065,18 @@ Interpreter.prototype.step = function (this: Interpreter) {
     this.errstr = 'SCRIPT_ERR_UNDEFINED_OPCODE'
     return false
   }
-  if (chunk.buf != null && chunk.buf!.length > Interpreter.MAX_SCRIPT_ELEMENT_SIZE) {
+  if (chunk.buf != null && chunk.buf!.length > this.maxScriptElementSize()) {
     this.errstr = 'SCRIPT_ERR_PUSH_SIZE'
     return false
   }
 
   // Note how Opcode.OP_RESERVED does not count towards the opcode limit.
-  if (opcodenum > Opcode.OP_16 && ++(this.nOpCount) > Interpreter.MAX_OPS_PER_SCRIPT) {
+  if (opcodenum > Opcode.OP_16 && ++(this.nOpCount) > this.maxOpsPerScript()) {
     this.errstr = 'SCRIPT_ERR_OP_COUNT'
     return false
   }
 
-  if (isOpcodeDisabled(opcodenum)) {
+  if (isOpcodeDisabled(opcodenum) && (!this.isAfterGenesis() || fExec)) {
     this.errstr = 'SCRIPT_ERR_DISABLED_OPCODE'
     return false
   }
@@ -1112,7 +1265,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         {
-          const maxNumSize = Interpreter.MAXIMUM_ELEMENT_SIZE
+          const maxNumSize = this.maxScriptNumLength()
           const shiftBn = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, maxNumSize)
           if (shiftBn.isNeg()) {
             this.errstr = 'SCRIPT_ERR_INVALID_NUMBER_RANGE'
@@ -1708,8 +1861,8 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
         }
-        bn1 = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE)
-        bn2 = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE)
+        bn1 = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal, this.maxScriptNumLength())
+        bn2 = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength())
         bn = new BN(0)
 
         switch (opcodenum) {
@@ -1807,9 +1960,9 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
         }
-        bn1 = BN.fromScriptNumBuffer(stacktop(-3), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE)
-        bn2 = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE)
-        var bn3 = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE)
+        bn1 = BN.fromScriptNumBuffer(stacktop(-3), fRequireMinimal, this.maxScriptNumLength())
+        bn2 = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal, this.maxScriptNumLength())
+        var bn3 = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength())
         // bool fValue = (bn2 <= bn1 && bn1 < bn3);
         fValue = (bn2.cmp(bn1) <= 0) && (bn1.cmp(bn3) < 0)
         this.stack.pop() as Buffer
@@ -1923,7 +2076,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
 
         var nKeysCount = BN.fromScriptNumBuffer(stacktop(-i), fRequireMinimal).toNumber()
         // TODO: Keys and opcount are parameterized in client. No magic numbers!
-        if (nKeysCount < 0 || nKeysCount > 20) {
+        if (nKeysCount < 0 || nKeysCount > this.maxPubKeysPerMultisig()) {
           this.errstr = 'SCRIPT_ERR_PUBKEY_COUNT'
           return false
         }
@@ -2060,7 +2213,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
 
         buf1 = stacktop(-2)
         buf2 = stacktop(-1)
-        if (buf1.length + buf2.length > Interpreter.MAX_SCRIPT_ELEMENT_SIZE) {
+        if (buf1.length + buf2.length > this.maxScriptElementSize()) {
           this.errstr = 'SCRIPT_ERR_PUSH_SIZE'
           return false
         }
@@ -2121,7 +2274,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         buf1 = stacktop(-2)
-        n = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE).toNumber()
+        n = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength()).toNumber()
         // ERRORS on out of range; it does not clamp. The node is
         // `if(len < 0 || len > size) return SCRIPT_ERR_INVALID_NUMBER_RANGE`.
         // Clamping made scripts the node rejects succeed here.
@@ -2166,8 +2319,8 @@ Interpreter.prototype.step = function (this: Interpreter) {
         }
         {
           buf1 = stacktop(-3)
-          const subSize = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE).toNumber()
-          const subBegin = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal, Interpreter.MAXIMUM_ELEMENT_SIZE).toNumber()
+          const subSize = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength()).toNumber()
+          const subBegin = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal, this.maxScriptNumLength()).toNumber()
           // ERRORS on out of range, matching
           //   offset < 0 || offset >= size || len < 0 || len > size - offset
           // Note `offset >= size` is strict: a begin index AT the end is an
@@ -2193,7 +2346,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         }
 
         var size = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal).toNumber()
-        if (size > Interpreter.MAX_SCRIPT_ELEMENT_SIZE) {
+        if (size > this.maxScriptElementSize()) {
           this.errstr = 'SCRIPT_ERR_PUSH_SIZE'
           return false
         }
@@ -2251,7 +2404,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         this.stack[this.stack.length - 1] = buf2
 
         // The resulting number must be a valid number.
-        if (!Interpreter._isMinimallyEncoded(buf2)) {
+        if (!Interpreter._isMinimallyEncoded(buf2, this.maxScriptNumLength())) {
           this.errstr = 'SCRIPT_ERR_INVALID_NUMBER_RANGE'
           return false
         }

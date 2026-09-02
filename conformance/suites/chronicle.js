@@ -125,7 +125,13 @@ function runChronicle (bsv, build, version) {
   return {
     verified,
     errstr: i.errstr || '',
-    stack: (i.stack || []).map((b) => bsv.crypto.BN.fromScriptNumBuffer(b).toString())
+    // Read the stack at the era's script-number width, not the default 4 bytes.
+    // OP_LSHIFTNUM under Chronicle legitimately produces results far wider than
+    // that — 4 << 1000 is 126 bytes — and reading them at 4 made the HARNESS throw
+    // where the interpreter had succeeded, recording a fixture that described this
+    // function rather than the library.
+    stack: (i.stack || []).map((b) =>
+      bsv.crypto.BN.fromScriptNumBuffer(b, false, I.MAX_SCRIPT_NUM_LENGTH_AFTER_CHRONICLE).toString())
   }
 }
 

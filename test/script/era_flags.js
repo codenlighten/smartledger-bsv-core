@@ -143,6 +143,52 @@ describe('Interpreter era and mandatory-rule flags', function () {
     })
   })
 
+  // There are two op-count checks. The one in step() is era-derived; the one inside
+  // OP_CHECKMULTISIG, which adds the key count, kept reading the static — so the
+  // line allowing up to UINT32_MAX keys after Genesis was immediately followed by
+  // one refusing them against a cap the era had removed. No vector can catch that:
+  // every OP_COUNT vector in the corpus is pre-Genesis, where the two agree.
+  // Reported upstream as smartledger-bsv#155 and fixed in both.
+  describe('the CHECKMULTISIG op count is the era\'s, not the static', function () {
+    const POST = Interpreter.SCRIPT_UTXO_AFTER_GENESIS | Interpreter.SCRIPT_GENESIS
+
+    // 0-of-N: <dummy> <m=0> then N keys and N. No signature is checked, which is
+    // what isolates the two COUNT rules from everything else CHECKMULTISIG does.
+    function multisig (nKeys, nops, flags) {
+      const key = bsv.PrivateKey.fromRandom().toPublicKey().toBuffer()
+      const unlock = new Script().add(Opcode.OP_0).add(Opcode.OP_0)
+      const lock = new Script()
+      for (let j = 0; j < nops; j++) lock.add(Opcode.OP_NOP)
+      for (let k = 0; k < nKeys; k++) lock.add(key)
+      lock.add(new bsv.crypto.BN(nKeys).toScriptNumBuffer()).add(Opcode.OP_CHECKMULTISIG)
+      const i = new Interpreter()
+      const ok = i.verify(unlock, lock, new Transaction(), 0, flags)
+      return ok ? 'ACCEPT' : i.errstr
+    }
+
+    it('accepts more keys after Genesis than the pre-Genesis cap allowed', function () {
+      // 600 keys is 20,404 bytes and 601 opcodes — over the pre-Genesis 20-key,
+      // 201-op and 10,000-byte caps, all three of which Genesis removed or raised.
+      multisig(600, 0, POST).should.equal('ACCEPT')
+    })
+
+    it('still enforces the op count before Genesis', function () {
+      // 190 NOPs + 20 keys + CHECKMULTISIG = 211 ops against this repo's
+      // pre-Genesis limit of 201, in well under the 10,000-byte size cap, so the
+      // size cap cannot be what rejects it.
+      multisig(20, 190, 0).should.equal('SCRIPT_ERR_OP_COUNT')
+      multisig(20, 0, 0).should.equal('ACCEPT')
+    })
+
+    it('still enforces the pre-Genesis 20-key cap', function () {
+      multisig(21, 0, 0).should.equal('SCRIPT_ERR_PUBKEY_COUNT')
+    })
+
+    it('lifts the op count after Genesis, not just the key count', function () {
+      multisig(20, 190, POST).should.equal('ACCEPT')
+    })
+  })
+
   // BSV enforces these three as MANDATORY, not as standardness. Each was broadcast
   // to mainnet in a transaction violating it and nothing else, and the node
   // answered code 16 `mandatory-script-verify-flag-failed` — as against code 64

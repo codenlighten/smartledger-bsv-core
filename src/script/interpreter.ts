@@ -2081,7 +2081,14 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         this.nOpCount += nKeysCount
-        if (this.nOpCount > Interpreter.MAX_OPS_PER_SCRIPT) {
+        // The era's cap, not the static. This is the second of the two op-count
+        // checks; leaving it on the static meant the line just above, which allows
+        // up to UINT32_MAX keys after Genesis, was immediately followed by one
+        // refusing them against a cap the era had removed. A validator STRICTER
+        // than consensus, which is the harder kind to notice, and one no vector can
+        // catch: every OP_COUNT vector in the corpus is pre-Genesis, where the
+        // static and the era agree. Reported upstream as smartledger-bsv#155.
+        if (this.nOpCount > this.maxOpsPerScript()) {
           this.errstr = 'SCRIPT_ERR_OP_COUNT'
           return false
         }

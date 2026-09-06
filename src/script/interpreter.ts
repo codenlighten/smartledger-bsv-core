@@ -262,6 +262,27 @@ Interpreter.MAX_SCRIPT_NUM_LENGTH_AFTER_CHRONICLE = 32000000
 // Genesis raised this one rather than removing it too: the node caps at UINT32_MAX.
 Interpreter.MAX_PUBKEYS_PER_MULTISIG_AFTER_GENESIS = 4294967295
 
+// Maximum combined size of the main and alt stacks, in ELEMENTS. Pre-Genesis
+// consensus is 1000; post-Genesis BSV removed the element COUNT and replaced it
+// with a bound on the memory the two stacks occupy, so a script is limited by
+// what it uses rather than by how it is divided up.
+Interpreter.MAX_STACK_SIZE = 1000
+
+// UNLIMITED, because post-Genesis CONSENSUS is unbounded. The node's 100 MB is
+// -maxstackmemoryusagepolicy, a RELAY setting, and applying a relay setting here
+// would refuse scripts the network accepts. Assign STACK_MEMORY_USAGE_POLICY, or
+// any ceiling, to opt in — unbounded means a hostile script can allocate until
+// the process runs out of memory, the same trade useGenesisLimits(max) documents.
+Interpreter.MAX_STACK_MEMORY_USAGE_AFTER_GENESIS = Interpreter.UNLIMITED
+
+/** The node's -maxstackmemoryusagepolicy default. Relay policy, not consensus. */
+Interpreter.STACK_MEMORY_USAGE_POLICY = 100 * 1024 * 1024
+
+// Charged per element on top of its bytes: the container is not free either.
+// Only consulted once a caller has set a ceiling. 32 is deliberately
+// conservative; a bare std::vector<uint8_t> is 24 bytes on the common 64-bit ABIs.
+Interpreter.STACK_ELEMENT_OVERHEAD = 32
+
 Interpreter.LOCKTIME_THRESHOLD = 500000000
 Interpreter.LOCKTIME_THRESHOLD_BN = new BN(Interpreter.LOCKTIME_THRESHOLD)
 
@@ -716,6 +737,54 @@ Interpreter.prototype.maxPubKeysPerMultisig = function (this: Interpreter): numb
 }
 
 /**
+ * How many elements the two stacks may hold between them. Genesis removed this
+ * cap the same way it removed the element size, script size and opcode caps.
+ */
+Interpreter.prototype.maxStackSize = function (this: Interpreter): number {
+  return this.isAfterGenesis() ? Interpreter.UNLIMITED : Interpreter.MAX_STACK_SIZE
+}
+
+/**
+ * What replaced it after Genesis: a bound on the memory the two stacks occupy
+ * rather than on how many pieces that memory is divided into. UNLIMITED in both
+ * eras by default, since post-Genesis consensus does not cap it.
+ */
+Interpreter.prototype.maxStackMemoryUsage = function (this: Interpreter): number {
+  return this.isAfterGenesis()
+    ? Interpreter.MAX_STACK_MEMORY_USAGE_AFTER_GENESIS
+    : Interpreter.UNLIMITED
+}
+
+/** Bytes held across both stacks, each element charged its container overhead. */
+Interpreter.prototype.stackMemoryUsage = function (this: Interpreter): number {
+  const overhead = Interpreter.STACK_ELEMENT_OVERHEAD
+  let total = (this.stack.length + this.altstack.length) * overhead
+  for (let i = 0; i < this.stack.length; i++) total += this.stack[i]!.length
+  for (let i = 0; i < this.altstack.length; i++) total += this.altstack[i]!.length
+  return total
+}
+
+/**
+ * The stack limits, applied where the node applies them: after EVERY opcode.
+ *
+ * Checking once at the end of the script was a false accept in the direction that
+ * costs money — a script that piles up 1,001 elements and drops back to one before
+ * it finishes passed here and is rejected by the network.
+ *
+ * Returns an error string, or null.
+ */
+Interpreter.prototype.checkStackLimits = function (this: Interpreter): string | null {
+  if (this.stack.length + this.altstack.length > this.maxStackSize()) {
+    return 'SCRIPT_ERR_STACK_SIZE'
+  }
+  const memoryCap = this.maxStackMemoryUsage()
+  if (memoryCap !== Interpreter.UNLIMITED && this.stackMemoryUsage() > memoryCap) {
+    return 'SCRIPT_ERR_STACK_SIZE'
+  }
+  return null
+}
+
+/**
   *
   * Check the buffer is minimally encoded (see https://github.com/bitcoincashorg/spec/blob/master/may-2018-reenabled-opcodes.md#op_bin2num)
   *
@@ -817,11 +886,17 @@ Interpreter.prototype.evaluate = function (this: Interpreter) {
         return false
       }
       this._callbackStep(thisStep)
+      // Where the node checks it: after each opcode, not once at the end.
+      const limitErr = this.checkStackLimits()
+      if (limitErr != null) {
+        this.errstr = limitErr
+        return false
+      }
     }
 
-    // Size limits
-    if (this.stack.length + this.altstack.length > 1000) {
-      this.errstr = 'SCRIPT_ERR_STACK_SIZE'
+    const finalErr = this.checkStackLimits()
+    if (finalErr != null) {
+      this.errstr = finalErr
       return false
     }
   } catch (e) {

@@ -118,11 +118,15 @@ describe('Interpreter post-Genesis limits', function () {
     Interpreter.MAX_SCRIPT_SIZE.should.equal(10000)
   })
 
-  it('rejects a >10 KB script under default limits', function () {
+  // Stated explicitly rather than left to the default, which now resolves to current
+  // mainnet: post-Genesis the size cap is gone, so a default-flags run would accept
+  // this and the test would be measuring nothing. `flags = 0` IS the pre-Genesis
+  // context, which is what this asserts.
+  it('rejects a >10 KB script under pre-Genesis rules', function () {
     Interpreter.useGenesisLimits() // lift element/ops caps so SIZE is what is under test
     Interpreter.MAX_SCRIPT_SIZE = 10000 // ...but keep the pre-Genesis size cap
     const interp = new Interpreter()
-    interp.verify(new Script(), scriptOfSize(20 * 1024)).should.equal(false)
+    interp.verify(new Script(), scriptOfSize(20 * 1024), new Transaction(), 0, 0).should.equal(false)
     interp.errstr.should.equal('SCRIPT_ERR_SCRIPT_SIZE')
   })
 

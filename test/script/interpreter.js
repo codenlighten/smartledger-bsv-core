@@ -76,6 +76,15 @@ Script.fromBitcoindString = function (str) {
 }
 
 describe('Interpreter', function () {
+  // Some tests exercise interpreter MECHANICS — the step listener, a no-op opcode —
+  // with unlocking scripts that contain non-push opcodes. verify() now defaults to
+  // current mainnet, which refuses those outright (SIGPUSHONLY is consensus on BSV),
+  // so the default flag word would fail them for a reason unrelated to what they
+  // are named for. FORKID goes too: these scripts carry no signature, and it would
+  // demand an input amount that means nothing here.
+  const MECHANICS = Interpreter.currentConsensusFlags() &
+    ~(Interpreter.SCRIPT_VERIFY_SIGPUSHONLY | Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID)
+
   it('should make a new interp', function () {
     const interp = new Interpreter();
     (interp instanceof Interpreter).should.equal(true)
@@ -130,7 +139,7 @@ describe('Interpreter', function () {
       verified.should.equal(false)
       verified = Interpreter().verify(Script('OP_0'), Script('OP_1'))
       verified.should.equal(true)
-      verified = Interpreter().verify(Script('OP_CODESEPARATOR'), Script('OP_1'))
+      verified = Interpreter().verify(Script('OP_CODESEPARATOR'), Script('OP_1'), undefined, undefined, MECHANICS)
       verified.should.equal(true)
       verified = Interpreter().verify(Script(''), Script('OP_DEPTH OP_0 OP_EQUAL'))
       verified.should.equal(true)
@@ -181,7 +190,7 @@ describe('Interpreter', function () {
       si.stepListener = function (step) {
         debugCount += 1
       }
-      si.verify(Script('OP_1 OP_2 OP_ADD'), Script('OP_3 OP_EQUAL'))
+      si.verify(Script('OP_1 OP_2 OP_ADD'), Script('OP_3 OP_EQUAL'), undefined, undefined, MECHANICS)
       si.errstr.should.equal('')
       // two scripts. first one has 3 instructions. second one has 2 instructions
       debugCount.should.equal(3 + 2)
@@ -191,7 +200,7 @@ describe('Interpreter', function () {
       si.stepListener = function (step) {
         throw new Error('This error is expected.')
       }
-      si.verify(Script('OP_1 OP_2 OP_ADD'), Script(''))
+      si.verify(Script('OP_1 OP_2 OP_ADD'), Script(''), undefined, undefined, MECHANICS)
       const result = [...si.stack.pop()]
       result.should.to.deep.equal([3])
       si.errstr.should.equal('')
@@ -200,7 +209,7 @@ describe('Interpreter', function () {
     it('script debugger should fire and not cause an error', function () {
       const si = Interpreter()
       si.stepListener = debugScript
-      si.verify(Script('OP_1 OP_2 OP_ADD'), Script('OP_3 OP_EQUAL'))
+      si.verify(Script('OP_1 OP_2 OP_ADD'), Script('OP_3 OP_EQUAL'), undefined, undefined, MECHANICS)
       si.errstr.should.equal('')
     })
     it('script debugger should make copies of stack', function () {

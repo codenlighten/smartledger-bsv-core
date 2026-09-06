@@ -69,7 +69,18 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
     nin = 0
   }
   if (_.isUndefined(flags)) {
-    flags = 0
+    // Current mainnet, not 2019. Defaulting to 0 meant a caller who stated no
+    // consensus context got the PRE-GENESIS one — the 4-byte script number, the
+    // 520-byte element, the 1000-element stack, OP_RETURN invalidating outright,
+    // and none of the three signature rules BSV enforces as mandatory. That is not
+    // a neutral default; it is a specific and obsolete answer, and it made the same
+    // verify() call mean different things here and in @smartledger/bsv.
+    //
+    // FORKID is stripped when no amount is given, because the digest cannot be
+    // computed without one and the alternative is throwing at a caller who asked
+    // for nothing in particular.
+    flags = Interpreter.currentConsensusFlags()
+    if (satoshisBN == null) flags &= ~Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID
   }
 
   // If FORKID is enabled, we also ensure strict encoding.

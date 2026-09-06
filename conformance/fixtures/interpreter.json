@@ -1409,15 +1409,15 @@
     "evaluate OP_RETURN halts": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_OP_RETURN",
+        "errstr": "SCRIPT_ERR_EVAL_FALSE_NO_RESULT",
         "ok": false
       }
     },
     "evaluate disabled opcode": {
       "outcome": "ok",
       "value": {
-        "errstr": "SCRIPT_ERR_DISABLED_OPCODE",
-        "ok": false
+        "errstr": "",
+        "ok": true
       }
     },
     "evaluate empty scripts": {

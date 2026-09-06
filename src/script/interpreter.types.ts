@@ -36,6 +36,12 @@ export interface InterpreterFlags {
   MAX_SCRIPT_NUM_LENGTH_AFTER_GENESIS: number
   MAX_SCRIPT_NUM_LENGTH_AFTER_CHRONICLE: number
   MAX_PUBKEYS_PER_MULTISIG_AFTER_GENESIS: number
+  MAX_STACK_SIZE: number
+  /** UNLIMITED: post-Genesis consensus does not bound stack memory. */
+  MAX_STACK_MEMORY_USAGE_AFTER_GENESIS: number
+  /** The node's -maxstackmemoryusagepolicy default. Relay policy, not consensus. */
+  STACK_MEMORY_USAGE_POLICY: number
+  STACK_ELEMENT_OVERHEAD: number
   SCRIPT_ENABLE_MAGNETIC_OPCODES: number
   SCRIPT_ENABLE_MONOLITH_OPCODES: number
   SCRIPT_ENABLE_REPLAY_PROTECTION: number
@@ -149,6 +155,11 @@ export interface Interpreter {
   maxOpsPerScript: () => number
   maxScriptNumLength: () => number
   maxPubKeysPerMultisig: () => number
+  maxStackSize: () => number
+  maxStackMemoryUsage: () => number
+  stackMemoryUsage: () => number
+  /** The stack limits, applied after every opcode as the node applies them. */
+  checkStackLimits: () => string | null
 
   /**
    * Optional debugging hook, invoked after each step with clones of the

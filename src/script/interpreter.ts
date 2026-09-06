@@ -209,6 +209,12 @@ Interpreter.prototype.initialize = function (this: Interpreter, obj?: Interprete
   this.vfExec = []
   this.errstr = ''
   this.flags = 0
+  // Genesis restored OP_RETURN's original meaning. `returned` marks a TOP-LEVEL
+  // one, which ends the script; `nonTopLevelReturnAfterGenesis` marks one inside a
+  // conditional, which suppresses execution while the conditional grammar is still
+  // checked through to the end.
+  this.returned = false
+  this.nonTopLevelReturnAfterGenesis = false
 }
 
 Interpreter.prototype.set = function (this: Interpreter, obj: InterpreterState) {
@@ -224,6 +230,11 @@ Interpreter.prototype.set = function (this: Interpreter, obj: InterpreterState) 
   this.vfExec = obj.vfExec || this.vfExec
   this.errstr = obj.errstr || this.errstr
   this.flags = typeof obj.flags !== 'undefined' ? obj.flags : this.flags
+  this.returned = typeof obj.returned !== 'undefined' ? obj.returned : this.returned
+  this.nonTopLevelReturnAfterGenesis =
+    typeof obj.nonTopLevelReturnAfterGenesis !== 'undefined'
+      ? obj.nonTopLevelReturnAfterGenesis
+      : this.nonTopLevelReturnAfterGenesis
 }
 
 Interpreter.true = Buffer.from([1])
@@ -886,6 +897,12 @@ Interpreter.prototype.evaluate = function (this: Interpreter) {
         return false
       }
       this._callbackStep(thisStep)
+      if (this.returned) {
+        // A top-level OP_RETURN after Genesis: the script is over and the top
+        // stack item decides. Nothing after it is read, so an unbalanced
+        // conditional or an invalid opcode beyond this point is not an error.
+        return true
+      }
       // Where the node checks it: after each opcode, not once at the end.
       const limitErr = this.checkStackLimits()
       if (limitErr != null) {
@@ -1118,7 +1135,6 @@ Interpreter.prototype.step = function (this: Interpreter) {
   const fRequireMinimal = (this.flags & Interpreter.SCRIPT_VERIFY_MINIMALDATA) !== 0
 
   // bool fExec = !count(vfExec.begin(), vfExec.end(), false);
-  const fExec = (this.vfExec.indexOf(false) === -1)
   // One declaration for the whole opcode switch, as in the original. The
   // definite-assignment assertions say what the switch guarantees: each case
   // assigns before it reads. They are erased, so an unassigned read still
@@ -1142,6 +1158,13 @@ Interpreter.prototype.step = function (this: Interpreter) {
   const chunk = this.script!.chunks[this.pc] as ScriptChunk
   this.pc++
   const opcodenum = chunk.opcodenum
+  // bool fExec = !count(vfExec.begin(), vfExec.end(), false);
+  //
+  // Computed after the opcode is read, because it depends on it: once an OP_RETURN
+  // has been seen inside a conditional after Genesis, nothing but a further
+  // OP_RETURN executes, while the conditional grammar is still checked to the end.
+  const fExec = (this.vfExec.indexOf(false) === -1) &&
+    (!this.nonTopLevelReturnAfterGenesis || opcodenum === Opcode.OP_RETURN)
   if (_.isUndefined(opcodenum)) {
     this.errstr = 'SCRIPT_ERR_UNDEFINED_OPCODE'
     return false
@@ -1532,6 +1555,21 @@ Interpreter.prototype.step = function (this: Interpreter) {
         break
 
       case Opcode.OP_RETURN:
+        if (this.isAfterGenesis()) {
+          if (this.vfExec.length === 0) {
+            // Genesis restored OP_RETURN's original meaning: it terminates the
+            // script and the top stack item decides validity. The remainder cannot
+            // affect the outcome, even if it holds unbalanced conditionals or
+            // invalid opcodes — which is what makes OP_FALSE OP_RETURN <data>
+            // outputs safe to carry arbitrary bytes.
+            this.returned = true
+            break
+          }
+          // Inside a conditional, suppress the rest but keep checking grammar.
+          this.nonTopLevelReturnAfterGenesis = true
+          break
+        }
+        // Before Genesis, an OP_RETURN alone invalidates the script.
         this.errstr = 'SCRIPT_ERR_OP_RETURN'
         return false
         // break // unreachable

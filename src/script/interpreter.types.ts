@@ -89,6 +89,8 @@ export interface InterpreterState {
   vfExec?: boolean[] | undefined
   errstr?: string | undefined
   flags?: number | undefined
+  returned?: boolean | undefined
+  nonTopLevelReturnAfterGenesis?: boolean | undefined
   script?: Script | undefined
   tx?: Transaction | undefined
   nin?: number | undefined
@@ -125,6 +127,10 @@ export interface Interpreter {
   vfExec: boolean[]
   errstr: string
   flags: number
+  /** A top-level OP_RETURN after Genesis ended the script. */
+  returned: boolean
+  /** An OP_RETURN inside a conditional after Genesis: suppress, but keep parsing. */
+  nonTopLevelReturnAfterGenesis: boolean
 
   script?: Script | undefined
   tx?: Transaction | undefined

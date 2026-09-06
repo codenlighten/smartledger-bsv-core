@@ -50,12 +50,10 @@ describe('Interpreter post-Genesis limits', function () {
     Interpreter.useGenesisLimits()
     const interp = new Interpreter()
     interp.verify(new Script(), overflow, new Transaction(), 0, flags).should.equal(false)
-    // Asserted on substance, not on the exact string. @smartledger/bsv normalises
-    // this to SCRIPT_ERR_SCRIPTNUM_OVERFLOW; this port still leaks the raw throw as
-    // SCRIPT_ERR_UNKNOWN_ERROR. That divergence is real and worth closing, but it is
-    // about error normalisation rather than era derivation, so it is recorded here
-    // rather than fixed in the same change.
-    interp.errstr.should.match(/script number overflow|SCRIPTNUM_OVERFLOW/)
+    // The exact code the node uses. This asserted only on substance while the port
+    // still flattened the throw into SCRIPT_ERR_UNKNOWN_ERROR; that divergence
+    // against @smartledger/bsv is now closed, so the assertion can be exact.
+    interp.errstr.should.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
   })
 
   // <2^32> <2^32> OP_ADD <2^33> OP_NUMEQUAL  — operands exceed the 4-byte cap.

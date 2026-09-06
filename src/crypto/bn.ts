@@ -196,9 +196,31 @@ BN.prototype.toSM = function (this: BN, opts?: { endian?: 'big' | 'little' }): B
  * @param {boolean} fRequireMinimal Whether to require minimal size encoding.
  * @param {number} size The maximum size.
  */
+/**
+ * An error carrying the node's own result code for the failure.
+ *
+ * Script number decoding fails for two consensus reasons, and both are named in
+ * the node's script vectors — SCRIPT_ERR_SCRIPTNUM_OVERFLOW and
+ * SCRIPT_ERR_SCRIPTNUM_MINENCODE. This layer knows which one it hit and the
+ * interpreter's evaluator is where it has to be reported, so the code travels on
+ * the error rather than being guessed from its message. An error with no
+ * `scriptErr` really is unknown to the interpreter and is still reported as such.
+ *
+ * Without this, both arrived at the evaluator's catch and were flattened into
+ * SCRIPT_ERR_UNKNOWN_ERROR. The script failed either way, so the accept/reject
+ * vectors could not see the difference — only a run comparing error CODES can.
+ */
+function scriptNumError (message: string, scriptErr: string): Error {
+  const err = new Error(message) as Error & { scriptErr?: string }
+  err.scriptErr = scriptErr
+  return err
+}
+
 BN.fromScriptNumBuffer = function (buf: Buffer, fRequireMinimal?: boolean, size?: number): BN {
   const nMaxNumSize = size || 4
-  $.checkArgument(buf.length <= nMaxNumSize, new Error('script number overflow'))
+  if (buf.length > nMaxNumSize) {
+    throw scriptNumError('script number overflow', 'SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+  }
   if (fRequireMinimal && buf.length > 0) {
     // Check that the number is encoded with the minimum possible
     // number of bytes.
@@ -213,7 +235,8 @@ BN.fromScriptNumBuffer = function (buf: Buffer, fRequireMinimal?: boolean, size?
       // is +-255, which encode to 0xff00 and 0xff80 respectively.
       // (big-endian).
       if (buf.length <= 1 || ((buf[buf.length - 2] as number) & 0x80) === 0) {
-        throw new Error('non-minimally encoded script number')
+        throw scriptNumError('non-minimally encoded script number',
+          'SCRIPT_ERR_SCRIPTNUM_MINENCODE')
       }
     }
   }

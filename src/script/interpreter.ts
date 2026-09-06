@@ -900,7 +900,13 @@ Interpreter.prototype.evaluate = function (this: Interpreter) {
       return false
     }
   } catch (e) {
-    this.errstr = 'SCRIPT_ERR_UNKNOWN_ERROR: ' + e
+    // An error that knows the node's result code reports it. Script number
+    // decoding is the case that matters: the corpus's rejected vectors expect
+    // SCRIPTNUM_OVERFLOW or SCRIPTNUM_MINENCODE, and every one of them used to
+    // arrive here and be flattened into UNKNOWN_ERROR. The script failed either
+    // way, so an accept/reject comparison could not see it — only --errors=full.
+    const scriptErr = (e as { scriptErr?: string }).scriptErr
+    this.errstr = scriptErr ?? ('SCRIPT_ERR_UNKNOWN_ERROR: ' + String(e))
     return false
   }
 

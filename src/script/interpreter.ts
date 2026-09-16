@@ -869,6 +869,9 @@ Interpreter._minimallyEncode = function (buf: Buffer) {
   }
 
   // We are not minimally encoded, we need to figure out how much to trim.
+  // Work on a copy: the argument can be a stack element that is also the
+  // script's push data or a shared constant.
+  buf = Buffer.from(buf)
   for (let i = buf.length - 1; i > 0; i--) {
     // We found a non zero byte, time to encode.
     if (buf[i - 1]! !== 0) {
@@ -1819,40 +1822,48 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
 
-        // To avoid allocating, we modify vch1 in place.
+        // Into a new buffer, never in place: an operand can be the script's
+        // own push data, an OP_SPLIT view of it, or the shared Interpreter.true
+        // (and both operands can be that same buffer). Writing into it
+        // rewrote the script and corrupted TRUE for every later evaluation.
+        buf = Buffer.alloc(buf1.length)
         switch (opcodenum) {
           case Opcode.OP_AND:
             for (let i = 0; i < buf1.length; i++) {
-              buf1[i] = (buf1[i] as number) & (buf2[i] as number)
+              buf[i] = (buf1[i] as number) & (buf2[i] as number)
             }
             break
           case Opcode.OP_OR:
             for (let i = 0; i < buf1.length; i++) {
-              buf1[i] = (buf1[i] as number) | (buf2[i] as number)
+              buf[i] = (buf1[i] as number) | (buf2[i] as number)
             }
             break
           case Opcode.OP_XOR:
             for (let i = 0; i < buf1.length; i++) {
-              buf1[i] = (buf1[i] as number) ^ (buf2[i] as number)
+              buf[i] = (buf1[i] as number) ^ (buf2[i] as number)
             }
             break
           default:
             break
         }
 
-        // And pop vch2.
         this.stack.pop() as Buffer
+        this.stack[this.stack.length - 1] = buf
         break
 
       case Opcode.OP_INVERT:
         // (x -- out)
         if (this.stack.length < 1) {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
+          return false
         }
-        buf = stacktop(-1)
-        for (let i = 0; i < buf.length; i++) {
-          buf[i] = ~(buf[i] as number)
+        // A new buffer, for the same reason as OP_AND above.
+        buf1 = stacktop(-1)
+        buf = Buffer.alloc(buf1.length)
+        for (let i = 0; i < buf1.length; i++) {
+          buf[i] = ~(buf1[i] as number) & 0xff
         }
+        this.stack[this.stack.length - 1] = buf
         break
 
       case Opcode.OP_LSHIFT:
@@ -2510,6 +2521,9 @@ Interpreter.prototype.step = function (this: Interpreter) {
 
         var signbit = 0x00
         if (rawnum.length > 0) {
+          // A copy before clearing the sign bit: rawnum can still be the
+          // operand itself when it was already minimally encoded.
+          rawnum = Buffer.from(rawnum)
           // Guarded by `rawnum.length > 0` immediately above.
           signbit = (rawnum[rawnum.length - 1] as number) & 0x80
           rawnum[rawnum.length - 1] = (rawnum[rawnum.length - 1] as number) & 0x7f

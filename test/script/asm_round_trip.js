@@ -132,4 +132,63 @@ describe('Script text round trip', function () {
     ok.should.equal(false)
     interp.errstr.should.equal('SCRIPT_ERR_BAD_OPCODE')
   })
+
+  // An empty push encoded with OP_PUSHDATA1/2/4 (4c00, 4d0000, 4e00000000). toASM wrote
+  // nothing for it, dropping the push: 514c0051 read back as 5151, one element fewer.
+  // toString wrote a bare OP_PUSHDATA1, which fromString could not read. Reported in
+  // codenlighten/scriptmin#4.
+  describe('an empty push encoded with OP_PUSHDATA', function () {
+    ;['4c00', '4d0000', '4e00000000'].forEach(function (push) {
+      const hex = '51' + push + '51'
+
+      it(push + ' keeps its push through ASM, written minimally as 0', function () {
+        const s = Script.fromHex(hex)
+        s.toASM().should.equal('OP_1 0 OP_1')
+        Script.fromASM(s.toASM()).toHex().should.equal('510051')
+      })
+
+      it(push + ' round-trips exactly through toString', function () {
+        const s = Script.fromHex(hex)
+        s.toString().should.equal('OP_1 ' + Opcode(parseInt(push.slice(0, 2), 16)).toString() + ' 0 0x OP_1')
+        Script.fromString(s.toString()).toHex().should.equal(hex)
+      })
+    })
+  })
+
+  // Every push encoding, empty or not, minimal or not. toString must return the exact
+  // bytes; ASM, which cannot say how data was pushed, must return the same pushes in
+  // minimal form, so the script does the same thing.
+  it('round-trips every push encoding: exactly through toString, minimally through ASM', function () {
+    function minimal (script) {
+      const out = new Script()
+      script.chunks.forEach(function (c) {
+        if (c.buf) out.add(c.buf)
+        else out.add(c.opcodenum)
+      })
+      return out.toHex()
+    }
+    const sizes = [0, 1, 75, 76, 255, 256, 300]
+    const encodings = [
+      function (d) { return d.length > 0 && d.length < 76 ? Buffer.concat([Buffer.from([d.length]), d]) : null },
+      function (d) { return d.length < 256 ? Buffer.concat([Buffer.from([0x4c, d.length]), d]) : null },
+      function (d) { const h = Buffer.alloc(3); h[0] = 0x4d; h.writeUInt16LE(d.length, 1); return Buffer.concat([h, d]) },
+      function (d) { const h = Buffer.alloc(5); h[0] = 0x4e; h.writeUInt32LE(d.length, 1); return Buffer.concat([h, d]) }
+    ]
+    let checked = 0
+    sizes.forEach(function (n) {
+      encodings.forEach(function (enc) {
+        const push = enc(Buffer.alloc(n, 0x5a))
+        if (!push) return
+        const buf = Buffer.concat([Buffer.from([0x51]), push, Buffer.from([0x87])])
+        const s = Script.fromBuffer(buf)
+        Script.fromString(s.toString()).toHex().should.equal(buf.toString('hex'), 'string, ' + push.slice(0, 5).toString('hex'))
+        Script.fromASM(s.toASM()).toHex().should.equal(minimal(s), 'ASM, ' + push.slice(0, 5).toString('hex'))
+        Script.fromASM(s.toASM()).chunks.length.should.equal(s.chunks.length)
+        checked++
+      })
+    })
+    // 7 sizes by 4 encodings, less the 7 an encoding cannot express (a direct push of 0 or
+    // of 76+ bytes, OP_PUSHDATA1 of 256+).
+    checked.should.equal(21)
+  })
 })

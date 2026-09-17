@@ -412,8 +412,10 @@ describe('Interpreter', function () {
   describe('#Empty and null script', function () {
     it('Empty buffer should have value 0x00 in script', function () {
       const s = new Script().add(Buffer.from([]))
-      // script does not render anything so it appears invisible
-      s.toString().should.equal('')
+      // The chunk serializes to 0x00, so it is written as OP_0. It used to be written as
+      // nothing at all, and the text read back as an empty script.
+      s.toString().should.equal('OP_0')
+      Script.fromString(s.toString()).toHex().should.equal(s.toHex())
       // yet there is a script chunk there
       s.chunks.length.should.equal(1)
       s.chunks[0].opcodenum.should.equal(0)

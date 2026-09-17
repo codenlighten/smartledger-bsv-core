@@ -323,9 +323,10 @@ Script.prototype._chunkToString = function (this: Script, chunk: ScriptChunk, ty
     }
   } else {
     // data chunk
-    if (!asm && (opcodenum === Opcode.OP_PUSHDATA1 ||
+    const pushdata = opcodenum === Opcode.OP_PUSHDATA1 ||
       opcodenum === Opcode.OP_PUSHDATA2 ||
-      opcodenum === Opcode.OP_PUSHDATA4)) {
+      opcodenum === Opcode.OP_PUSHDATA4
+    if (!asm && pushdata) {
       str = str + ' ' + Opcode(opcodenum).toString()
     }
     if (chunk.len != null && chunk.len > 0) {
@@ -334,6 +335,17 @@ Script.prototype._chunkToString = function (this: Script, chunk: ScriptChunk, ty
       } else {
         str = str + ' ' + chunk.len + ' ' + '0x' + chunk.buf.toString('hex')
       }
+    } else if (asm) {
+      // An empty push, however it was encoded (4c00 as well as 00). ASM writes pushes
+      // in their minimal form, and the minimal empty push is OP_0. Writing nothing
+      // dropped the push, so 514c0051 read back as 5151: one element fewer on the stack.
+      str = str + ' 0'
+    } else if (pushdata) {
+      // OP_PUSHDATA1 0 0x, which fromString reads back as 4c00. A bare OP_PUSHDATA1
+      // made fromString throw, or take the next token as the length.
+      str = str + ' 0 0x'
+    } else {
+      str = str + ' OP_0'
     }
   }
   return str

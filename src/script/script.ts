@@ -151,9 +151,26 @@ Script.prototype.toBuffer = function (this: Script) {
   return bw.concat()
 }
 
+/**
+ * An opcode written as a single raw byte, `0xba`: how toASM and toString write an
+ * opcode that has no name, and how bitcoind's script test format writes raw bytes.
+ * Only a non-push byte qualifies. A push byte on its own is an incomplete push.
+ */
+function rawOpcodeToken (token: string): number | undefined {
+  if (!/^0x[0-9a-fA-F]{2}$/.test(token)) return undefined
+  const num = parseInt(token.slice(2), 16)
+  return num > Opcode.OP_PUSHDATA4 ? num : undefined
+}
+
 Script.fromASM = function (str: string) {
   const script = new Script()
   script.chunks = []
+
+  // toASM writes an empty script as ''. Splitting it would yield one empty token,
+  // which the data branch below reads as an empty push: OP_0, a different script.
+  if (str === '') {
+    return script
+  }
 
   const tokens = str.split(' ')
   let i = 0
@@ -161,10 +178,16 @@ Script.fromASM = function (str: string) {
     const token = tokens[i]
     const opcode = Opcode(token!)
     let opcodenum = opcode.toNumber()
+    const raw = rawOpcodeToken(token!)
 
     // we start with two special cases, 0 and -1, which are handled specially in
     // toASM. see _chunkToString.
-    if (token === '0') {
+    if (raw !== undefined) {
+      script.chunks.push({
+        opcodenum: raw
+      })
+      i = i + 1
+    } else if (token === '0') {
       opcodenum = 0
       script.chunks.push({
         opcodenum
@@ -224,8 +247,15 @@ Script.fromString = function (str: string) {
     const token = tokens[i]
     const opcode = Opcode(token!)
     let opcodenum = opcode.toNumber()
+    const raw = rawOpcodeToken(token!)
 
-    if (_.isUndefined(opcodenum)) {
+    if (raw !== undefined) {
+      // An opcode with no name, as toString writes it.
+      script.chunks.push({
+        opcodenum: raw
+      })
+      i = i + 1
+    } else if (_.isUndefined(opcodenum)) {
       opcodenum = parseInt(token!)
       if (opcodenum > 0 && opcodenum < Opcode.OP_PUSHDATA1) {
         script.chunks.push({
@@ -286,11 +316,10 @@ Script.prototype._chunkToString = function (this: Script, chunk: ScriptChunk, ty
       if (numstr.length % 2 !== 0) {
         numstr = '0' + numstr
       }
-      if (asm) {
-        str = str + ' ' + numstr
-      } else {
-        str = str + ' ' + '0x' + numstr
-      }
+      // An opcode with no name is written as its raw byte, 0xba, in both forms. ASM
+      // used to write it as bare hex, `ba`, which is also how ASM writes a one-byte
+      // data push, so fromASM read it back as a push: a different script.
+      str = str + ' ' + '0x' + numstr
     }
   } else {
     // data chunk

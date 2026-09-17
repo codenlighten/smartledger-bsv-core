@@ -1,6 +1,6 @@
 {
   "suite": "script",
-  "generatedBy": "v7.5.5",
+  "generatedBy": "0.1.0",
   "caseCount": 42,
   "cases": {
     "add 520-byte element": {
@@ -185,7 +185,7 @@
     "parse multisig": {
       "outcome": "ok",
       "value": {
-        "asm": "OP_2 0223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e 0496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52 da OP_DROP OP_RESERVED1 9515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858ee52ae",
+        "asm": "OP_2 0223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e 0496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52 0xda OP_DROP OP_RESERVED1 9515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858ee52ae",
         "chunks": 7,
         "hex": "52210223078d2942df62c45621d209fab84ea9a7a23346201b7727b9b45a29c4e76f5e210496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858ee52ae",
         "roundTrips": true,

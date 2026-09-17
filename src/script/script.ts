@@ -1113,7 +1113,10 @@ Script.prototype.findAndDelete = function (this: Script, script: Script) {
     const buf2 = script2.toBuffer()
     const hex2 = buf2.toString('hex')
     if (hex === hex2) {
+      // Look at the chunk that slid into this position too: CScript::FindAndDelete
+      // removes consecutive occurrences.
       this.chunks.splice(i, 1)
+      i--
     }
   }
   return this

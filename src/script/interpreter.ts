@@ -841,6 +841,20 @@ Interpreter._isMinimallyEncoded = function (buf: Buffer, nMaxNumSize?: number) {
 }
 
 /**
+ * The node's CleanupScriptCode (bitcoin-sv src/script/interpreter.cpp): remove
+ * the signature from the scriptCode it signs, unless it is a FORKID signature
+ * and FORKID is enabled. An empty signature has hash type 0, so without FORKID
+ * it removes every OP_0, as the node's does.
+ */
+function cleanupScriptCode (subscript: Script, bufSig: Buffer, flags: number): Script {
+  const hashType = bufSig.length ? (bufSig[bufSig.length - 1] as number) : 0
+  if (!(flags & Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID) || !(hashType & Signature.SIGHASH_FORKID)) {
+    subscript.findAndDelete(new Script().add(bufSig))
+  }
+  return subscript
+}
+
+/**
   *
   * minimally encode the buffer content
   *
@@ -2170,9 +2184,12 @@ Interpreter.prototype.step = function (this: Interpreter) {
           chunks: this.script!.chunks.slice(this.pbegincodehash)
         })
 
-        // Drop the signature, since there's no way for a signature to sign itself
-        var tmpScript = new Script().add(bufSig)
-        subscript.findAndDelete(tmpScript)
+        // Drop the signature, since there's no way for a signature to sign
+        // itself — but only where the node does: not for a FORKID signature
+        // when FORKID is enabled (CleanupScriptCode). Removing it there let a
+        // signature over the script minus a pushed copy of itself verify here
+        // and fail on the network.
+        cleanupScriptCode(subscript, bufSig, this.flags)
 
         try {
           sig = Signature.fromTxFormat(bufSig)
@@ -2269,7 +2286,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         // Drop the signatures, since there's no way for a signature to sign itself
         for (let k = 0; k < nSigsCount; k++) {
           bufSig = stacktop(-isig - k)
-          subscript.findAndDelete(new Script().add(bufSig))
+          cleanupScriptCode(subscript, bufSig, this.flags)
         }
 
         fSuccess = true

@@ -1,5 +1,9 @@
 /** Shapes for the SPV helpers. */
 import type { BlockHeader } from '../block/types'
+import type BN = require('../crypto/bn')
+
+/** A proof-of-work limit or work floor: compact bits, hex, or a BN target/amount. */
+export type WorkBound = number | string | BN
 
 /** A header in any of the forms these helpers accept. */
 export type HeaderLike = BlockHeader | Buffer | string
@@ -21,13 +25,24 @@ export interface TxInclusionParams {
   nodes?: string[]
   header: HeaderLike
   requirePow?: boolean
+  /** Easiest target a header may declare, as compact bits, hex, or a BN target. */
+  powLimit?: WorkBound
+  /** Minimum work the header must represent. Difficulty 1 is about 4.295e9. */
+  minWork?: WorkBound
 }
 
 export interface TxInclusionResult {
   /** rootMatches AND (proof-of-work valid, unless requirePow is false). */
   valid: boolean
   rootMatches: boolean
+  /** The header meets the target it declares for itself. */
   powValid: boolean
+  /** That declared target is no easier than powLimit. True when not checked. */
+  targetAllowed: boolean
+  /** The work it represents is at least minWork. True when not checked. */
+  workSufficient: boolean
+  /** Work the header represents, as a decimal string. */
+  work: string
   /** The merkle root recomputed from the branch, display-order hex. */
   merkleRoot: string
   /** Display-order hash of the header the proof was checked against. */
@@ -36,6 +51,8 @@ export interface TxInclusionResult {
 
 export interface HeaderChainOpts {
   requirePow?: boolean
+  /** Easiest target each header may declare, as compact bits. Default 0x1d00ffff. */
+  powLimit?: WorkBound
   trustedHash?: string
 }
 

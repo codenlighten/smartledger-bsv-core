@@ -16,11 +16,121 @@
  * working hash" — Bitcoin's odd-node rule, per the TSC Merkle Proof standard.
  */
 import BlockHeader = require('../block/blockheader')
+import BN = require('../crypto/bn')
 import Hash = require('../crypto/hash')
 import type { MerkleProof, TxInclusionParams, TxInclusionResult } from './types'
 import type { BlockHeader as BlockHeaderType } from '../block/types'
 
 const HEX32 = /^[0-9a-fA-F]{64}$/
+
+// 2^256, for turning a target into the work it represents.
+const TWO_256 = BlockHeader.Constants.LARGEST_HASH
+
+/**
+ * The easiest target a header may declare and still be believed: difficulty 1,
+ * 0x1d00ffff, the proof-of-work limit of both mainnet and testnet. Regtest headers declare
+ * 0x207fffff and are only checked when a caller asks for that limit.
+ */
+const POW_LIMIT_BITS = 0x1d00ffff
+
+/**
+ * A compact target (`bits`) as a BN, or null if the encoding is one no header may use.
+ *
+ * Transcribed from Bitcoin's arith_uint256::SetCompact and CheckProofOfWork: negative, zero
+ * and overflowing targets are refused, and the word is SHIFTED BEFORE those tests read it,
+ * as the node does. BlockHeader.getTargetDifficulty implements none of these rules and
+ * shifts the wrong way below size 4, so it is not used here.
+ */
+function targetFromBits (bits: number): BN | null {
+  const size = bits >>> 24
+  let word = bits & 0x007fffff
+  let target: BN
+  if (size <= 3) {
+    word = word >>> (8 * (3 - size))
+    target = new BN(word)
+  } else {
+    target = new BN(word).shln(8 * (size - 3))
+  }
+  if (word === 0) return null
+  if ((bits & 0x00800000) !== 0) return null
+  if ((size > 34) || (word > 0xff && size > 33) || (word > 0xffff && size > 32)) return null
+  return target
+}
+
+/** The work a target represents: 2^256 / (target + 1). Difficulty 1 is about 4.295e9. */
+function workFromTarget (target: BN): BN {
+  return TWO_256.div(target.add(new BN(1)))
+}
+
+/** The limit as a target, refusing anything parseInt would read only part of. */
+function targetLimit (powLimit?: number | string | BN | null): BN {
+  if (powLimit === undefined || powLimit === null) powLimit = POW_LIMIT_BITS
+  if (BN.isBN(powLimit)) return powLimit as BN
+  let bits: number
+  if (typeof powLimit === 'string') {
+    if (!/^(0x)?[0-9a-fA-F]{1,8}$/.test(powLimit)) {
+      throw new Error('powLimit must be compact bits as hex, a uint32, or a BN target, not ' +
+        JSON.stringify(powLimit))
+    }
+    bits = parseInt(powLimit.replace(/^0x/, ''), 16)
+  } else if (typeof powLimit === 'number' && Number.isInteger(powLimit) &&
+    powLimit >= 0 && powLimit <= 0xffffffff) {
+    bits = powLimit
+  } else {
+    throw new Error('powLimit must be compact bits as hex, a uint32, or a BN target, not ' +
+      JSON.stringify(powLimit))
+  }
+  const target = targetFromBits(bits)
+  if (target === null) throw new Error('powLimit is not a usable compact target: ' + String(powLimit))
+  return target
+}
+
+/**
+ * `minWork` as a BN, refusing anything bn.js would read loosely: it parses 1e21 as 23521,
+ * '4.3e9' as 4 and 'abc' as 1122, so a floor set from a Number near the chain's work would
+ * silently become a few thousand — a floor nothing fails.
+ */
+function minWorkBN (minWork: number | string | BN): BN {
+  if (BN.isBN(minWork)) return minWork as BN
+  if (typeof minWork === 'number') {
+    if (!Number.isSafeInteger(minWork) || minWork < 0) {
+      throw new Error('minWork as a number must be a non-negative safe integer; for larger ' +
+        'floors pass a decimal string or a BN, not ' + String(minWork))
+    }
+    return new BN(String(minWork), 10)
+  }
+  if (typeof minWork === 'string' && /^[0-9]+$/.test(minWork)) return new BN(minWork, 10)
+  throw new Error('minWork must be a non-negative integer, a decimal string or a BN, not ' +
+    JSON.stringify(minWork))
+}
+
+/**
+ * Exactly 80 bytes of header, re-parsed, so every checked field comes from one snapshot.
+ * An object that merely states a merkleRoot is refused: believing it is the trust the
+ * protocol removes.
+ */
+function headerSnapshot (header: unknown): BlockHeaderType {
+  let buf: Buffer | undefined
+  if (Buffer.isBuffer(header)) buf = header
+  else if (typeof header === 'string') {
+    // Buffer.from stops at the first non-hex character, so 160 good characters followed by
+    // junk would arrive as a clean 80 bytes.
+    if (!/^[0-9a-fA-F]{160}$/.test(header)) {
+      throw new Error('a block header as hex must be exactly 160 hex characters')
+    }
+    buf = Buffer.from(header, 'hex')
+  } else if (header != null && typeof (header as BlockHeaderType).toBuffer === 'function') {
+    buf = (header as BlockHeaderType).toBuffer()
+  } else {
+    throw new Error('a block header must be 80 bytes, as hex, a Buffer or a BlockHeader; ' +
+      'an object stating a merkleRoot is not a header and cannot be checked')
+  }
+  if (!Buffer.isBuffer(buf) || buf.length !== 80) {
+    throw new Error('a block header must be exactly 80 bytes, not ' +
+      (Buffer.isBuffer(buf) ? String(buf.length) : typeof buf))
+  }
+  return BlockHeader.fromBuffer(buf) as BlockHeaderType
+}
 
 function rev (buf: Buffer): Buffer { return Buffer.from(buf).reverse() }
 function toInternal (hex: string): Buffer { return rev(Buffer.from(hex, 'hex')) } // display -> internal LE
@@ -81,33 +191,45 @@ function verifyMerkleProof (proof: MerkleProof): boolean {
  * @returns {{ valid:boolean, rootMatches:boolean, powValid:boolean, merkleRoot:string, blockHash:string }}
  */
 function verifyTxInclusion (params: TxInclusionParams): TxInclusionResult {
-  let header: BlockHeaderType | Buffer | string = params.header
-  if (Buffer.isBuffer(header) || typeof header === 'string') {
-    header = BlockHeader.fromBuffer(Buffer.isBuffer(header) ? header : Buffer.from(header, 'hex'))
-  }
-  const hdr = header as BlockHeaderType
-  if (hdr?.merkleRoot == null) throw new Error('a valid block header is required')
+  const hdr = headerSnapshot(params.header)
 
-  const headerRoot = toDisplay(hdr.merkleRoot) // header stores the root internal-LE
+  const headerRoot = toDisplay(hdr.merkleRoot) // the root as the header's own bytes give it
   const computed = merkleRootFromBranch(params.txid, params.index, params.nodes)
   const rootMatches = computed.toLowerCase() === headerRoot.toLowerCase()
 
   const requirePow = params.requirePow !== false
-  const powValid = hdr.validProofOfWork()
+  const target = targetFromBits(hdr.bits)
+  const powValid = target !== null && new BN(hdr.id, 'hex').cmp(target) <= 0
+  const work = target === null ? new BN(0) : workFromTarget(target)
+  // Both are policy the caller supplies, so neither is read — nor rejected as malformed —
+  // when the work checks are off.
+  const targetAllowed = target !== null &&
+    (!requirePow || target.cmp(targetLimit(params.powLimit)) <= 0)
+  const workSufficient = !requirePow || params.minWork === undefined || params.minWork === null ||
+    work.cmp(minWorkBN(params.minWork)) >= 0
 
   return {
-    valid: rootMatches && (!requirePow || powValid),
+    valid: rootMatches && (!requirePow || (powValid && targetAllowed && workSufficient)),
     rootMatches,
     powValid,
+    targetAllowed,
+    workSufficient,
+    work: work.toString(10),
     merkleRoot: computed,
     blockHash: hdr.id
   }
 }
 
 const merkleproof = {
+  POW_LIMIT_BITS,
   merkleRootFromBranch,
   verifyMerkleProof,
-  verifyTxInclusion
+  verifyTxInclusion,
+  // Internal to src/spv: headerchain applies the same cap. Not re-exported by SPV.
+  targetFromBits,
+  targetLimit,
+  workFromTarget,
+  headerSnapshot
 }
 
 export = merkleproof

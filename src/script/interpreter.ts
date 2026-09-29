@@ -1329,7 +1329,12 @@ Interpreter.prototype.step = function (this: Interpreter) {
     if (!chunk.buf) {
       this.stack.push(Interpreter.false)
     } else if (chunk.len !== chunk.buf!.length) {
-      throw new Error(`Length of push value not equal to length of data (${chunk.len},${chunk.buf!.length})`)
+      // A push declaring more bytes than the script carries — "PUSHDATA1 with not enough
+      // bytes" and its PUSHDATA2/4 counterparts. The node fails these as
+      // SCRIPT_ERR_BAD_OPCODE. Throwing reached the evaluator's catch and became
+      // UNKNOWN_ERROR; this is inside step(), which can simply fail.
+      this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
+      return false
     } else {
       this.stack.push(chunk.buf as Buffer)
     }
@@ -2152,8 +2157,11 @@ Interpreter.prototype.step = function (this: Interpreter) {
             break
 
           case Opcode.OP_DIV:
-            // denominator must not be 0
-            if (bn2 === 0) {
+            // denominator must not be 0. bn2 is a BN, so `bn2 === 0` was never true and
+            // this guard never fired — bn.js asserted instead, and the evaluator's catch
+            // reported SCRIPT_ERR_UNKNOWN_ERROR. The script still failed, which is why the
+            // accept/reject vectors stayed green while the reason was wrong.
+            if (bn2.cmp(BN.Zero) === 0) {
               this.errstr = 'SCRIPT_ERR_DIV_BY_ZERO'
               return false
             }
@@ -2161,9 +2169,9 @@ Interpreter.prototype.step = function (this: Interpreter) {
             break
 
           case Opcode.OP_MOD:
-            // divisor must not be 0
-            if (bn2 === 0) {
-              this.errstr = 'SCRIPT_ERR_DIV_BY_ZERO'
+            // divisor must not be 0. The node reports this one under its own name.
+            if (bn2.cmp(BN.Zero) === 0) {
+              this.errstr = 'SCRIPT_ERR_MOD_BY_ZERO'
               return false
             }
             bn = bn1.mod(bn2)
@@ -2629,8 +2637,11 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
 
-        var size = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal).toNumber()
-        if (size > this.maxScriptElementSize()) {
+        var size = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength()).toNumber()
+        // A negative size is a push size failure, not an encoding one. Without the lower
+        // bound it fell through to the rawnum.length > size test, which any number passes
+        // when size is negative, and reported IMPOSSIBLE_ENCODING instead.
+        if (size < 0 || size > this.maxScriptElementSize()) {
           this.errstr = 'SCRIPT_ERR_PUSH_SIZE'
           return false
         }

@@ -681,6 +681,22 @@ Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf:
       return false
     }
 
+    // A signature may only ask for the original digest where Chronicle applies. This is
+    // where the node stops a pre-Chronicle signature whose type byte happens to set 0x20
+    // from being read as one asking for OTDA (interpreter.cpp, CheckSignatureEncoding):
+    //
+    //   const bool chronicleEnabled = flags & SCRIPT_CHRONICLE;
+    //   if(!chronicleEnabled && usesChronicle) return SCRIPT_ERR_ILLEGAL_CHRONICLE;
+    //
+    // It rejects such a signature outright rather than reinterpreting it, which is what
+    // lets SignatureHash() route on the bit alone, as the node does and as sighash.ts now
+    // does here.
+    if (!(this.flags & Interpreter.SCRIPT_CHRONICLE) &&
+        ((sig.nhashtype as number) & Signature.SIGHASH_CHRONICLE)) {
+      this.errstr = 'SCRIPT_ERR_ILLEGAL_CHRONICLE'
+      return false
+    }
+
     if ((this.flags & Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID) &&
         !((sig.nhashtype as number) & Signature.SIGHASH_FORKID)) {
       this.errstr = 'SCRIPT_ERR_MUST_USE_FORKID'

@@ -897,8 +897,8 @@
     "selection: 0x20 passes checkSignatureEncoding": {
       "outcome": "ok",
       "value": {
-        "accepted": true,
-        "errstr": ""
+        "accepted": false,
+        "errstr": "SCRIPT_ERR_ILLEGAL_CHRONICLE"
       }
     },
     "selection: ALL — which algorithm": {
@@ -932,8 +932,8 @@
     "selection: ALL|FORKID|CHRONICLE — which algorithm": {
       "outcome": "ok",
       "value": {
-        "algorithm": "BIP143",
-        "digest": "4ec9da5c537a7ff36b5af1c8c71d432b225bb9e1608b944ffe1f3f89a7f400f4"
+        "algorithm": "OTDA",
+        "digest": "78417433f158c3666765ab432d44cb083f1ce5e2b9a7ce76f75fa02f724e39e0"
       }
     },
     "signature SIGHASH constants": {

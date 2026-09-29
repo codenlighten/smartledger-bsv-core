@@ -218,6 +218,9 @@ Interpreter.prototype.initialize = function (this: Interpreter, obj?: Interprete
   this.pbegincodehash = 0
   this.nOpCount = 0
   this.vfExec = []
+  // Whether the conditional at each depth has already seen an OP_ELSE. Genesis allows
+  // only one per OP_IF, which needs remembering per level.
+  this.vfElse = []
   this.errstr = ''
   this.flags = 0
   // Genesis restored OP_RETURN's original meaning. `returned` marks a TOP-LEVEL
@@ -239,6 +242,7 @@ Interpreter.prototype.set = function (this: Interpreter, obj: InterpreterState) 
   this.pbegincodehash = typeof obj.pbegincodehash !== 'undefined' ? obj.pbegincodehash : this.pbegincodehash
   this.nOpCount = typeof obj.nOpCount !== 'undefined' ? obj.nOpCount : this.nOpCount
   this.vfExec = obj.vfExec || this.vfExec
+  this.vfElse = obj.vfElse ?? this.vfElse
   this.errstr = obj.errstr || this.errstr
   this.flags = typeof obj.flags !== 'undefined' ? obj.flags : this.flags
   this.returned = typeof obj.returned !== 'undefined' ? obj.returned : this.returned
@@ -1537,6 +1541,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.stack.pop()
         }
         this.vfExec.push(fValue)
+        this.vfElse.push(false)
         break
 
       case Opcode.OP_IF:
@@ -1568,14 +1573,20 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.stack.pop() as Buffer
         }
         this.vfExec.push(fValue)
+        this.vfElse.push(false)
         break
 
       case Opcode.OP_ELSE:
-        if (this.vfExec.length === 0) {
+        // Genesis allows only one OP_ELSE per OP_IF. A second one is unbalanced, and
+        // accepting it accepts scripts the network rejects — the node states it as
+        //   if (vfExec.empty() || (vfElse.back() && utxo_after_genesis))
+        if (this.vfExec.length === 0 ||
+            ((this.vfElse[this.vfElse.length - 1] ?? false) && this.isAfterGenesis())) {
           this.errstr = 'SCRIPT_ERR_UNBALANCED_CONDITIONAL'
           return false
         }
         this.vfExec[this.vfExec.length - 1] = !this.vfExec[this.vfExec.length - 1]
+        this.vfElse[this.vfElse.length - 1] = true
         break
 
       case Opcode.OP_ENDIF:
@@ -1584,6 +1595,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         this.vfExec.pop()
+        this.vfElse.pop()
         break
 
       case Opcode.OP_VERIFY:

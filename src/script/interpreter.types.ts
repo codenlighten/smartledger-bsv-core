@@ -87,6 +87,8 @@ export interface InterpreterState {
   pbegincodehash?: number | undefined
   nOpCount?: number | undefined
   vfExec?: boolean[] | undefined
+  /** One flag per open conditional: has this level seen an OP_ELSE yet? */
+  vfElse?: boolean[] | undefined
   errstr?: string | undefined
   flags?: number | undefined
   returned?: boolean | undefined
@@ -125,6 +127,8 @@ export interface Interpreter {
   pbegincodehash: number
   nOpCount: number
   vfExec: boolean[]
+  /** One flag per open conditional: has this level seen an OP_ELSE yet? */
+  vfElse: boolean[]
   errstr: string
   flags: number
   /** A top-level OP_RETURN after Genesis ended the script. */

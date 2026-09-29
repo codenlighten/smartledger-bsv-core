@@ -35,8 +35,25 @@ folder, these win.
     npm run vectors:sv -- --verbose                      # plus each failing script
     npm run vectors:sv-delta -- --lib=../smartledger-bsv # row-by-row against the library
 
-Both commands build first and measure `dist/`. They report and always exit 0.
-They become a gate once the port reaches parity.
+Both commands build first and measure `dist/`. They report and always exit 0, because
+they are progress reports as much as checks.
+
+## What gates a pull request
+
+Both corpora are enforced in CI, by different means, and it is worth knowing which is which.
+
+| corpus | gated by | how |
+| --- | --- | --- |
+| `script_tests.json`, 1483 rows | the `corpus` job in `.github/workflows/ci.yml` | runs `vectors:sv` and reads its summary, failing on any false accept, false reject or wrong reason, on a row count other than 1483, or on a summary it cannot parse |
+| `sighash.json`, 1000 rows | `npm test`, via `test/consensus/sv-sighash-vectors.js` | ordinary assertions: the whole corpus is covered, no row disagrees on either digest column, and all 511 Chronicle-bit rows route to the original algorithm |
+
+The script corpus needs the extra machinery because `vectors:sv` exits 0 by design; the
+sighash corpus needs none, because its harness feeds ordinary `it` blocks. If you change the
+summary format of `vectors:sv`, the `corpus` job fails saying so rather than passing on
+unread numbers — that is deliberate.
+
+Changing the 1483 means the corpus itself was re-copied from a different node tag, so update
+the provenance table above in the same commit.
 
 False accepts are listed apart from false rejects. Accepting a script that the
 node rejects is the direction that can cost money.

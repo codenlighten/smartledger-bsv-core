@@ -160,6 +160,12 @@ export interface Interpreter {
    */
   isAfterGenesis: () => boolean
   isAfterChronicle: () => boolean
+  /**
+   * False where Chronicle applies and the spending transaction's version is above 1, which
+   * is how a transaction opts into malleability. LOW_S, MINIMALDATA, MINIMALIF, NULLFAIL,
+   * NULLDUMMY, SIGPUSHONLY and CLEANSTACK are not applied to such a transaction.
+   */
+  enforceNonMalleability: () => boolean
   maxScriptElementSize: () => number
   maxScriptSize: () => number
   maxOpsPerScript: () => number

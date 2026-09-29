@@ -114,11 +114,9 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
   const utxoAfterGenesis = (flags & Interpreter.SCRIPT_UTXO_AFTER_GENESIS) !== 0
   const chronicleBlock = (flags & Interpreter.SCRIPT_CHRONICLE) !== 0
 
-  // Chronicle permits malleability for transaction versions above 1, which exempts those
-  // transactions from the rules whose only purpose is to stop a signed transaction being
-  // rewritten in flight. The node's EnforceNonMalleability(flags, checker.Version()).
-  const enforceNonMalleability =
-    !(chronicleBlock && (tx as { version: number }).version > 1)
+  // One definition of the rule, shared with the seven sites inside evaluate(), so they
+  // cannot drift apart. Read from the arguments here because this.set() has not run yet.
+  const enforceNonMalleability = enforcesNonMalleability(flags, tx)
 
   if ((flags & Interpreter.SCRIPT_VERIFY_SIGPUSHONLY) !== 0) {
     // Before Genesis a non-push scriptSig was refused only where P2SH demanded it, in the
@@ -696,6 +694,32 @@ Interpreter.castToBool = function (buf: Buffer) {
 /**
  * Translated from bitcoind's CheckSignatureEncoding
  */
+/**
+ * Chronicle lets a transaction opt into malleability by using a version above 1, and the
+ * rules that exist only to stop a signed transaction being rewritten in flight then stop
+ * applying to it. The node's EnforceNonMalleability(flags, checker.Version()):
+ *
+ *   return !(IsChronicle(flags) && IsMalleableTxnVersion(txnVersion));   // version > 1
+ *
+ * It gates LOW_S, MINIMALDATA, MINIMALIF, NULLFAIL, NULLDUMMY, SIGPUSHONLY and CLEANSTACK.
+ * Note which era flag it reads: SCRIPT_CHRONICLE, the era of the block being built, not
+ * SCRIPT_UTXO_AFTER_CHRONICLE, the era of the output being spent.
+ *
+ * Every version at or below 1 is non-malleable, so the rules apply; a missing transaction is
+ * treated the same way, which is the enforcing answer.
+ */
+function enforcesNonMalleability (flags: number, tx: unknown): boolean {
+  if ((flags & Interpreter.SCRIPT_CHRONICLE) === 0) {
+    return true
+  }
+  const version = (tx as { version?: number } | undefined)?.version
+  return !(typeof version === 'number' && version > 1)
+}
+
+Interpreter.prototype.enforceNonMalleability = function (this: Interpreter): boolean {
+  return enforcesNonMalleability(this.flags, this.tx)
+}
+
 Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf: Buffer) {
   let sig
 
@@ -705,16 +729,26 @@ Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf:
     return true
   }
 
+  // Three independent checks, as CheckSignatureEncoding has them. They used to be chained
+  // with else-if, so LOW_S — which mainnetFlags() and currentConsensusFlags() both set —
+  // returned early and the whole STRICTENC block below never ran. On the default flags that
+  // silently accepted a signature with an undefined hash type, one without FORKID where
+  // FORKID is required, and one asking for the Chronicle digest outside Chronicle: three
+  // things the node refuses by name.
   if ((this.flags & (Interpreter.SCRIPT_VERIFY_DERSIG | Interpreter.SCRIPT_VERIFY_LOW_S | Interpreter.SCRIPT_VERIFY_STRICTENC)) !== 0 && !Signature.isTxDER(buf)) {
     this.errstr = 'SCRIPT_ERR_SIG_DER_INVALID_FORMAT'
     return false
-  } else if ((this.flags & Interpreter.SCRIPT_VERIFY_LOW_S) !== 0) {
+  }
+
+  if ((this.flags & Interpreter.SCRIPT_VERIFY_LOW_S) !== 0) {
     sig = Signature.fromTxFormat(buf)
-    if (!sig.hasLowS()) {
+    if (!sig.hasLowS() && this.enforceNonMalleability()) {
       this.errstr = 'SCRIPT_ERR_SIG_DER_HIGH_S'
       return false
     }
-  } else if ((this.flags & Interpreter.SCRIPT_VERIFY_STRICTENC) !== 0) {
+  }
+
+  if ((this.flags & Interpreter.SCRIPT_VERIFY_STRICTENC) !== 0) {
     sig = Signature.fromTxFormat(buf)
     if (!sig.hasDefinedHashtype()) {
       this.errstr = 'SCRIPT_ERR_SIG_HASHTYPE'
@@ -1233,7 +1267,8 @@ Interpreter.prototype.step = function (this: Interpreter) {
     return false
   }
 
-  const fRequireMinimal = (this.flags & Interpreter.SCRIPT_VERIFY_MINIMALDATA) !== 0
+  const fRequireMinimal = (this.flags & Interpreter.SCRIPT_VERIFY_MINIMALDATA) !== 0 &&
+    this.enforceNonMalleability()
 
   // bool fExec = !count(vfExec.begin(), vfExec.end(), false);
   // One declaration for the whole opcode switch, as in the original. The
@@ -1610,15 +1645,11 @@ Interpreter.prototype.step = function (this: Interpreter) {
           }
           buf = stacktop(-1)
 
-          if (this.flags & Interpreter.SCRIPT_VERIFY_MINIMALIF) {
-            if (buf.length > 1) {
-              this.errstr = 'SCRIPT_ERR_MINIMALIF'
-              return false
-            }
-            if (buf.length === 1 && buf[0] !== 1) {
-              this.errstr = 'SCRIPT_ERR_MINIMALIF'
-              return false
-            }
+          if ((this.flags & Interpreter.SCRIPT_VERIFY_MINIMALIF) &&
+              (buf.length > 1 || (buf.length === 1 && buf[0] !== 1)) &&
+              this.enforceNonMalleability()) {
+            this.errstr = 'SCRIPT_ERR_MINIMALIF'
+            return false
           }
           fValue = Interpreter.castToBool(buf)
           if (opcodenum === Opcode.OP_NOTIF) {
@@ -2289,7 +2320,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         }
 
         if (!fSuccess && (this.flags & Interpreter.SCRIPT_VERIFY_NULLFAIL) &&
-          bufSig.length) {
+          bufSig.length && this.enforceNonMalleability()) {
           this.errstr = 'SCRIPT_ERR_NULLFAIL'
           return false
         }
@@ -2414,7 +2445,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         // Clean up stack of actual arguments
         while (i-- > 1) {
           if (!fSuccess && (this.flags & Interpreter.SCRIPT_VERIFY_NULLFAIL) &&
-            !ikey2 && stacktop(-1).length) {
+            !ikey2 && stacktop(-1).length && this.enforceNonMalleability()) {
             this.errstr = 'SCRIPT_ERR_NULLFAIL'
             return false
           }
@@ -2436,7 +2467,8 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
         }
-        if ((this.flags & Interpreter.SCRIPT_VERIFY_NULLDUMMY) && stacktop(-1).length) {
+        if ((this.flags & Interpreter.SCRIPT_VERIFY_NULLDUMMY) && stacktop(-1).length &&
+            this.enforceNonMalleability()) {
           this.errstr = 'SCRIPT_ERR_SIG_NULLDUMMY'
           return false
         }

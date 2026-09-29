@@ -660,6 +660,20 @@ describe('Interpreter', function () {
   //    names up and called 0xba OP_NOP8, which made it a valid no-op and a
   //    divergence; 0xba is unassigned again, so BSV agrees with Core and an
   //    override here would assert the wrong result.
+  // The four OP_VERIF/OP_VERNOTIF rows that used to be listed here are gone. They were
+  // overridden to 'OK' on the reasoning that BSV dropped Core's "illegal everywhere" rule
+  // at Genesis, which is half the rule. The node reads
+  //
+  //   if(!utxo_after_chronicle) {
+  //     if(utxo_after_genesis && !fExec) break;
+  //     else return SCRIPT_ERR_BAD_OPCODE;
+  //   }
+  //
+  // so an unexecuted one is harmless only when the UTXO is post-Genesis. These rows carry
+  // P2SH,STRICTENC and no Genesis flag, so they are pre-Genesis and BAD_OPCODE is right —
+  // and the node's own corpus says so, with the same comment. The override was a reasonable
+  // inference while the interpreter skipped an unexecuted VERIF in every era. It no longer
+  // does.
   const BSV_DIVERGENCES = {
     "'a' 'b'|CAT|P2SH,STRICTENC": 'OK',
     "'a' 'b' 0|IF CAT ELSE 1 ENDIF|P2SH,STRICTENC": 'OK',
@@ -673,17 +687,7 @@ describe('Interpreter', function () {
     '2 2 0 IF DIV ELSE 1 ENDIF|NOP|P2SH,STRICTENC': 'OK',
     '2 2 0 IF MOD ELSE 1 ENDIF|NOP|P2SH,STRICTENC': 'OK',
     '2 DUP DIV|1 EQUAL|P2SH,STRICTENC': 'OK',
-    '7 3 MOD|1 EQUAL|P2SH,STRICTENC': 'OK',
-
-    //  - OP_VERIF/OP_VERNOTIF are "illegal everywhere" in Core, including in
-    //    an unexecuted branch — a rule it applies to no other opcode. BSV
-    //    dropped that at Genesis: the node breaks when the branch is not
-    //    executed and the UTXO predates Chronicle. So these four verify here
-    //    and are rejected upstream.
-    '0|IF VERIF ELSE 1 ENDIF|P2SH,STRICTENC': 'OK',
-    '0|IF ELSE 1 ELSE VERIF ENDIF|P2SH,STRICTENC': 'OK',
-    '0|IF VERNOTIF ELSE 1 ENDIF|P2SH,STRICTENC': 'OK',
-    '0|IF ELSE 1 ELSE VERNOTIF ENDIF|P2SH,STRICTENC': 'OK'
+    '7 3 MOD|1 EQUAL|P2SH,STRICTENC': 'OK'
   }
 
   describe('bitcoind script evaluation fixtures', function () {

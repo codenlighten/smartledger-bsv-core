@@ -1505,12 +1505,18 @@ Interpreter.prototype.step = function (this: Interpreter) {
         //     else return SCRIPT_ERR_BAD_OPCODE;
         //   }
         //
-        // So pre-Chronicle they are an error only in an EXECUTED branch. This
-        // library targets post-Genesis BSV, where that is the whole condition.
-        // Returning BAD_OPCODE unconditionally rejected scripts the network
-        // accepts.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
-          if (!fExec) {
+        // Two conditions were wrong here, in opposite directions.
+        //
+        // The gate is utxo_after_chronicle — a property of the output being spent — not
+        // this library's SCRIPT_ENABLE_CHRONICLE opt-in. Gating on the opt-in refused
+        // 8 rows of the node's corpus that it accepts under UTXO_AFTER_CHRONICLE.
+        //
+        // And Genesis is part of the skip, not an assumption: before Genesis these are
+        // illegal everywhere, including in a branch that never runs, and only from
+        // Genesis does an unexecuted one become harmless. Skipping whenever !fExec
+        // accepted 4 rows the node rejects, which is a false accept.
+        if (!this.isAfterChronicle()) {
+          if (this.isAfterGenesis() && !fExec) {
             break
           }
           this.errstr = 'SCRIPT_ERR_BAD_OPCODE'

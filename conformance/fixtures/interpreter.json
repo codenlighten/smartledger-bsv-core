@@ -590,10 +590,10 @@
         "581:fail:agrees:EVAL_FALSE",
         "582:fail:agrees:EVAL_FALSE",
         "583:fail:agrees:BAD_OPCODE",
-        "584:pass:DISAGREES:BAD_OPCODE",
-        "585:pass:DISAGREES:BAD_OPCODE",
-        "586:pass:DISAGREES:BAD_OPCODE",
-        "587:pass:DISAGREES:BAD_OPCODE",
+        "584:fail:agrees:BAD_OPCODE",
+        "585:fail:agrees:BAD_OPCODE",
+        "586:fail:agrees:BAD_OPCODE",
+        "587:fail:agrees:BAD_OPCODE",
         "588:fail:agrees:UNBALANCED_CONDITIONAL",
         "589:fail:agrees:UNBALANCED_CONDITIONAL",
         "590:fail:agrees:UNBALANCED_CONDITIONAL",
@@ -1345,10 +1345,6 @@
       "outcome": "ok",
       "value": {
         "cases": [
-          "584:BAD_OPCODE:VERIF illegal everywhere",
-          "585:BAD_OPCODE:VERIF illegal everywhere",
-          "586:BAD_OPCODE:VERNOTIF illegal everywhere",
-          "587:BAD_OPCODE:VERNOTIF illegal everywhere",
           "663:DISABLED_OPCODE:CAT disabled",
           "665:DISABLED_OPCODE:CAT disabled",
           "667:DISABLED_OPCODE:SPLIT disabled",
@@ -1368,7 +1364,7 @@
           "1093:OP_COUNT:Fails due to 201 script operation limit",
           "1094:OP_COUNT:"
         ],
-        "count": 22
+        "count": 18
       }
     },
     "castToBool cases": {

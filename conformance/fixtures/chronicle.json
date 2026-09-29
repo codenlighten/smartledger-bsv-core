@@ -157,11 +157,9 @@
     "OP_VERIF inside a false branch": {
       "outcome": "ok",
       "value": {
-        "errstr": "",
-        "stack": [
-          "01"
-        ],
-        "verified": true
+        "errstr": "SCRIPT_ERR_BAD_OPCODE",
+        "stack": [],
+        "verified": false
       }
     },
     "OP_VERNOTIF alone": {
@@ -813,8 +811,8 @@
           "verified": false
         },
         "unexecuted": {
-          "errstr": "",
-          "verified": true
+          "errstr": "SCRIPT_ERR_BAD_OPCODE",
+          "verified": false
         }
       }
     },

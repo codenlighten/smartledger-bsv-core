@@ -195,6 +195,17 @@ describe('a header is not believed about its own difficulty', function () {
       })
     })
 
+    it('range-checks a BN target or floor, which is not compact bits', function () {
+      const BN = bsv.crypto.BN
+      expect(function () { genesisProof({ powLimit: new BN(1).shln(256) }) }).to.throw(/powLimit as a BN/)
+      expect(function () { genesisProof({ powLimit: new BN(0) }) }).to.throw(/powLimit as a BN/)
+      expect(function () { genesisProof({ powLimit: new BN(-1) }) }).to.throw(/powLimit as a BN/)
+      expect(function () { genesisProof({ minWork: new BN(-1) }) }).to.throw(/minWork as a BN/)
+      const regtest = require('../../dist/spv/merkleproof').targetFromBits(0x207fffff)
+      genesisProof({ powLimit: regtest }).targetAllowed.should.equal(true)
+      genesisProof({ minWork: new BN('4295032833', 10) }).workSufficient.should.equal(true)
+    })
+
     it('does not judge the policy inputs when the work checks are off', function () {
       genesisProof({ requirePow: false, minWork: 'abc', powLimit: 'zz' }).valid.should.equal(true)
     })

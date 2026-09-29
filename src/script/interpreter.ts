@@ -741,6 +741,12 @@ Interpreter.prototype.isAfterGenesis = function (this: Interpreter): boolean {
  * bit; the latter is what the node actually gates the restored opcodes on. Either
  * enables them, so existing callers are unaffected.
  */
+// Every Chronicle-restored opcode gates on this, never on SCRIPT_ENABLE_CHRONICLE alone:
+// the node asks whether the OUTPUT BEING SPENT is post-Chronicle (utxo_after_chronicle).
+// Gating on the opt-in made OP_VER, OP_LEFT, OP_RIGHT, OP_SUBSTR, OP_LSHIFTNUM and
+// OP_RSHIFTNUM behave as upgradable NOPs under the node's own UTXO_AFTER_CHRONICLE flag
+// sets: they consumed nothing, the script ran on, and both false accepts and false
+// rejects followed.
 Interpreter.prototype.isAfterChronicle = function (this: Interpreter): boolean {
   return (this.flags &
     (Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE | Interpreter.SCRIPT_ENABLE_CHRONICLE)) !== 0
@@ -1408,7 +1414,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         // An earlier version here returned SCRIPT_ERR_BAD_OPCODE instead,
         // which made this library REFUSE SCRIPTS THE NETWORK ACCEPTS — the
         // mirror of the bug that previously made them silently succeed.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+        if (!this.isAfterChronicle()) {
           if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
             this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
             return false
@@ -1484,7 +1490,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         //
         // Unlike the string opcodes, BAD_OPCODE pre-Chronicle IS correct here —
         // the node returns it unconditionally.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+        if (!this.isAfterChronicle()) {
           this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
           return false
         }
@@ -2465,7 +2471,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         //
         // Running them unconditionally consumed stack where the network does
         // nothing, which is a wrong answer rather than an error.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+        if (!this.isAfterChronicle()) {
           if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
             this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
             return false
@@ -2509,7 +2515,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         //
         // Running them unconditionally consumed stack where the network does
         // nothing, which is a wrong answer rather than an error.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+        if (!this.isAfterChronicle()) {
           if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
             this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
             return false

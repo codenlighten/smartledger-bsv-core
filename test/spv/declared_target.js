@@ -22,6 +22,7 @@ require('chai').should()
 const expect = require('chai').expect
 const bsv = require('../..')
 const SPV = bsv.SPV
+const BN = bsv.crypto.BN
 const BlockHeader = bsv.BlockHeader
 
 // The genesis block: a real header at exactly the proof-of-work limit, with one
@@ -215,6 +216,66 @@ describe('a header is not believed about its own difficulty', function () {
         .to.throw(/exactly 160 hex characters/)
       expect(function () { genesisProof({ header: GENESIS.slice(0, 158) }) })
         .to.throw(/160 hex characters/)
+    })
+  })
+
+  // A floor is quoted in difficulty ("this header is difficulty 2.6e10"), but minWork counts
+  // hashes, and the two are 4,295,032,833 apart. Reading one as the other sets a floor 4.3
+  // billion times too low and fails OPEN: the call keeps succeeding. That happened in review
+  // of this very feature — a difficulty floor of 5e9 was read as 5e9 hashes — so the unit is
+  // in the name and both units are tested against each other here.
+  describe('a floor in difficulty, not hashes', function () {
+    const mp = require('../../dist/spv/merkleproof')
+    const DIFFICULTY_1 = '4295032833'
+
+    it('takes difficulty 1 as exactly the genesis block\'s work', function () {
+      mp.workFromDifficulty(1).toString(10).should.equal(DIFFICULTY_1)
+      genesisProof({ minDifficulty: 1 }).workSufficient.should.equal(true)
+      genesisProof({ minDifficulty: 1.01 }).workSufficient.should.equal(false)
+      genesisProof({ minDifficulty: 0 }).workSufficient.should.equal(true)
+    })
+
+    it('is 4,295,032,833 times a floor of the same number in hashes', function () {
+      // The trap, as an assertion: the same 5e9 means two very different things.
+      const asWork = genesisProof({ minWork: 5e9 })
+      const asDifficulty = genesisProof({ minDifficulty: 5e9 })
+      asWork.workSufficient.should.equal(false, 'genesis has 4.295e9, just under 5e9 hashes')
+      asDifficulty.workSufficient.should.equal(false)
+      mp.workFromDifficulty(5e9).toString(10).should.equal('21475164165000000000')
+      mp.workFromDifficulty(5e9).div(new BN(5000000000)).toString(10).should.equal(DIFFICULTY_1)
+    })
+
+    it('converts exactly, with no float in the path, from a number or a string', function () {
+      mp.workFromDifficulty('2.557e10').toString(10).should.equal(
+        mp.workFromDifficulty(2.557e10).toString(10))
+      mp.workFromDifficulty(1.5).toString(10).should.equal('6442549249')
+      mp.workFromDifficulty('0.5').toString(10).should.equal('2147516416')
+      mp.workFromDifficulty('1e19').toString(10).should.equal('42950328330000000000000000000')
+    })
+
+    it('admits a real mainnet difficulty and refuses one above it', function () {
+      // Block 954784 declared bits 0x182afffe. Its work follows from the bits alone, so this
+      // needs no header: a floor at that difficulty is met, one above it is not.
+      const realWork = mp.workFromTarget(mp.targetFromBits(0x182afffe))
+      realWork.toString(10).should.equal('109822554288093618317')
+      realWork.cmp(mp.workFromDifficulty('2.5e10')).should.be.above(0)
+      realWork.cmp(mp.workFromDifficulty('2.6e10')).should.be.below(0)
+    })
+
+    it('refuses both floors at once, rather than silently applying one', function () {
+      expect(function () { genesisProof({ minWork: 1, minDifficulty: 1 }) })
+        .to.throw(/minWork \(hashes\) or minDifficulty \(difficulty\), not both/)
+    })
+
+    it('refuses a difficulty it cannot read exactly', function () {
+      ;['abc', '1e', '-1', -1, NaN, Infinity, {}, '0x10', '1.2.3', true].forEach(function (bad) {
+        expect(function () { genesisProof({ minDifficulty: bad }) },
+          JSON.stringify(bad)).to.throw(/minDifficulty/)
+      })
+    })
+
+    it('is not read at all when the work checks are off', function () {
+      genesisProof({ requirePow: false, minDifficulty: 'abc' }).valid.should.equal(true)
     })
   })
 

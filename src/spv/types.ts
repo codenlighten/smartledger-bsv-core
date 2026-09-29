@@ -27,8 +27,13 @@ export interface TxInclusionParams {
   requirePow?: boolean
   /** Easiest target a header may declare, as compact bits, hex, or a BN target. */
   powLimit?: WorkBound
-  /** Minimum work the header must represent. Difficulty 1 is about 4.295e9. */
+  /** Minimum work the header must represent, in HASHES. Difficulty 1 is about 4.295e9. */
   minWork?: WorkBound
+  /**
+   * The same floor in DIFFICULTY, the unit difficulty is quoted in: a real BSV header is
+   * about 2.6e10. Exactly one of this and minWork; both throws.
+   */
+  minDifficulty?: number | string
 }
 
 export interface TxInclusionResult {

@@ -35,6 +35,8 @@ const P2SH = Interpreter.SCRIPT_VERIFY_P2SH
 const GENESIS = Interpreter.SCRIPT_GENESIS
 const UTXO_AFTER_GENESIS = Interpreter.SCRIPT_UTXO_AFTER_GENESIS
 const UTXO_AFTER_CHRONICLE = Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE
+const SIGPUSHONLY = Interpreter.SCRIPT_VERIFY_SIGPUSHONLY
+const CLEANSTACK = Interpreter.SCRIPT_VERIFY_CLEANSTACK
 
 function verifyWith (sigAsm, pubkeyAsm, flags, version) {
   const tx = new bsv.Transaction()
@@ -209,6 +211,55 @@ describe('Chronicle malleability relaxations', function () {
         verifyWith('', 'OP_2 OP_IF OP_1 OP_ENDIF', flags, v)
           .should.equal('SCRIPT_ERR_MINIMALIF', 'version ' + v)
       })
+    })
+  })
+
+  // Raised in review by the session that recomputed these results independently, and by
+  // gpt-assist: the version is an int32 everywhere the node touches it, and two of these
+  // checks can fire on the same script, so the order has to be the node's.
+  describe('the version is read as an int32, and faults are reported in the node\'s order', function () {
+    const CH = P2SH | GENESIS | UTXO_AFTER_GENESIS | CHRONICLE | UTXO_AFTER_CHRONICLE
+
+    it('reads 0xffffffff as -1, so the rules still apply', function () {
+      // CTransaction::nVersion is an int32. Reading the JS number would give 4294967295,
+      // call the transaction malleable and relax every rule — the fail-open direction.
+      const flags = CH | Interpreter.SCRIPT_VERIFY_MINIMALIF
+      verifyWith('', 'OP_2 OP_IF OP_1 OP_ENDIF', flags, 0xffffffff)
+        .should.equal('SCRIPT_ERR_MINIMALIF')
+      const interp = new Interpreter()
+      const tx = new bsv.Transaction(); tx.version = 0xffffffff
+      interp.set({ flags: CH, tx, nin: 0 })
+      interp.enforceNonMalleability().should.equal(true)
+    })
+
+    it('treats every version at or below 1 as non-malleable, including negatives', function () {
+      const flags = CH | Interpreter.SCRIPT_VERIFY_MINIMALIF
+      ;[-1, 0, 1].forEach(function (v) {
+        verifyWith('', 'OP_2 OP_IF OP_1 OP_ENDIF', flags, v)
+          .should.equal('SCRIPT_ERR_MINIMALIF', 'version ' + v)
+      })
+    })
+
+    it('enforces the rules when there is no transaction at all', function () {
+      // BaseSignatureChecker::Version() returns 0, which is not malleable.
+      const interp = new Interpreter()
+      interp.set({ flags: CH, nin: 0 })
+      interp.enforceNonMalleability().should.equal(true)
+    })
+
+    it('reports an impossible flag set before looking at the scriptSig', function () {
+      // Both faults are present: the era pair is invalid AND the scriptSig is not push-only.
+      // valid_flags comes first in VerifyScript, before any evaluation.
+      verifyWith('OP_1 OP_NOP', 'OP_NOP',
+        P2SH | UTXO_AFTER_CHRONICLE | SIGPUSHONLY | GENESIS)
+        .should.equal('SCRIPT_ERR_INVALID_FLAGS')
+    })
+
+    it('reports an evaluation failure before CLEANSTACK judges the flags', function () {
+      // CLEANSTACK without P2SH is an invalid flag set, but the node checks it at the END of
+      // VerifyScript, after evaluation, so a script that simply fails says so first.
+      verifyWith('', 'OP_0', CLEANSTACK).should.equal('SCRIPT_ERR_EVAL_FALSE_IN_STACK')
+      verifyWith('', 'OP_1', CLEANSTACK).should.equal('SCRIPT_ERR_INVALID_FLAGS')
     })
   })
 

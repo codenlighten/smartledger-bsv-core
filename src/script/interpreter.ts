@@ -712,8 +712,14 @@ function enforcesNonMalleability (flags: number, tx: unknown): boolean {
   if ((flags & Interpreter.SCRIPT_CHRONICLE) === 0) {
     return true
   }
+  // int32, as CTransaction::nVersion is and as checker.Version() returns it. Comparing the
+  // JS number would read a version of 0xffffffff as 4294967295 and call the transaction
+  // malleable, where the node reads -1 and enforces. Such a version cannot arrive from the
+  // network — writeInt32LE refuses it and readInt32LE has already signed anything parsed —
+  // but a caller can set it in code, and the fail-open reading is the wrong one to have.
+  // With no transaction at all the rules apply: BaseSignatureChecker::Version() returns 0.
   const version = (tx as { version?: number } | undefined)?.version
-  return !(typeof version === 'number' && version > 1)
+  return !(typeof version === 'number' && ((version | 0) > 1))
 }
 
 Interpreter.prototype.enforceNonMalleability = function (this: Interpreter): boolean {

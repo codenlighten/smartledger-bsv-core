@@ -30,7 +30,11 @@
     "check": "npm run lint && npm test && npm run conformance && node scripts/check-cycle-safety.js && node scripts/check-any-budget.js",
     "build:types": "tsc -p tsconfig.types.json || true",
     "cycle-safety": "npm run build && node scripts/check-cycle-safety.js",
-    "any-budget": "node scripts/check-any-budget.js"
+    "any-budget": "node scripts/check-any-budget.js",
+    "prevectors:sv": "npm run build",
+    "vectors:sv": "node tools/sv-vector-report.js",
+    "prevectors:sv-delta": "npm run build",
+    "vectors:sv-delta": "node tools/sv-vector-delta.js"
   },
   "files": [
     "dist/",

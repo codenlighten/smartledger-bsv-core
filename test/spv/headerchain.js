@@ -10,6 +10,10 @@ require('chai').should()
 const bsv = require('../..')
 const SPV = bsv.SPV
 
+// Mined at regtest difficulty, which costs nothing, so the verifier only believes that
+// target when a caller asks for it. One test below pins what the default does.
+const REGTEST = 0x207fffff
+
 function rand32 () { return bsv.crypto.Random.getRandomBuffer(32) }
 
 // "Mine" a header at regtest difficulty: grind nonce until PoW passes (~1-2 tries).
@@ -44,7 +48,7 @@ describe('SPV.verifyHeaderChain', function () {
 
   it('accepts a linked, PoW-valid chain', function () {
     const hs = chain(4)
-    const res = SPV.verifyHeaderChain(hs)
+    const res = SPV.verifyHeaderChain(hs, { powLimit: REGTEST })
     res.valid.should.equal(true)
     res.count.should.equal(4)
     res.anchorHash.should.equal(hs[0].id)
@@ -53,7 +57,7 @@ describe('SPV.verifyHeaderChain', function () {
 
   it('rejects a broken link', function () {
     const hs = chain(3)
-    const res = SPV.verifyHeaderChain([hs[0], hs[2]]) // hs[2] links to hs[1], not hs[0]
+    const res = SPV.verifyHeaderChain([hs[0], hs[2]], { powLimit: REGTEST }) // hs[2] links to hs[1], not hs[0]
     res.valid.should.equal(false)
     res.reason.should.match(/broken link/)
   })
@@ -68,16 +72,34 @@ describe('SPV.verifyHeaderChain', function () {
       bits: 0x1d00ffff,
       nonce: 0
     })
-    SPV.verifyHeaderChain([bad]).valid.should.equal(false)
+    SPV.verifyHeaderChain([bad], { powLimit: REGTEST }).valid.should.equal(false)
     // ...but skipping PoW, a single header is trivially "valid".
-    SPV.verifyHeaderChain([bad], { requirePow: false }).valid.should.equal(true)
+    SPV.verifyHeaderChain([bad], { powLimit: REGTEST, requirePow: false }).valid.should.equal(true)
+  })
+
+  it('refuses the same chain under the default proof-of-work limit', function () {
+    const res = SPV.verifyHeaderChain(chain(2))
+    res.valid.should.equal(false)
+    res.reason.should.match(/easier than the proof-of-work limit/)
+  })
+
+  it('refuses an object that merely claims to have proof of work', function () {
+    const fake = {
+      validProofOfWork: function () { return true },
+      bits: 0x1d00ffff,
+      id: '00'.repeat(32),
+      prevHash: Buffer.alloc(32),
+      merkleRoot: Buffer.alloc(32)
+    }
+    ;(function () { SPV.verifyHeaderChain([fake], { powLimit: REGTEST }) })
+      .should.throw(/80 bytes/)
   })
 
   it('honours a trusted-hash anchor (tip or anchor)', function () {
     const hs = chain(3)
-    SPV.verifyHeaderChain(hs, { trustedHash: hs[2].id }).valid.should.equal(true)
-    SPV.verifyHeaderChain(hs, { trustedHash: hs[0].id }).valid.should.equal(true)
-    const res = SPV.verifyHeaderChain(hs, { trustedHash: 'ff'.repeat(32) })
+    SPV.verifyHeaderChain(hs, { powLimit: REGTEST, trustedHash: hs[2].id }).valid.should.equal(true)
+    SPV.verifyHeaderChain(hs, { powLimit: REGTEST, trustedHash: hs[0].id }).valid.should.equal(true)
+    const res = SPV.verifyHeaderChain(hs, { powLimit: REGTEST, trustedHash: 'ff'.repeat(32) })
     res.valid.should.equal(false)
     res.reason.should.match(/trusted hash/)
   })
@@ -85,6 +107,6 @@ describe('SPV.verifyHeaderChain', function () {
   it('accepts hex / buffer headers', function () {
     const hs = chain(2)
     const asHex = hs.map(function (h) { return h.toBuffer().toString('hex') })
-    SPV.verifyHeaderChain(asHex).valid.should.equal(true)
+    SPV.verifyHeaderChain(asHex, { powLimit: REGTEST }).valid.should.equal(true)
   })
 })

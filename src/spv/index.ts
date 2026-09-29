@@ -9,6 +9,7 @@ import merkleproof = require('./merkleproof')
 import headerchain = require('./headerchain')
 
 const SPV = {
+  POW_LIMIT_BITS: merkleproof.POW_LIMIT_BITS,
   merkleRootFromBranch: merkleproof.merkleRootFromBranch,
   verifyMerkleProof: merkleproof.verifyMerkleProof,
   verifyTxInclusion: merkleproof.verifyTxInclusion,

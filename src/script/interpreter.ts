@@ -102,9 +102,34 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
   })
   let stackCopy: Buffer[] = []
 
-  if ((flags & Interpreter.SCRIPT_VERIFY_SIGPUSHONLY) !== 0 && !scriptSig.isPushOnly()) {
-    this.errstr = 'SCRIPT_ERR_SIG_PUSHONLY'
+  // A UTXO cannot be post-Chronicle without being post-Genesis. The node refuses the
+  // combination outright (valid_flags, interpreter.cpp) rather than picking an era, and
+  // so must we: every era test below would otherwise answer from half a flag set.
+  if ((flags & Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE) !== 0 &&
+      (flags & Interpreter.SCRIPT_UTXO_AFTER_GENESIS) === 0) {
+    this.errstr = 'SCRIPT_ERR_INVALID_FLAGS'
     return false
+  }
+
+  const utxoAfterGenesis = (flags & Interpreter.SCRIPT_UTXO_AFTER_GENESIS) !== 0
+  const chronicleBlock = (flags & Interpreter.SCRIPT_CHRONICLE) !== 0
+
+  // Chronicle permits malleability for transaction versions above 1, which exempts those
+  // transactions from the rules whose only purpose is to stop a signed transaction being
+  // rewritten in flight. The node's EnforceNonMalleability(flags, checker.Version()).
+  const enforceNonMalleability =
+    !(chronicleBlock && (tx as { version: number }).version > 1)
+
+  if ((flags & Interpreter.SCRIPT_VERIFY_SIGPUSHONLY) !== 0) {
+    // Before Genesis a non-push scriptSig was refused only where P2SH demanded it, in the
+    // branch below; Genesis made it a rule of its own; Chronicle keeps it as a
+    // non-malleability rule, so a malleable version is exempt.
+    const required = (((flags & Interpreter.SCRIPT_GENESIS) !== 0) && !chronicleBlock) ||
+      (chronicleBlock && enforceNonMalleability)
+    if (required && !scriptSig.isPushOnly()) {
+      this.errstr = 'SCRIPT_ERR_SIG_PUSHONLY'
+      return false
+    }
   }
 
   // evaluate scriptSig
@@ -112,7 +137,7 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
     return false
   }
 
-  if (flags & Interpreter.SCRIPT_VERIFY_P2SH) {
+  if ((flags & Interpreter.SCRIPT_VERIFY_P2SH) && !utxoAfterGenesis) {
     stackCopy = this.stack.slice()
   }
 
@@ -143,8 +168,18 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
     return false
   }
 
-  // Additional validation for spend-to-script-hash transactions:
-  if ((flags & Interpreter.SCRIPT_VERIFY_P2SH) && scriptPubkey.isScriptHashOut()) {
+  // The stack CLEANSTACK judges is the one the last evaluation left. Where P2SH runs,
+  // the node restores the copy taken before the scriptPubkey and the redeem script
+  // consumes that; everywhere else it is the working stack. Reading the wrong one silently
+  // judged the wrong script.
+  let finalStack: Buffer[] = this.stack
+
+  // Additional validation for spend-to-script-hash transactions, and only while the output
+  // being spent predates Genesis. Genesis removed P2SH: after it an output of that shape
+  // is an ordinary script whose redeem script is never run, and the hash-and-equal is the
+  // whole of the check. Running it anyway made us refuse 14 spends the network accepts.
+  if ((flags & Interpreter.SCRIPT_VERIFY_P2SH) && !utxoAfterGenesis &&
+      scriptPubkey.isScriptHashOut()) {
     // scriptSig must be literals-only or validation fails
     if (!scriptSig.isPushOnly()) {
       this.errstr = 'SCRIPT_ERR_SIG_PUSHONLY'
@@ -186,6 +221,8 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
       this.errstr = 'SCRIPT_ERR_EVAL_FALSE_IN_P2SH_STACK'
       return false
     }
+
+    finalStack = stackCopy
   }
 
   // The CLEANSTACK check is only performed after potential P2SH evaluation,
@@ -196,11 +233,16 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
     // Disallow CLEANSTACK without P2SH, as otherwise a switch
     // CLEANSTACK->P2SH+CLEANSTACK would be possible, which is not a
     // softfork (and P2SH should be one).
+    // The flags come from a caller, so this is a bad request rather than a broken
+    // invariant. The node names it; throwing turned a verdict into a crash.
     if ((flags & Interpreter.SCRIPT_VERIFY_P2SH) === 0) {
-      throw new Error('internal error - CLEANSTACK without P2SH')
+      this.errstr = 'SCRIPT_ERR_INVALID_FLAGS'
+      return false
     }
 
-    if (stackCopy.length !== 1) {
+    // Clean stack was only ever a policy rule, never consensus, so Chronicle ties it to
+    // the transaction version rather than to the age of the output being spent.
+    if (enforceNonMalleability && finalStack.length !== 1) {
       this.errstr = 'SCRIPT_ERR_CLEANSTACK'
       return false
     }

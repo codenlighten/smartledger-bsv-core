@@ -687,7 +687,23 @@ describe('Interpreter', function () {
     '2 2 0 IF DIV ELSE 1 ENDIF|NOP|P2SH,STRICTENC': 'OK',
     '2 2 0 IF MOD ELSE 1 ENDIF|NOP|P2SH,STRICTENC': 'OK',
     '2 DUP DIV|1 EQUAL|P2SH,STRICTENC': 'OK',
-    '7 3 MOD|1 EQUAL|P2SH,STRICTENC': 'OK'
+    '7 3 MOD|1 EQUAL|P2SH,STRICTENC': 'OK',
+
+    // SIGPUSHONLY is no longer a rule on its own. BSV's VerifyScript applies it only
+    //
+    //   if((IsGenesis(flags) && !IsChronicle(flags)) ||
+    //      (IsChronicle(flags) && !IsMalleableTxnVersion(checker.Version())))
+    //
+    // because before Genesis a non-push scriptSig was refused only where P2SH demanded it,
+    // and under Chronicle it survives as a non-malleability rule that a malleable
+    // transaction version is exempt from. Both rows below carry SIGPUSHONLY and no era
+    // flag at all, so on BSV they pass.
+    //
+    // The node's own corpus states both halves on the very same script: with
+    // GENESIS,SIGPUSHONLY it expects SIG_PUSHONLY (bitcoin-sv rows 1391 and 1395), with
+    // SIGPUSHONLY alone it expects OK (row 1398). These two Core rows predate that split.
+    '0 0x47 0x304402200abeb4bd07f84222f474aed558cfbdfc0b4e96cde3c2935ba7098b1ff0bd74c302204a04c1ca67b2a20abee210cf9a21023edccbbf8024b988812634233115c6b73901 DUP|2 0x21 0x038282263212c609d9ea2a6e3e172de238d8c39cabd5ac1ca10646e23fd5f51508 0x21 0x038282263212c609d9ea2a6e3e172de238d8c39cabd5ac1ca10646e23fd5f51508 2 CHECKMULTISIG|SIGPUSHONLY': 'OK',
+    '0x47 0x3044022018a2a81a93add5cb5f5da76305718e4ea66045ec4888b28d84cb22fae7f4645b02201e6daa5ed5d2e4b2b2027cf7ffd43d8d9844dd49f74ef86899ec8e669dfd39aa01 NOP8 0x23 0x2103363d90d447b00c9c99ceac05b6262ee053441c7e55552ffe526bad8f83ff4640ac|HASH160 0x14 0x215640c2f72f0d16b4eced26762035a42ffed39a EQUAL|SIGPUSHONLY': 'OK'
   }
 
   describe('bitcoind script evaluation fixtures', function () {

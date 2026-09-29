@@ -92,7 +92,7 @@ describe('Interpreter era and mandatory-rule flags', function () {
       const post = interp(Interpreter.SCRIPT_UTXO_AFTER_GENESIS)
       pre.maxScriptElementSize().should.equal(520)
       pre.maxScriptSize().should.equal(10000)
-      pre.maxOpsPerScript().should.equal(201)
+      pre.maxOpsPerScript().should.equal(500) // BSV's pre-Genesis cap, not Core's 201
       pre.maxPubKeysPerMultisig().should.equal(20)
       post.maxScriptElementSize().should.equal(Interpreter.UNLIMITED)
       post.maxScriptSize().should.equal(Interpreter.UNLIMITED)
@@ -168,15 +168,18 @@ describe('Interpreter era and mandatory-rule flags', function () {
 
     it('accepts more keys after Genesis than the pre-Genesis cap allowed', function () {
       // 600 keys is 20,404 bytes and 601 opcodes — over the pre-Genesis 20-key,
-      // 201-op and 10,000-byte caps, all three of which Genesis removed or raised.
+      // 500-op and 10,000-byte caps, all three of which Genesis removed or raised.
       multisig(600, 0, POST).should.equal('ACCEPT')
     })
 
-    it('still enforces the op count before Genesis', function () {
-      // 190 NOPs + 20 keys + CHECKMULTISIG = 211 ops against this repo's
-      // pre-Genesis limit of 201, in well under the 10,000-byte size cap, so the
-      // size cap cannot be what rejects it.
-      multisig(20, 190, 0).should.equal('SCRIPT_ERR_OP_COUNT')
+    it('still enforces the op count before Genesis, at BSV\'s 500 rather than Core\'s 201', function () {
+      // CHECKMULTISIG counts its keys, so 20 keys + CHECKMULTISIG is 21 ops before the
+      // NOPs. 490 NOPs makes 511 ops, over the pre-Genesis limit of 500 and well under
+      // the 10,000-byte size cap, so the size cap cannot be what rejects it.
+      multisig(20, 490, 0).should.equal('SCRIPT_ERR_OP_COUNT')
+      // And the range Core would have rejected and BSV accepts: 211 ops passes here.
+      // consensus.h MAX_OPS_PER_SCRIPT_BEFORE_GENESIS = 500, not 201.
+      multisig(20, 190, 0).should.equal('ACCEPT')
       multisig(20, 0, 0).should.equal('ACCEPT')
     })
 

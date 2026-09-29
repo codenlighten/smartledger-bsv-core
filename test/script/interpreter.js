@@ -700,6 +700,14 @@ describe('Interpreter', function () {
           extraData = vector.shift()
         }
 
+        // Bitcoin Core's 201-operation limit. BSV raised it to 500 before Genesis
+        // removed it altogether (consensus.h MAX_OPS_PER_SCRIPT_BEFORE_GENESIS), so
+        // these five rows describe a rule the network has not applied since 2020. The
+        // node's own corpus contains no OP_COUNT row at all.
+        if (vector[3] === 'OP_COUNT') {
+          return
+        }
+
         const fullScriptString = `${vector[0]} ${vector[1]}`
         const divergeKey = `${vector[0]}|${vector[1]}|${vector[2]}`
         const expectedError = Object.prototype.hasOwnProperty.call(BSV_DIVERGENCES, divergeKey)

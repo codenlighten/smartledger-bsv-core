@@ -260,12 +260,17 @@ Interpreter.MAXIMUM_ELEMENT_SIZE = 4
 // Maximum number of non-push opcodes per script, PRE-Genesis; post-Genesis there
 // is no cap and maxOpsPerScript() returns UNLIMITED.
 //
-// Left at Core's 201 rather than BSV's 500 on purpose. @smartledger/bsv uses 500,
-// but this repo is measured against test/data/bitcoind, whose OP_COUNT vectors
-// assert failure at exactly 201 — five of them turn into false accepts at 500.
-// Which corpus is authoritative is a separate question from era derivation, and
-// answering it belongs in its own change, with the post-Genesis SV vectors in hand.
-Interpreter.MAX_OPS_PER_SCRIPT = 201
+// BSV's figure, not Bitcoin Core's: bitcoin-sv v1.2.0 src/consensus/consensus.h
+// declares MAX_OPS_PER_SCRIPT_BEFORE_GENESIS = 500, and Genesis then removed the cap
+// entirely. Core's 201 was carried here while it was unclear which corpus decides,
+// and it rejected scripts the network accepts — 202 to 500 opcodes pre-Genesis.
+//
+// The question that deferral left open is now answered by the corpora themselves:
+// Core's script_tests.json asserts failure at 201 in five OP_COUNT rows, while the
+// node's own corpus (bitcoin-sv test/data) contains no OP_COUNT row at all. Those
+// five rows describe a rule BSV has not applied since before Genesis, so the harness
+// skips them, as @smartledger/bsv does.
+Interpreter.MAX_OPS_PER_SCRIPT = 500
 // Maximum total serialized script size. Pre-Genesis consensus is 10,000 bytes;
 // post-Genesis BSV removed this limit too. It was previously a literal inside
 // evaluate(), so `useGenesisLimits()` could not lift it and any script over 10 KB —

@@ -65,7 +65,16 @@ function workFromTarget (target: BN): BN {
 /** The limit as a target, refusing anything parseInt would read only part of. */
 function targetLimit (powLimit?: number | string | BN | null): BN {
   if (powLimit === undefined || powLimit === null) powLimit = POW_LIMIT_BITS
-  if (BN.isBN(powLimit)) return powLimit as BN
+  // A BN is the target itself, and still has to be a target: 2^256 or above is not a limit
+  // at all — every target is below it, so the cap would admit the free forgery it exists to
+  // stop — and zero admits nothing.
+  if (BN.isBN(powLimit)) {
+    const bn = powLimit as BN
+    if (bn.isNeg() || bn.isZero() || bn.cmp(TWO_256) >= 0) {
+      throw new Error('powLimit as a BN must be a target above zero and below 2^256')
+    }
+    return bn
+  }
   let bits: number
   if (typeof powLimit === 'string') {
     if (!/^(0x)?[0-9a-fA-F]{1,8}$/.test(powLimit)) {
@@ -91,7 +100,10 @@ function targetLimit (powLimit?: number | string | BN | null): BN {
  * silently become a few thousand — a floor nothing fails.
  */
 function minWorkBN (minWork: number | string | BN): BN {
-  if (BN.isBN(minWork)) return minWork as BN
+  if (BN.isBN(minWork)) {
+    if ((minWork as BN).isNeg()) throw new Error('minWork as a BN must not be negative')
+    return minWork as BN
+  }
   if (typeof minWork === 'number') {
     if (!Number.isSafeInteger(minWork) || minWork < 0) {
       throw new Error('minWork as a number must be a non-negative safe integer; for larger ' +

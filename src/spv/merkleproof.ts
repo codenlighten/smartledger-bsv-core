@@ -95,6 +95,50 @@ function targetLimit (powLimit?: number | string | BN | null): BN {
 }
 
 /**
+ * A floor given in DIFFICULTY as the work it means: difficulty x 4,295,032,833, exactly.
+ *
+ * `minWork` counts hashes, and difficulty is the unit people quote — a real BSV header is
+ * "difficulty 2.6e10", not "1.1e20 hashes". Reading one as the other sets a floor 4.3 billion
+ * times too low and fails OPEN, which is why the unit is in the name. The multiplication is
+ * done on integers so a fractional difficulty keeps its digits instead of drifting.
+ */
+function workFromDifficulty (difficulty: number | string): BN {
+  let text = typeof difficulty === 'number' ? numberToDecimal(difficulty) : String(difficulty)
+  // `1e19` is how a floor this size is written, by hand and by JSON, so both a Number and a
+  // string may arrive in exponent form. Expanded by moving the point, never through a float.
+  if (/^[0-9]+(\.[0-9]+)?[eE][+]?[0-9]+$/.test(text)) text = expandExponent(text)
+  if (!/^[0-9]+(\.[0-9]+)?$/.test(text)) {
+    throw new Error('minDifficulty must be a non-negative decimal number, not ' +
+      JSON.stringify(difficulty))
+  }
+  const parts = text.split('.')
+  const frac = parts[1] ?? ''
+  const scaled = new BN((parts[0] as string) + frac, 10)
+    .mul(workFromTarget(targetFromBits(POW_LIMIT_BITS) as BN))
+  return frac.length > 0 ? scaled.div(new BN(10).pow(new BN(frac.length))) : scaled
+}
+
+/** `2.557e10` as `25570000000`, by moving the decimal point, with no float in the path. */
+function expandExponent (text: string): string {
+  const halves = text.split(/[eE]/)
+  const exp = parseInt((halves[1] as string).replace('+', ''), 10)
+  const digits = (halves[0] as string).split('.')
+  const intPart = digits[0] as string
+  const frac = digits[1] ?? ''
+  if (exp >= frac.length) return intPart + frac + '0'.repeat(exp - frac.length)
+  return intPart + frac.slice(0, exp) + '.' + frac.slice(exp)
+}
+
+/** A Number as plain decimal digits, so 2.6e10 does not reach the parser as "2.6e+10". */
+function numberToDecimal (n: number): string {
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error('minDifficulty must be a non-negative finite number, not ' + String(n))
+  }
+  if (!/e/i.test(String(n))) return String(n)
+  return n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
+}
+
+/**
  * `minWork` as a BN, refusing anything bn.js would read loosely: it parses 1e21 as 23521,
  * '4.3e9' as 4 and 'abc' as 1122, so a floor set from a Number near the chain's work would
  * silently become a few thousand — a floor nothing fails.
@@ -217,8 +261,19 @@ function verifyTxInclusion (params: TxInclusionParams): TxInclusionResult {
   // when the work checks are off.
   const targetAllowed = target !== null &&
     (!requirePow || target.cmp(targetLimit(params.powLimit)) <= 0)
-  const workSufficient = !requirePow || params.minWork === undefined || params.minWork === null ||
-    work.cmp(minWorkBN(params.minWork)) >= 0
+  let floor: BN | null = null
+  if (requirePow) {
+    // One floor, named for its unit. Accepting both would leave the caller guessing which one
+    // bit, and the two are 4.3e9 apart.
+    const hasWork = params.minWork !== undefined && params.minWork !== null
+    const hasDifficulty = params.minDifficulty !== undefined && params.minDifficulty !== null
+    if (hasWork && hasDifficulty) {
+      throw new Error('pass minWork (hashes) or minDifficulty (difficulty), not both')
+    }
+    if (hasWork) floor = minWorkBN(params.minWork as number | string | BN)
+    else if (hasDifficulty) floor = workFromDifficulty(params.minDifficulty as number | string)
+  }
+  const workSufficient = floor === null || work.cmp(floor) >= 0
 
   return {
     valid: rootMatches && (!requirePow || (powValid && targetAllowed && workSufficient)),
@@ -241,6 +296,7 @@ const merkleproof = {
   targetFromBits,
   targetLimit,
   workFromTarget,
+  workFromDifficulty,
   headerSnapshot
 }
 

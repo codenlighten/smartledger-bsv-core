@@ -122,6 +122,11 @@ jobs:
         # The port's escape hatches are counted rather than forbidden, so new ones have to
         # be deliberate. At budget means no headroom: adding one requires removing one.
         run: npm run any-budget
+      - name: Public API surface
+        # The README promises the 630 recorded names do not change shape within 1.x. A promise
+        # nobody measures is not a promise, so this fails on a removal or a re-typing.
+        run: npm run check:api
+
       - name: Require-cycle load order
         # `address` and `script` are a require cycle. Capturing the partner at module scope
         # only works if one of them loads first; reaching the other first leaves the binding

@@ -1,6 +1,6 @@
 {
   "name": "@smartledger/bsv-core",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Bitcoin SV primitives: keys, addresses, script, transactions, encoding, SPV, ECIES, mnemonics, 1Sat Ordinals and OP_PUSH_TX covenants.",
   "author": "SmartLedger Technology <hello@smartledger.technology> (https://smartledger.technology)",
   "license": "MIT",
@@ -27,20 +27,24 @@
     "preconformance": "npm run build",
     "conformance": "node conformance/verify.js",
     "conformance:generate": "npm run build && node conformance/generate.js",
-    "check": "npm run lint && npm test && npm run conformance && node scripts/check-cycle-safety.js && node scripts/check-any-budget.js",
+    "check": "npm run lint && npm test && npm run conformance && node scripts/check-cycle-safety.js && node scripts/check-any-budget.js && npm run check:api",
     "build:types": "tsc -p tsconfig.types.json || true",
     "cycle-safety": "npm run build && node scripts/check-cycle-safety.js",
     "any-budget": "node scripts/check-any-budget.js",
     "prevectors:sv": "npm run build",
     "vectors:sv": "node tools/sv-vector-report.js",
     "prevectors:sv-delta": "npm run build",
-    "vectors:sv-delta": "node tools/sv-vector-delta.js"
+    "vectors:sv-delta": "node tools/sv-vector-delta.js",
+    "api:snapshot": "node scripts/api-surface.mjs --update",
+    "check:api": "node scripts/api-surface.mjs"
   },
   "files": [
-    "dist/",
+    "CARVE.md",
+    "CHANGELOG.md",
     "LICENSE",
     "README.md",
-    "CARVE.md"
+    "SECURITY.md",
+    "dist/"
   ],
   "keywords": [
     "bitcoin",

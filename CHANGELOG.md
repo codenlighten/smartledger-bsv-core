@@ -7,6 +7,37 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.0.1] - 2026-09-30
+
+### Fixed — the starting figure quoted in 1.0.0 was not a real measurement
+
+1.0.0 said the corpus "began at 1429 of 1483 with 29 false accepts". Both numbers were real; the
+pair was not. Re-measured at the branch point with the harness as it now stands, the true figure
+is **1424 of 1483 with 30 false accepts**.
+
+The 1429 came from *after* the first of the nine fixes had already landed — the opcode cap — and
+the 29 came from a run with the harness **before** it mirrored `DoTest`'s
+`if(flags & SCRIPT_VERIFY_CLEANSTACK) flags |= SCRIPT_VERIFY_P2SH`. Without that rule the
+`UTXO_AFTER_GENESIS,CLEANSTACK` row ran under a flag set `VerifyScript` refuses outright, so it
+was not testing clean stacks at all and its false accept went uncounted. Fixing the harness
+revealed a thirtieth.
+
+For the record, the 30 grouped by cause: **14** multiple `OP_ELSE` after Genesis, **8**
+`OP_VERIF`/`OP_VERNOTIF` era gating, **7** Chronicle `OP_SUBSTR`/`OP_LEFT`/`OP_RIGHT` range and
+stack checks, and **1** `CLEANSTACK` judged against the wrong stack. All 30 are rows of
+`script_tests.json`. The two defects found later — `LOW_S` masking the `STRICTENC` checks, and
+Chronicle's malleability relaxations — are **not** among them and are not reachable by that
+corpus at all.
+
+Nothing in the code changed. This is a release because the figure ships in the README and the
+changelog, and a package whose argument is measurement should not carry a number that was never
+measured.
+
+### Added
+
+- `test/data/blind-spot-vectors.json` in `@smartledger/bsv` — nine portable vectors covering the
+  two blind spots, in raw bytes with the node's flag names, for other implementations to replay.
+
 ## [1.0.0] - 2026-09-30
 
 First stable release. The TypeScript port is complete, and the script engine agrees with the
@@ -19,7 +50,7 @@ unmodified: **1483 of 1483**, with **no false accepts, no false rejects and no w
 the same verdict as the node, for the same stated reason, on every row. Its `sighash.json` is
 likewise 1000 of 1000 across both digest columns.
 
-It began at **1429 of 1483 with 29 false accepts**: 29 ways to call a spend valid that the
+It began at **1424 of 1483 with 30 false accepts**: 30 ways to call a spend valid that the
 network would refuse. Closing them took nine fixes, each measured rather than inspected:
 
 - **the pre-Genesis opcode cap is BSV's 500, not Core's 201** (`consensus.h:40`). Inherited from

@@ -47,10 +47,11 @@ tag, not a comparison against a live node. A false accept, meaning a script the 
 that this package calls valid, fails the build; that is enforced in CI on every pull request
 rather than measured by hand.
 
-This is a stronger claim than passing our own tests, and it was not free. The corpus started at
-1429 / 1483 with **29 false accepts** — 29 ways to call a spend valid that the network would
-refuse — and closing them took nine fixes to the interpreter and the sighash digest. What they
-were is in the git history and in `CHANGELOG.md`.
+This is a stronger claim than passing our own tests, and it was not free. Measured at the branch
+point with the harness as it now stands, the corpus started at **1424 / 1483 with 30 false
+accepts** — 30 ways to call a spend valid that the network would refuse — and closing them took
+nine fixes to the interpreter and the sighash digest. What they were is in the git history and in
+`CHANGELOG.md`.
 
 ### What the conformance corpus does and does not prove
 
@@ -145,7 +146,7 @@ declaration, type packages that were devDependencies rather than dependencies, a
 `Script.Interpreter` declared `unknown`.
 
 But
-the interpreter was carrying 29 false accepts a week before 1.0.0, and CI first ran on
+the interpreter was carrying 30 false accepts a week before 1.0.0, and CI first ran on
 2026-09-30. The corpora, the CI gates and the regression tests for every fix are in the repository
 to be checked rather than taken on trust — see
 [`test/script/chronicle_malleability.js`](test/script/chronicle_malleability.js) and

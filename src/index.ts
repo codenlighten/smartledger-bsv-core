@@ -153,4 +153,69 @@ bsv.Covenant = _covenant
 // Exposed for advanced use and for the covenant/ordinals machinery.
 bsv.Transaction.sighash = _transaction_sighash
 
-export = bsv
+/**
+ * The typed view of the namespace above.
+ *
+ * `bsv` is assembled by assignment, so its inferred type is
+ * `Record<string, any>` — which is what the emitted `dist/index.d.ts` used to
+ * export, making every member of the package root `any`. A TypeScript consumer
+ * got no checking at all from the package root, while `dist/*.d.ts` beside it
+ * carried real types the whole time. Found by compiling `bsv.Address` as a type
+ * against the packed tarball, which is the only place that gap is visible.
+ *
+ * Each member is `typeof` the module it came from, so the types are the modules'
+ * own and cannot drift from them. This is a view of the same object, not a copy:
+ * the runtime value is unchanged.
+ */
+interface BsvCore {
+  version: string
+  crypto: {
+    BN: typeof _crypto_bn
+    ECDSA: typeof _crypto_ecdsa
+    Hash: typeof _crypto_hash
+    Random: typeof _crypto_random
+    Point: typeof _crypto_point
+    Signature: typeof _crypto_signature
+    Shamir: typeof _crypto_shamir
+    SmartVerify: typeof _crypto_smartledger_verify
+  }
+  encoding: {
+    Base58: typeof _encoding_base58
+    Base58Check: typeof _encoding_base58check
+    BufferReader: typeof _encoding_bufferreader
+    BufferWriter: typeof _encoding_bufferwriter
+    Varint: typeof _encoding_varint
+  }
+  util: {
+    js: typeof _util_js
+    preconditions: typeof _util_preconditions
+  }
+  errors: typeof _errors
+  Address: typeof _address
+  PrivateKey: typeof _privatekey
+  PublicKey: typeof _publickey
+  HDPrivateKey: typeof _hdprivatekey
+  HDPublicKey: typeof _hdpublickey
+  Networks: typeof _networks
+  Opcode: typeof _opcode
+  Script: typeof _script
+  Transaction: typeof _transaction
+  Input: typeof _transaction.Input
+  Output: typeof _transaction.Output
+  UnspentOutput: typeof _transaction.UnspentOutput
+  Signature: typeof _crypto_signature
+  Block: typeof _block
+  BlockHeader: typeof _block_blockheader
+  MerkleBlock: typeof _block_merkleblock
+  SPV: typeof _spv
+  ECIES: typeof _ecies
+  Message: typeof _message
+  Mnemonic: typeof _mnemonic
+  Shamir: typeof _crypto_shamir
+  Ordinals: typeof _ordinals
+  Covenant: typeof _covenant
+}
+
+const typed = bsv as unknown as BsvCore
+
+export = typed

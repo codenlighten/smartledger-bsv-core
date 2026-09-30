@@ -54,6 +54,28 @@ Neither of the last two was visible to any corpus. Every one of the node's 1483 
 transaction version 1, and not one pairs `LOW_S` with a hash-type expectation. Both were found by
 transcribing the node's whole function against the C++ rather than reading the line under repair.
 
+### Fixed — the package was unusable from TypeScript, which nothing was checking
+
+Found by compiling as a *consumer* against the packed tarball, which is the only place these
+are visible. `npm run typecheck` compiles this package's own source, where every type resolves
+from devDependencies; a consumer installs only what `dependencies` ships.
+
+- **`dist/index.d.ts` was `declare const bsv: Record<string, any>`.** Every member of the
+  package root was `any`, so a TypeScript consumer got no checking at all from the package root
+  — while the per-module `dist/*.d.ts` beside it carried real types the whole time. The root now
+  exports an interface whose members are `typeof` the modules they come from, so the types are
+  the modules' own and cannot drift from them.
+- **`ScriptConstructor` declared `Interpreter: unknown`**, making
+  `bsv.Script.Interpreter.mainnetFlags()` a TS18046 error for everyone. It was `unknown` to
+  avoid a type cycle, but `import type` is erased, so there was no runtime edge to avoid. This
+  was the consensus-critical class in the package and the one least excusable to ship untyped.
+- **`@types/bn.js` and `@types/node` were devDependencies**, while the shipped declarations
+  reference `bn.js` and `Buffer`. A consumer got TS7016 on import. They are dependencies now.
+
+`npm run check:consumer-types` installs the tarball into a throwaway directory with nothing
+added by hand and compiles a strict consumer against it. CI runs it, so this class of defect
+cannot ship again unnoticed.
+
 ### Added
 
 - **CI.** Nothing previously ran on a push or a pull request. Five jobs now do, and the corpus

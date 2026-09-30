@@ -126,7 +126,25 @@ The node's vectors, not this package's opinion, decide what correct means here.
 ### What this release is, plainly
 
 New code. The TypeScript port is complete and `dist/` ships generated declarations, with the
-`any` budget counted rather than open-ended (29 of 29, so a new one requires removing one). But
+`any` budget counted rather than open-ended (29 of 29, so a new one requires removing one).
+
+The package is a CommonJS `export =` module, so from TypeScript:
+
+```ts
+import bsv = require('@smartledger/bsv-core')          // values are fully typed
+const flags: number = bsv.Script.Interpreter.mainnetFlags()
+const addr: InstanceType<typeof bsv.Address> = key.toAddress()   // annotate via InstanceType
+```
+
+`bsv.Address` as a bare type annotation is not available — an `export =` module exports values,
+not type aliases — and exporting the instance types under their own names is tracked for a
+minor. `npm run check:consumer-types` compiles that snippet against the packed tarball in a
+throwaway directory with nothing added by hand, and CI runs it, because this package's own
+`typecheck` cannot see what a consumer sees: at 1.0.0 that gap had hidden an all-`any` root
+declaration, type packages that were devDependencies rather than dependencies, and
+`Script.Interpreter` declared `unknown`.
+
+But
 the interpreter was carrying 29 false accepts a week before 1.0.0, and CI first ran on
 2026-09-30. The corpora, the CI gates and the regression tests for every fix are in the repository
 to be checked rather than taken on trust — see

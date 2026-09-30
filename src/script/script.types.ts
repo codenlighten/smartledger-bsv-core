@@ -10,6 +10,7 @@
 /** One parsed element: an opcode, optionally carrying pushed data. */
 import type Opcode = require('../opcode')
 import type { PublicKey } from '../publickey.types'
+import type { InterpreterConstructor } from './interpreter.types'
 import type { Address } from '../address.types'
 import type { Network } from '../networks.types'
 import type { Signature } from '../crypto/signature.types'
@@ -140,6 +141,15 @@ export interface ScriptConstructor {
   outputIdentifiers: Record<string, () => boolean>
   inputIdentifiers: Record<string, () => boolean>
 
-  /** Attached by script/index, not by script/script itself. */
-  Interpreter: unknown
+  /**
+   * Attached by script/index, not by script/script itself.
+   *
+   * Typed rather than `unknown`. It was the latter to avoid a type cycle back through
+   * interpreter.types, but `import type` is erased — as this file's own header says — so
+   * there is no runtime edge to avoid. Left as `unknown` it made
+   * `bsv.Script.Interpreter.mainnetFlags()` a TS18046 error for every TypeScript consumer,
+   * which is the consensus-critical class in this package and the one least excusable to
+   * ship untyped.
+   */
+  Interpreter: InterpreterConstructor
 }

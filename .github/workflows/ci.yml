@@ -169,6 +169,14 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
+      - name: A consumer's TypeScript compiles against the tarball
+        # npm run typecheck compiles THIS package's source, where every type resolves from
+        # devDependencies. A consumer installs only what `dependencies` ships. That gap hid
+        # three real defects at 1.0.0 — an all-`any` root declaration, bn.js and Buffer types
+        # that were devDependencies, and Script.Interpreter declared `unknown`. None was
+        # visible to typecheck.
+        run: npm run check:consumer-types
+
       - name: Build, then check what would be published
         # npm pack --dry-run does NOT run prepublishOnly, so packing without building first
         # reports a tarball that is nearly empty and says nothing is wrong. Build, then pack.

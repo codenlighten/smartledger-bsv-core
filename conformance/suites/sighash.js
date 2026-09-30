@@ -40,7 +40,19 @@ const cases = {
     const Script = bsv.Script
     const Transaction = bsv.Transaction
     const zero = bsv.crypto.BN.Zero
+    const Signature = bsv.crypto.Signature
     return VECTORS.map((v, i) => {
+      // These were recorded before Chronicle, when bit 0x20 of the sighash type carried
+      // no meaning and BIP-143 was selected on the forkid bit alone. Chronicle gave 0x20
+      // to SIGHASH_CHRONICLE, which selects the original digest even with forkid present,
+      // so for a row setting both bits the recorded hash is no longer the answer.
+      // Recording 251 MISMATCHes here would enshrine a disagreement with a stale corpus
+      // as the baseline. The node's own vectors, which carry both digests for every row,
+      // cover this properly in test/consensus/sv-sighash-vectors.js.
+      const type = v[3] >>> 0
+      if ((type & Signature.SIGHASH_FORKID) && (type & Signature.SIGHASH_CHRONICLE)) {
+        return `${i}:skipped:chronicle-bit`
+      }
       try {
         const tx = new Transaction(hex(v[0]))
         const subscript = new Script(hex(v[1]))

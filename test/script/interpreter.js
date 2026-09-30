@@ -660,6 +660,20 @@ describe('Interpreter', function () {
   //    names up and called 0xba OP_NOP8, which made it a valid no-op and a
   //    divergence; 0xba is unassigned again, so BSV agrees with Core and an
   //    override here would assert the wrong result.
+  // The four OP_VERIF/OP_VERNOTIF rows that used to be listed here are gone. They were
+  // overridden to 'OK' on the reasoning that BSV dropped Core's "illegal everywhere" rule
+  // at Genesis, which is half the rule. The node reads
+  //
+  //   if(!utxo_after_chronicle) {
+  //     if(utxo_after_genesis && !fExec) break;
+  //     else return SCRIPT_ERR_BAD_OPCODE;
+  //   }
+  //
+  // so an unexecuted one is harmless only when the UTXO is post-Genesis. These rows carry
+  // P2SH,STRICTENC and no Genesis flag, so they are pre-Genesis and BAD_OPCODE is right —
+  // and the node's own corpus says so, with the same comment. The override was a reasonable
+  // inference while the interpreter skipped an unexecuted VERIF in every era. It no longer
+  // does.
   const BSV_DIVERGENCES = {
     "'a' 'b'|CAT|P2SH,STRICTENC": 'OK',
     "'a' 'b' 0|IF CAT ELSE 1 ENDIF|P2SH,STRICTENC": 'OK',
@@ -675,15 +689,23 @@ describe('Interpreter', function () {
     '2 DUP DIV|1 EQUAL|P2SH,STRICTENC': 'OK',
     '7 3 MOD|1 EQUAL|P2SH,STRICTENC': 'OK',
 
-    //  - OP_VERIF/OP_VERNOTIF are "illegal everywhere" in Core, including in
-    //    an unexecuted branch — a rule it applies to no other opcode. BSV
-    //    dropped that at Genesis: the node breaks when the branch is not
-    //    executed and the UTXO predates Chronicle. So these four verify here
-    //    and are rejected upstream.
-    '0|IF VERIF ELSE 1 ENDIF|P2SH,STRICTENC': 'OK',
-    '0|IF ELSE 1 ELSE VERIF ENDIF|P2SH,STRICTENC': 'OK',
-    '0|IF VERNOTIF ELSE 1 ENDIF|P2SH,STRICTENC': 'OK',
-    '0|IF ELSE 1 ELSE VERNOTIF ENDIF|P2SH,STRICTENC': 'OK'
+    // SIGPUSHONLY is no longer a rule on its own. BSV's VerifyScript applies it only
+    //
+    //   if((IsGenesis(flags) && !IsChronicle(flags)) ||
+    //      (IsChronicle(flags) && !IsMalleableTxnVersion(checker.Version())))
+    //
+    // because before Genesis a non-push scriptSig was refused only where P2SH demanded it,
+    // and under Chronicle it survives as a non-malleability rule that a malleable
+    // transaction version is exempt from. Both rows below carry SIGPUSHONLY and no era
+    // flag at all, so on BSV they pass.
+    //
+    // The evidence is the node's source, not its corpus. Every bitcoin-sv row that pairs
+    // SIGPUSHONLY with a non-push scriptSig also carries an era flag (rows 76, 1391, 1395),
+    // and the one row that carries SIGPUSHONLY alone pushes its signatures literally
+    // (row 1398), so it is push-only and decides nothing. These two Core rows are the only
+    // coverage of the case, and on BSV the rule above does not reach them.
+    '0 0x47 0x304402200abeb4bd07f84222f474aed558cfbdfc0b4e96cde3c2935ba7098b1ff0bd74c302204a04c1ca67b2a20abee210cf9a21023edccbbf8024b988812634233115c6b73901 DUP|2 0x21 0x038282263212c609d9ea2a6e3e172de238d8c39cabd5ac1ca10646e23fd5f51508 0x21 0x038282263212c609d9ea2a6e3e172de238d8c39cabd5ac1ca10646e23fd5f51508 2 CHECKMULTISIG|SIGPUSHONLY': 'OK',
+    '0x47 0x3044022018a2a81a93add5cb5f5da76305718e4ea66045ec4888b28d84cb22fae7f4645b02201e6daa5ed5d2e4b2b2027cf7ffd43d8d9844dd49f74ef86899ec8e669dfd39aa01 NOP8 0x23 0x2103363d90d447b00c9c99ceac05b6262ee053441c7e55552ffe526bad8f83ff4640ac|HASH160 0x14 0x215640c2f72f0d16b4eced26762035a42ffed39a EQUAL|SIGPUSHONLY': 'OK'
   }
 
   describe('bitcoind script evaluation fixtures', function () {
@@ -698,6 +720,14 @@ describe('Interpreter', function () {
         let extraData
         if (_.isArray(vector[0])) {
           extraData = vector.shift()
+        }
+
+        // Bitcoin Core's 201-operation limit. BSV raised it to 500 before Genesis
+        // removed it altogether (consensus.h MAX_OPS_PER_SCRIPT_BEFORE_GENESIS), so
+        // these five rows describe a rule the network has not applied since 2020. The
+        // node's own corpus contains no OP_COUNT row at all.
+        if (vector[3] === 'OP_COUNT') {
+          return
         }
 
         const fullScriptString = `${vector[0]} ${vector[1]}`

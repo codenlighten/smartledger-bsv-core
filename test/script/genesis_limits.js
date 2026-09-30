@@ -9,7 +9,7 @@ const Opcode = bsv.Opcode
 const Transaction = bsv.Transaction
 
 // Post-Genesis BSV removed the pre-Genesis script limits (520-byte element,
-// 4-byte script number, 201 opcodes). These are now configurable so modern
+// 4-byte script number, 500 opcodes). These are now configurable so modern
 // covenants (e.g. OP_PUSH_TX) can be evaluated. Defaults are unchanged.
 describe('Interpreter post-Genesis limits', function () {
   let saved
@@ -24,7 +24,7 @@ describe('Interpreter post-Genesis limits', function () {
   it('keeps pre-Genesis defaults out of the box', function () {
     Interpreter.MAX_SCRIPT_ELEMENT_SIZE.should.equal(520)
     Interpreter.MAXIMUM_ELEMENT_SIZE.should.equal(4)
-    Interpreter.MAX_OPS_PER_SCRIPT.should.equal(201)
+    Interpreter.MAX_OPS_PER_SCRIPT.should.equal(500)
   })
 
   // MAXIMUM_ELEMENT_SIZE is no longer among them. It is CScriptNum's max_length,
@@ -89,16 +89,27 @@ describe('Interpreter post-Genesis limits', function () {
     run(bigAdd).should.equal(false)
   })
 
-  // 220 OP_NOPs then OP_1 — more non-push opcodes than the 201 cap allows.
+  // 520 OP_NOPs then OP_1 — more non-push opcodes than BSV's pre-Genesis cap of 500
+  // allows (consensus.h MAX_OPS_PER_SCRIPT_BEFORE_GENESIS), which Genesis then removed.
   const manyOps = new Script()
-  for (let i = 0; i < 220; i++) manyOps.add(Opcode.OP_NOP)
+  for (let i = 0; i < 520; i++) manyOps.add(Opcode.OP_NOP)
   manyOps.add(Opcode.OP_1)
 
-  it('rejects >201 opcodes under default limits', function () {
+  // The band Bitcoin Core rejects and BSV accepts: 220 opcodes is over Core's 201 and
+  // under BSV's 500, so it must pass here.
+  const coreWouldReject = new Script()
+  for (let i = 0; i < 220; i++) coreWouldReject.add(Opcode.OP_NOP)
+  coreWouldReject.add(Opcode.OP_1)
+
+  it('rejects >500 opcodes under default limits', function () {
     run(manyOps).should.equal(false)
   })
 
-  it('allows >201 opcodes after useGenesisLimits()', function () {
+  it('accepts the 202-to-500 band Core rejects, because BSV raised the cap', function () {
+    run(coreWouldReject).should.equal(true)
+  })
+
+  it('allows >500 opcodes after useGenesisLimits()', function () {
     Interpreter.useGenesisLimits()
     run(manyOps).should.equal(true)
   })

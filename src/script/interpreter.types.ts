@@ -87,6 +87,8 @@ export interface InterpreterState {
   pbegincodehash?: number | undefined
   nOpCount?: number | undefined
   vfExec?: boolean[] | undefined
+  /** One flag per open conditional: has this level seen an OP_ELSE yet? */
+  vfElse?: boolean[] | undefined
   errstr?: string | undefined
   flags?: number | undefined
   returned?: boolean | undefined
@@ -125,6 +127,8 @@ export interface Interpreter {
   pbegincodehash: number
   nOpCount: number
   vfExec: boolean[]
+  /** One flag per open conditional: has this level seen an OP_ELSE yet? */
+  vfElse: boolean[]
   errstr: string
   flags: number
   /** A top-level OP_RETURN after Genesis ended the script. */
@@ -156,6 +160,12 @@ export interface Interpreter {
    */
   isAfterGenesis: () => boolean
   isAfterChronicle: () => boolean
+  /**
+   * False where Chronicle applies and the spending transaction's version is above 1, which
+   * is how a transaction opts into malleability. LOW_S, MINIMALDATA, MINIMALIF, NULLFAIL,
+   * NULLDUMMY, SIGPUSHONLY and CLEANSTACK are not applied to such a transaction.
+   */
+  enforceNonMalleability: () => boolean
   maxScriptElementSize: () => number
   maxScriptSize: () => number
   maxOpsPerScript: () => number

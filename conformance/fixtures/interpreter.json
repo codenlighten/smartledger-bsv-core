@@ -590,10 +590,10 @@
         "581:fail:agrees:EVAL_FALSE",
         "582:fail:agrees:EVAL_FALSE",
         "583:fail:agrees:BAD_OPCODE",
-        "584:pass:DISAGREES:BAD_OPCODE",
-        "585:pass:DISAGREES:BAD_OPCODE",
-        "586:pass:DISAGREES:BAD_OPCODE",
-        "587:pass:DISAGREES:BAD_OPCODE",
+        "584:fail:agrees:BAD_OPCODE",
+        "585:fail:agrees:BAD_OPCODE",
+        "586:fail:agrees:BAD_OPCODE",
+        "587:fail:agrees:BAD_OPCODE",
         "588:fail:agrees:UNBALANCED_CONDITIONAL",
         "589:fail:agrees:UNBALANCED_CONDITIONAL",
         "590:fail:agrees:UNBALANCED_CONDITIONAL",
@@ -1015,8 +1015,8 @@
         "1006:fail:agrees:INVALID_STACK_OPERATION",
         "1007:fail:agrees:PUSH_SIZE",
         "1008:fail:agrees:PUSH_SIZE",
-        "1009:fail:agrees:OP_COUNT",
-        "1010:fail:agrees:OP_COUNT",
+        "1009:pass:DISAGREES:OP_COUNT",
+        "1010:pass:DISAGREES:OP_COUNT",
         "1011:fail:agrees:STACK_SIZE",
         "1012:fail:agrees:STACK_SIZE",
         "1013:fail:agrees:SCRIPT_SIZE",
@@ -1097,10 +1097,10 @@
         "1088:fail:agrees:SIG_COUNT",
         "1089:fail:agrees:INVALID_STACK_OPERATION",
         "1090:fail:agrees:EVAL_FALSE",
-        "1091:fail:agrees:OP_COUNT",
+        "1091:pass:DISAGREES:OP_COUNT",
         "1092:fail:agrees:INVALID_STACK_OPERATION",
-        "1093:fail:agrees:OP_COUNT",
-        "1094:fail:agrees:OP_COUNT",
+        "1093:pass:DISAGREES:OP_COUNT",
+        "1094:pass:DISAGREES:OP_COUNT",
         "1095:fail:agrees:PUBKEY_COUNT",
         "1096:fail:agrees:SIG_COUNT",
         "1097:fail:agrees:SIG_PUSHONLY",
@@ -1268,11 +1268,11 @@
         "1259:pass:agrees:OK",
         "1260:fail:agrees:SIG_NULLDUMMY",
         "1261:pass:agrees:OK",
-        "1262:fail:agrees:SIG_PUSHONLY",
+        "1262:pass:DISAGREES:SIG_PUSHONLY",
         "1263:pass:agrees:OK",
         "1264:pass:agrees:OK",
         "1265:fail:agrees:SIG_PUSHONLY",
-        "1266:fail:agrees:SIG_PUSHONLY",
+        "1266:pass:DISAGREES:SIG_PUSHONLY",
         "1267:pass:agrees:OK",
         "1268:pass:agrees:OK",
         "1269:fail:agrees:CLEANSTACK",
@@ -1345,10 +1345,6 @@
       "outcome": "ok",
       "value": {
         "cases": [
-          "584:BAD_OPCODE:VERIF illegal everywhere",
-          "585:BAD_OPCODE:VERIF illegal everywhere",
-          "586:BAD_OPCODE:VERNOTIF illegal everywhere",
-          "587:BAD_OPCODE:VERNOTIF illegal everywhere",
           "663:DISABLED_OPCODE:CAT disabled",
           "665:DISABLED_OPCODE:CAT disabled",
           "667:DISABLED_OPCODE:SPLIT disabled",
@@ -1361,9 +1357,16 @@
           "750:DISABLED_OPCODE:DIV disabled",
           "752:DISABLED_OPCODE:MOD disabled",
           "904:DISABLED_OPCODE:disabled",
-          "910:DISABLED_OPCODE:disabled"
+          "910:DISABLED_OPCODE:disabled",
+          "1009:OP_COUNT:>201 opcodes executed. 0x61 is NOP",
+          "1010:OP_COUNT:>201 opcodes including non-executed IF branch. 0x61 is NOP",
+          "1091:OP_COUNT:202 CHECKMULTISIGS, fails due to 201 op limit",
+          "1093:OP_COUNT:Fails due to 201 script operation limit",
+          "1094:OP_COUNT:",
+          "1262:SIG_PUSHONLY:2-of-2 with two identical keys and sigs pushed using OP_DUP",
+          "1266:SIG_PUSHONLY:P2SH(P2PK) with non-push scriptSig but not P2SH"
         ],
-        "count": 17
+        "count": 20
       }
     },
     "castToBool cases": {
@@ -1437,7 +1440,7 @@
     "interpreter default limits": {
       "outcome": "ok",
       "value": {
-        "maxOpsPerScript": 201,
+        "maxOpsPerScript": 500,
         "maxScriptElementSize": 520,
         "maxScriptSize": 10000,
         "maximumElementSize": 4
@@ -1453,13 +1456,13 @@
           "maximumElementSize": 4
         },
         "before": {
-          "maxOpsPerScript": 201,
+          "maxOpsPerScript": 500,
           "maxScriptElementSize": 520,
           "maxScriptSize": 10000,
           "maximumElementSize": 4
         },
         "restored": {
-          "maxOpsPerScript": 201,
+          "maxOpsPerScript": 500,
           "maxScriptElementSize": 520,
           "maxScriptSize": 10000,
           "maximumElementSize": 4
@@ -1471,7 +1474,7 @@
       "value": {
         "LOCKTIME_THRESHOLD": 500000000,
         "MAXIMUM_ELEMENT_SIZE": 4,
-        "MAX_OPS_PER_SCRIPT": 201,
+        "MAX_OPS_PER_SCRIPT": 500,
         "MAX_SCRIPT_ELEMENT_SIZE": 520,
         "MAX_SCRIPT_SIZE": 10000
       }

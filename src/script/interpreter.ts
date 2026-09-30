@@ -102,9 +102,32 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
   })
   let stackCopy: Buffer[] = []
 
-  if ((flags & Interpreter.SCRIPT_VERIFY_SIGPUSHONLY) !== 0 && !scriptSig.isPushOnly()) {
-    this.errstr = 'SCRIPT_ERR_SIG_PUSHONLY'
+  // A UTXO cannot be post-Chronicle without being post-Genesis. The node refuses the
+  // combination outright (valid_flags, interpreter.cpp) rather than picking an era, and
+  // so must we: every era test below would otherwise answer from half a flag set.
+  if ((flags & Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE) !== 0 &&
+      (flags & Interpreter.SCRIPT_UTXO_AFTER_GENESIS) === 0) {
+    this.errstr = 'SCRIPT_ERR_INVALID_FLAGS'
     return false
+  }
+
+  const utxoAfterGenesis = (flags & Interpreter.SCRIPT_UTXO_AFTER_GENESIS) !== 0
+  const chronicleBlock = (flags & Interpreter.SCRIPT_CHRONICLE) !== 0
+
+  // One definition of the rule, shared with the seven sites inside evaluate(), so they
+  // cannot drift apart. Read from the arguments here because this.set() has not run yet.
+  const enforceNonMalleability = enforcesNonMalleability(flags, tx)
+
+  if ((flags & Interpreter.SCRIPT_VERIFY_SIGPUSHONLY) !== 0) {
+    // Before Genesis a non-push scriptSig was refused only where P2SH demanded it, in the
+    // branch below; Genesis made it a rule of its own; Chronicle keeps it as a
+    // non-malleability rule, so a malleable version is exempt.
+    const required = (((flags & Interpreter.SCRIPT_GENESIS) !== 0) && !chronicleBlock) ||
+      (chronicleBlock && enforceNonMalleability)
+    if (required && !scriptSig.isPushOnly()) {
+      this.errstr = 'SCRIPT_ERR_SIG_PUSHONLY'
+      return false
+    }
   }
 
   // evaluate scriptSig
@@ -112,7 +135,7 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
     return false
   }
 
-  if (flags & Interpreter.SCRIPT_VERIFY_P2SH) {
+  if ((flags & Interpreter.SCRIPT_VERIFY_P2SH) && !utxoAfterGenesis) {
     stackCopy = this.stack.slice()
   }
 
@@ -143,8 +166,18 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
     return false
   }
 
-  // Additional validation for spend-to-script-hash transactions:
-  if ((flags & Interpreter.SCRIPT_VERIFY_P2SH) && scriptPubkey.isScriptHashOut()) {
+  // The stack CLEANSTACK judges is the one the last evaluation left. Where P2SH runs,
+  // the node restores the copy taken before the scriptPubkey and the redeem script
+  // consumes that; everywhere else it is the working stack. Reading the wrong one silently
+  // judged the wrong script.
+  let finalStack: Buffer[] = this.stack
+
+  // Additional validation for spend-to-script-hash transactions, and only while the output
+  // being spent predates Genesis. Genesis removed P2SH: after it an output of that shape
+  // is an ordinary script whose redeem script is never run, and the hash-and-equal is the
+  // whole of the check. Running it anyway made us refuse 14 spends the network accepts.
+  if ((flags & Interpreter.SCRIPT_VERIFY_P2SH) && !utxoAfterGenesis &&
+      scriptPubkey.isScriptHashOut()) {
     // scriptSig must be literals-only or validation fails
     if (!scriptSig.isPushOnly()) {
       this.errstr = 'SCRIPT_ERR_SIG_PUSHONLY'
@@ -186,6 +219,8 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
       this.errstr = 'SCRIPT_ERR_EVAL_FALSE_IN_P2SH_STACK'
       return false
     }
+
+    finalStack = stackCopy
   }
 
   // The CLEANSTACK check is only performed after potential P2SH evaluation,
@@ -196,11 +231,16 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
     // Disallow CLEANSTACK without P2SH, as otherwise a switch
     // CLEANSTACK->P2SH+CLEANSTACK would be possible, which is not a
     // softfork (and P2SH should be one).
+    // The flags come from a caller, so this is a bad request rather than a broken
+    // invariant. The node names it; throwing turned a verdict into a crash.
     if ((flags & Interpreter.SCRIPT_VERIFY_P2SH) === 0) {
-      throw new Error('internal error - CLEANSTACK without P2SH')
+      this.errstr = 'SCRIPT_ERR_INVALID_FLAGS'
+      return false
     }
 
-    if (stackCopy.length !== 1) {
+    // Clean stack was only ever a policy rule, never consensus, so Chronicle ties it to
+    // the transaction version rather than to the age of the output being spent.
+    if (enforceNonMalleability && finalStack.length !== 1) {
       this.errstr = 'SCRIPT_ERR_CLEANSTACK'
       return false
     }
@@ -218,6 +258,9 @@ Interpreter.prototype.initialize = function (this: Interpreter, obj?: Interprete
   this.pbegincodehash = 0
   this.nOpCount = 0
   this.vfExec = []
+  // Whether the conditional at each depth has already seen an OP_ELSE. Genesis allows
+  // only one per OP_IF, which needs remembering per level.
+  this.vfElse = []
   this.errstr = ''
   this.flags = 0
   // Genesis restored OP_RETURN's original meaning. `returned` marks a TOP-LEVEL
@@ -239,6 +282,7 @@ Interpreter.prototype.set = function (this: Interpreter, obj: InterpreterState) 
   this.pbegincodehash = typeof obj.pbegincodehash !== 'undefined' ? obj.pbegincodehash : this.pbegincodehash
   this.nOpCount = typeof obj.nOpCount !== 'undefined' ? obj.nOpCount : this.nOpCount
   this.vfExec = obj.vfExec || this.vfExec
+  this.vfElse = obj.vfElse ?? this.vfElse
   this.errstr = obj.errstr || this.errstr
   this.flags = typeof obj.flags !== 'undefined' ? obj.flags : this.flags
   this.returned = typeof obj.returned !== 'undefined' ? obj.returned : this.returned
@@ -260,12 +304,17 @@ Interpreter.MAXIMUM_ELEMENT_SIZE = 4
 // Maximum number of non-push opcodes per script, PRE-Genesis; post-Genesis there
 // is no cap and maxOpsPerScript() returns UNLIMITED.
 //
-// Left at Core's 201 rather than BSV's 500 on purpose. @smartledger/bsv uses 500,
-// but this repo is measured against test/data/bitcoind, whose OP_COUNT vectors
-// assert failure at exactly 201 — five of them turn into false accepts at 500.
-// Which corpus is authoritative is a separate question from era derivation, and
-// answering it belongs in its own change, with the post-Genesis SV vectors in hand.
-Interpreter.MAX_OPS_PER_SCRIPT = 201
+// BSV's figure, not Bitcoin Core's: bitcoin-sv v1.2.0 src/consensus/consensus.h
+// declares MAX_OPS_PER_SCRIPT_BEFORE_GENESIS = 500, and Genesis then removed the cap
+// entirely. Core's 201 was carried here while it was unclear which corpus decides,
+// and it rejected scripts the network accepts — 202 to 500 opcodes pre-Genesis.
+//
+// The question that deferral left open is now answered by the corpora themselves:
+// Core's script_tests.json asserts failure at 201 in five OP_COUNT rows, while the
+// node's own corpus (bitcoin-sv test/data) contains no OP_COUNT row at all. Those
+// five rows describe a rule BSV has not applied since before Genesis, so the harness
+// skips them, as @smartledger/bsv does.
+Interpreter.MAX_OPS_PER_SCRIPT = 500
 // Maximum total serialized script size. Pre-Genesis consensus is 10,000 bytes;
 // post-Genesis BSV removed this limit too. It was previously a literal inside
 // evaluate(), so `useGenesisLimits()` could not lift it and any script over 10 KB —
@@ -645,6 +694,38 @@ Interpreter.castToBool = function (buf: Buffer) {
 /**
  * Translated from bitcoind's CheckSignatureEncoding
  */
+/**
+ * Chronicle lets a transaction opt into malleability by using a version above 1, and the
+ * rules that exist only to stop a signed transaction being rewritten in flight then stop
+ * applying to it. The node's EnforceNonMalleability(flags, checker.Version()):
+ *
+ *   return !(IsChronicle(flags) && IsMalleableTxnVersion(txnVersion));   // version > 1
+ *
+ * It gates LOW_S, MINIMALDATA, MINIMALIF, NULLFAIL, NULLDUMMY, SIGPUSHONLY and CLEANSTACK.
+ * Note which era flag it reads: SCRIPT_CHRONICLE, the era of the block being built, not
+ * SCRIPT_UTXO_AFTER_CHRONICLE, the era of the output being spent.
+ *
+ * Every version at or below 1 is non-malleable, so the rules apply; a missing transaction is
+ * treated the same way, which is the enforcing answer.
+ */
+function enforcesNonMalleability (flags: number, tx: unknown): boolean {
+  if ((flags & Interpreter.SCRIPT_CHRONICLE) === 0) {
+    return true
+  }
+  // int32, as CTransaction::nVersion is and as checker.Version() returns it. Comparing the
+  // JS number would read a version of 0xffffffff as 4294967295 and call the transaction
+  // malleable, where the node reads -1 and enforces. Such a version cannot arrive from the
+  // network — writeInt32LE refuses it and readInt32LE has already signed anything parsed —
+  // but a caller can set it in code, and the fail-open reading is the wrong one to have.
+  // With no transaction at all the rules apply: BaseSignatureChecker::Version() returns 0.
+  const version = (tx as { version?: number } | undefined)?.version
+  return !(typeof version === 'number' && ((version | 0) > 1))
+}
+
+Interpreter.prototype.enforceNonMalleability = function (this: Interpreter): boolean {
+  return enforcesNonMalleability(this.flags, this.tx)
+}
+
 Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf: Buffer) {
   let sig
 
@@ -654,16 +735,26 @@ Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf:
     return true
   }
 
+  // Three independent checks, as CheckSignatureEncoding has them. They used to be chained
+  // with else-if, so LOW_S — which mainnetFlags() and currentConsensusFlags() both set —
+  // returned early and the whole STRICTENC block below never ran. On the default flags that
+  // silently accepted a signature with an undefined hash type, one without FORKID where
+  // FORKID is required, and one asking for the Chronicle digest outside Chronicle: three
+  // things the node refuses by name.
   if ((this.flags & (Interpreter.SCRIPT_VERIFY_DERSIG | Interpreter.SCRIPT_VERIFY_LOW_S | Interpreter.SCRIPT_VERIFY_STRICTENC)) !== 0 && !Signature.isTxDER(buf)) {
     this.errstr = 'SCRIPT_ERR_SIG_DER_INVALID_FORMAT'
     return false
-  } else if ((this.flags & Interpreter.SCRIPT_VERIFY_LOW_S) !== 0) {
+  }
+
+  if ((this.flags & Interpreter.SCRIPT_VERIFY_LOW_S) !== 0) {
     sig = Signature.fromTxFormat(buf)
-    if (!sig.hasLowS()) {
+    if (!sig.hasLowS() && this.enforceNonMalleability()) {
       this.errstr = 'SCRIPT_ERR_SIG_DER_HIGH_S'
       return false
     }
-  } else if ((this.flags & Interpreter.SCRIPT_VERIFY_STRICTENC) !== 0) {
+  }
+
+  if ((this.flags & Interpreter.SCRIPT_VERIFY_STRICTENC) !== 0) {
     sig = Signature.fromTxFormat(buf)
     if (!sig.hasDefinedHashtype()) {
       this.errstr = 'SCRIPT_ERR_SIG_HASHTYPE'
@@ -673,6 +764,22 @@ Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf:
     if (!(this.flags & Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID) &&
         ((sig.nhashtype as number) & Signature.SIGHASH_FORKID)) {
       this.errstr = 'SCRIPT_ERR_ILLEGAL_FORKID'
+      return false
+    }
+
+    // A signature may only ask for the original digest where Chronicle applies. This is
+    // where the node stops a pre-Chronicle signature whose type byte happens to set 0x20
+    // from being read as one asking for OTDA (interpreter.cpp, CheckSignatureEncoding):
+    //
+    //   const bool chronicleEnabled = flags & SCRIPT_CHRONICLE;
+    //   if(!chronicleEnabled && usesChronicle) return SCRIPT_ERR_ILLEGAL_CHRONICLE;
+    //
+    // It rejects such a signature outright rather than reinterpreting it, which is what
+    // lets SignatureHash() route on the bit alone, as the node does and as sighash.ts now
+    // does here.
+    if (!(this.flags & Interpreter.SCRIPT_CHRONICLE) &&
+        ((sig.nhashtype as number) & Signature.SIGHASH_CHRONICLE)) {
+      this.errstr = 'SCRIPT_ERR_ILLEGAL_CHRONICLE'
       return false
     }
 
@@ -716,6 +823,12 @@ Interpreter.prototype.isAfterGenesis = function (this: Interpreter): boolean {
  * bit; the latter is what the node actually gates the restored opcodes on. Either
  * enables them, so existing callers are unaffected.
  */
+// Every Chronicle-restored opcode gates on this, never on SCRIPT_ENABLE_CHRONICLE alone:
+// the node asks whether the OUTPUT BEING SPENT is post-Chronicle (utxo_after_chronicle).
+// Gating on the opt-in made OP_VER, OP_LEFT, OP_RIGHT, OP_SUBSTR, OP_LSHIFTNUM and
+// OP_RSHIFTNUM behave as upgradable NOPs under the node's own UTXO_AFTER_CHRONICLE flag
+// sets: they consumed nothing, the script ran on, and both false accepts and false
+// rejects followed.
 Interpreter.prototype.isAfterChronicle = function (this: Interpreter): boolean {
   return (this.flags &
     (Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE | Interpreter.SCRIPT_ENABLE_CHRONICLE)) !== 0
@@ -1160,7 +1273,8 @@ Interpreter.prototype.step = function (this: Interpreter) {
     return false
   }
 
-  const fRequireMinimal = (this.flags & Interpreter.SCRIPT_VERIFY_MINIMALDATA) !== 0
+  const fRequireMinimal = (this.flags & Interpreter.SCRIPT_VERIFY_MINIMALDATA) !== 0 &&
+    this.enforceNonMalleability()
 
   // bool fExec = !count(vfExec.begin(), vfExec.end(), false);
   // One declaration for the whole opcode switch, as in the original. The
@@ -1221,7 +1335,12 @@ Interpreter.prototype.step = function (this: Interpreter) {
     if (!chunk.buf) {
       this.stack.push(Interpreter.false)
     } else if (chunk.len !== chunk.buf!.length) {
-      throw new Error(`Length of push value not equal to length of data (${chunk.len},${chunk.buf!.length})`)
+      // A push declaring more bytes than the script carries — "PUSHDATA1 with not enough
+      // bytes" and its PUSHDATA2/4 counterparts. The node fails these as
+      // SCRIPT_ERR_BAD_OPCODE. Throwing reached the evaluator's catch and became
+      // UNKNOWN_ERROR; this is inside step(), which can simply fail.
+      this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
+      return false
     } else {
       this.stack.push(chunk.buf as Buffer)
     }
@@ -1383,7 +1502,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         // An earlier version here returned SCRIPT_ERR_BAD_OPCODE instead,
         // which made this library REFUSE SCRIPTS THE NETWORK ACCEPTS — the
         // mirror of the bug that previously made them silently succeed.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+        if (!this.isAfterChronicle()) {
           if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
             this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
             return false
@@ -1459,7 +1578,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         //
         // Unlike the string opcodes, BAD_OPCODE pre-Chronicle IS correct here —
         // the node returns it unconditionally.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+        if (!this.isAfterChronicle()) {
           this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
           return false
         }
@@ -1480,12 +1599,18 @@ Interpreter.prototype.step = function (this: Interpreter) {
         //     else return SCRIPT_ERR_BAD_OPCODE;
         //   }
         //
-        // So pre-Chronicle they are an error only in an EXECUTED branch. This
-        // library targets post-Genesis BSV, where that is the whole condition.
-        // Returning BAD_OPCODE unconditionally rejected scripts the network
-        // accepts.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
-          if (!fExec) {
+        // Two conditions were wrong here, in opposite directions.
+        //
+        // The gate is utxo_after_chronicle — a property of the output being spent — not
+        // this library's SCRIPT_ENABLE_CHRONICLE opt-in. Gating on the opt-in refused
+        // 8 rows of the node's corpus that it accepts under UTXO_AFTER_CHRONICLE.
+        //
+        // And Genesis is part of the skip, not an assumption: before Genesis these are
+        // illegal everywhere, including in a branch that never runs, and only from
+        // Genesis does an unexecuted one become harmless. Skipping whenever !fExec
+        // accepted 4 rows the node rejects, which is a false accept.
+        if (!this.isAfterChronicle()) {
+          if (this.isAfterGenesis() && !fExec) {
             break
           }
           this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
@@ -1516,6 +1641,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.stack.pop()
         }
         this.vfExec.push(fValue)
+        this.vfElse.push(false)
         break
 
       case Opcode.OP_IF:
@@ -1530,15 +1656,11 @@ Interpreter.prototype.step = function (this: Interpreter) {
           }
           buf = stacktop(-1)
 
-          if (this.flags & Interpreter.SCRIPT_VERIFY_MINIMALIF) {
-            if (buf.length > 1) {
-              this.errstr = 'SCRIPT_ERR_MINIMALIF'
-              return false
-            }
-            if (buf.length === 1 && buf[0] !== 1) {
-              this.errstr = 'SCRIPT_ERR_MINIMALIF'
-              return false
-            }
+          if ((this.flags & Interpreter.SCRIPT_VERIFY_MINIMALIF) &&
+              (buf.length > 1 || (buf.length === 1 && buf[0] !== 1)) &&
+              this.enforceNonMalleability()) {
+            this.errstr = 'SCRIPT_ERR_MINIMALIF'
+            return false
           }
           fValue = Interpreter.castToBool(buf)
           if (opcodenum === Opcode.OP_NOTIF) {
@@ -1547,14 +1669,20 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.stack.pop() as Buffer
         }
         this.vfExec.push(fValue)
+        this.vfElse.push(false)
         break
 
       case Opcode.OP_ELSE:
-        if (this.vfExec.length === 0) {
+        // Genesis allows only one OP_ELSE per OP_IF. A second one is unbalanced, and
+        // accepting it accepts scripts the network rejects — the node states it as
+        //   if (vfExec.empty() || (vfElse.back() && utxo_after_genesis))
+        if (this.vfExec.length === 0 ||
+            ((this.vfElse[this.vfElse.length - 1] ?? false) && this.isAfterGenesis())) {
           this.errstr = 'SCRIPT_ERR_UNBALANCED_CONDITIONAL'
           return false
         }
         this.vfExec[this.vfExec.length - 1] = !this.vfExec[this.vfExec.length - 1]
+        this.vfElse[this.vfElse.length - 1] = true
         break
 
       case Opcode.OP_ENDIF:
@@ -1563,6 +1691,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         this.vfExec.pop()
+        this.vfElse.pop()
         break
 
       case Opcode.OP_VERIFY:
@@ -2034,8 +2163,11 @@ Interpreter.prototype.step = function (this: Interpreter) {
             break
 
           case Opcode.OP_DIV:
-            // denominator must not be 0
-            if (bn2 === 0) {
+            // denominator must not be 0. bn2 is a BN, so `bn2 === 0` was never true and
+            // this guard never fired — bn.js asserted instead, and the evaluator's catch
+            // reported SCRIPT_ERR_UNKNOWN_ERROR. The script still failed, which is why the
+            // accept/reject vectors stayed green while the reason was wrong.
+            if (bn2.cmp(BN.Zero) === 0) {
               this.errstr = 'SCRIPT_ERR_DIV_BY_ZERO'
               return false
             }
@@ -2043,9 +2175,9 @@ Interpreter.prototype.step = function (this: Interpreter) {
             break
 
           case Opcode.OP_MOD:
-            // divisor must not be 0
-            if (bn2 === 0) {
-              this.errstr = 'SCRIPT_ERR_DIV_BY_ZERO'
+            // divisor must not be 0. The node reports this one under its own name.
+            if (bn2.cmp(BN.Zero) === 0) {
+              this.errstr = 'SCRIPT_ERR_MOD_BY_ZERO'
               return false
             }
             bn = bn1.mod(bn2)
@@ -2202,7 +2334,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         }
 
         if (!fSuccess && (this.flags & Interpreter.SCRIPT_VERIFY_NULLFAIL) &&
-          bufSig.length) {
+          bufSig.length && this.enforceNonMalleability()) {
           this.errstr = 'SCRIPT_ERR_NULLFAIL'
           return false
         }
@@ -2327,7 +2459,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         // Clean up stack of actual arguments
         while (i-- > 1) {
           if (!fSuccess && (this.flags & Interpreter.SCRIPT_VERIFY_NULLFAIL) &&
-            !ikey2 && stacktop(-1).length) {
+            !ikey2 && stacktop(-1).length && this.enforceNonMalleability()) {
             this.errstr = 'SCRIPT_ERR_NULLFAIL'
             return false
           }
@@ -2349,7 +2481,8 @@ Interpreter.prototype.step = function (this: Interpreter) {
           this.errstr = 'SCRIPT_ERR_INVALID_STACK_OPERATION'
           return false
         }
-        if ((this.flags & Interpreter.SCRIPT_VERIFY_NULLDUMMY) && stacktop(-1).length) {
+        if ((this.flags & Interpreter.SCRIPT_VERIFY_NULLDUMMY) && stacktop(-1).length &&
+            this.enforceNonMalleability()) {
           this.errstr = 'SCRIPT_ERR_SIG_NULLDUMMY'
           return false
         }
@@ -2426,7 +2559,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         //
         // Running them unconditionally consumed stack where the network does
         // nothing, which is a wrong answer rather than an error.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+        if (!this.isAfterChronicle()) {
           if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
             this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
             return false
@@ -2470,7 +2603,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         //
         // Running them unconditionally consumed stack where the network does
         // nothing, which is a wrong answer rather than an error.
-        if ((this.flags & Interpreter.SCRIPT_ENABLE_CHRONICLE) === 0) {
+        if (!this.isAfterChronicle()) {
           if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
             this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
             return false
@@ -2510,8 +2643,11 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
 
-        var size = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal).toNumber()
-        if (size > this.maxScriptElementSize()) {
+        var size = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength()).toNumber()
+        // A negative size is a push size failure, not an encoding one. Without the lower
+        // bound it fell through to the rawnum.length > size test, which any number passes
+        // when size is negative, and reported IMPOSSIBLE_ENCODING instead.
+        if (size < 0 || size > this.maxScriptElementSize()) {
           this.errstr = 'SCRIPT_ERR_PUSH_SIZE'
           return false
         }

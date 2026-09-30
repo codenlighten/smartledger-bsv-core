@@ -1,0 +1,188 @@
+# CI for @smartledger/bsv-core.
+#
+# This package is a TypeScript port of @smartledger/bsv, and its job is to agree with the
+# reference node about which spends are valid. Until 2026-09-29 nothing here ran on a push
+# or a pull request at all: every measurement quoted in a commit message was taken by hand
+# on a developer's machine. A consensus library with no CI can accept a spend the network
+# rejects and say nothing, which is the failure this file exists to prevent.
+#
+# Four of the jobs below are ordinary. The fifth, `corpus`, is the one that matters: it
+# replays the reference node's own script vectors and fails on a single disagreement.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: Tests + conformance
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 20 is the floor in `engines`; 22 is current LTS.
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Mocha (blocking)
+        run: npm test
+      - name: Conformance corpus (blocking)
+        # Frozen cases replayed against the current build. Catches behaviour changes no
+        # assertion covers — above all an input that used to be rejected and now is not.
+        run: npm run conformance
+
+  corpus:
+    name: SV Node script corpus (no disagreement)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Every row of bitcoin-sv's script_tests.json must agree
+        # test/data/bitcoin-sv/README.md says these reports "become a gate once the port
+        # reaches parity". It reached parity on 2026-09-29 at 1483/1483 with no false
+        # accepts, no false rejects and no wrong reasons, so this is that gate.
+        #
+        # The report always exits 0 by design — it is a progress report as well as a gate —
+        # so the numbers are read from its output rather than from its status. A false
+        # accept is a spend the network rejects that we called valid: it fails the build on
+        # the first one.
+        run: |
+          set -o pipefail
+          npm run vectors:sv 2>&1 | tee /tmp/vectors.log
+          read_count () { grep -oE "$1"' *: *[0-9]+' /tmp/vectors.log | grep -oE '[0-9]+$' | head -1; }
+          PASSING=$(read_count 'passing')
+          ACCEPTS=$(read_count 'false accepts \(we accept, node rejects\)')
+          REJECTS=$(read_count 'false rejects \(we reject, node accepts\)')
+          WRONG=$(read_count 'wrong reason')
+          echo "passing=$PASSING false_accepts=$ACCEPTS false_rejects=$REJECTS wrong_reason=$WRONG"
+          # An unparsed number is a failure, not a pass: a renamed label must not read as 0.
+          for v in "$PASSING" "$ACCEPTS" "$REJECTS" "$WRONG"; do
+            if [ -z "$v" ]; then
+              echo "::error::Could not read the corpus summary — the report's format changed."
+              exit 1
+            fi
+          done
+          FAILED=0
+          if [ "$ACCEPTS" -ne 0 ]; then
+            echo "::error::$ACCEPTS false accept(s): scripts the node rejects that this package accepts."
+            FAILED=1
+          fi
+          if [ "$REJECTS" -ne 0 ]; then
+            echo "::error::$REJECTS false reject(s): scripts the node accepts that this package rejects."
+            FAILED=1
+          fi
+          if [ "$WRONG" -ne 0 ]; then
+            echo "::error::$WRONG row(s) fail for a reason the node does not give."
+            FAILED=1
+          fi
+          if [ "$PASSING" -ne 1483 ]; then
+            echo "::error::Expected 1483 rows to pass, got $PASSING. If the corpus was"
+            echo "::error::deliberately re-copied from a newer node tag, update this number"
+            echo "::error::and the provenance table in test/data/bitcoin-sv/README.md together."
+            FAILED=1
+          fi
+          [ $FAILED -eq 0 ] || exit 1
+          echo "Exact agreement with the node on all $PASSING rows, in outcome and in reason."
+
+      - name: Divergence from @smartledger/bsv is reported, not gated
+        # The sibling library is the reference this package was ported from. It is not
+        # checked out here, so this is a note rather than a check; run it locally with
+        #   npm run vectors:sv-delta -- --lib=../smartledger-bsv
+        run: echo "Run vectors:sv-delta locally against a checkout of @smartledger/bsv."
+
+  types:
+    name: Types, any-budget, cycle safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: tsc --noEmit
+        run: npm run typecheck
+      - name: "`any` budget"
+        # The port's escape hatches are counted rather than forbidden, so new ones have to
+        # be deliberate. At budget means no headroom: adding one requires removing one.
+        run: npm run any-budget
+      - name: Require-cycle load order
+        # `address` and `script` are a require cycle. Capturing the partner at module scope
+        # only works if one of them loads first; reaching the other first leaves the binding
+        # empty and every `instanceof` throws. Deep imports are public, so the order is
+        # supported and the failure is reachable.
+        run: npm run cycle-safety
+
+  lint:
+    name: Lint (no new findings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: standard, against the inherited baseline
+        # The repo carries 62 findings from the port, nearly all `var` in tests. They are
+        # grandfathered rather than fixed in one sweep, but the count may only go down.
+        run: |
+          COUNT=$(npx standard 2>&1 | grep -cE ':[0-9]+:[0-9]+:' || true)
+          echo "standard findings: $COUNT (baseline 62)"
+          if [ "$COUNT" -gt 62 ]; then
+            echo "::error::$COUNT findings, above the baseline of 62. Fix the new ones."
+            npx standard || true
+            exit 1
+          fi
+          if [ "$COUNT" -lt 62 ]; then
+            echo "::notice::Down to $COUNT findings — lower the baseline in this workflow."
+          fi
+
+  package:
+    name: Tarball contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Build, then check what would be published
+        # npm pack --dry-run does NOT run prepublishOnly, so packing without building first
+        # reports a tarball that is nearly empty and says nothing is wrong. Build, then pack.
+        run: |
+          npm run build
+          npm pack --dry-run > /tmp/pack.log 2>&1
+          tail -6 /tmp/pack.log
+          for f in dist/index.js dist/index.d.ts LICENSE README.md; do
+            if ! grep -qE "[[:space:]]${f}$" /tmp/pack.log; then
+              echo "::error::Required file '$f' is missing from the tarball."
+              exit 1
+            fi
+          done
+          # The published package is dist/ plus three documents. Test data and the vector
+          # harnesses are deliberately NOT shipped, and 700 KB of vendored corpus arriving
+          # in consumers' node_modules would be the sign that `files` had drifted.
+          if grep -qE 'test/|tools/|bitcoin-sv' /tmp/pack.log; then
+            echo "::error::Test data or tooling is in the tarball — check package.json files:."
+            grep -E 'test/|tools/|bitcoin-sv' /tmp/pack.log | head
+            exit 1
+          fi
+          echo "Tarball contains dist/ and the documents, and nothing else."

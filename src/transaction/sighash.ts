@@ -193,21 +193,36 @@ const sighashPreimage = function sighashPreimage (transaction: TransactionLike, 
   // OTDA usage "requires the CHRONICLE sighash flag", which only has content
   // if the flag decides the routing.
   //
-  // Gated on SCRIPT_ENABLE_CHRONICLE, which is off by default: before the
-  // upgrade the 0x20 bit means nothing, so signatures exist that set it and
-  // are BIP-143. Honouring it unconditionally would reinterpret those as OTDA.
+  // Routed on the bit alone, not on whether Chronicle is enabled, which is what the node
+  // does (interpreter.cpp, SignatureHash):
   //
-  // Note the sighash type byte is committed INSIDE the preimage either way, so
-  // setting this bit changes the digest even where it does not change the
-  // algorithm. That is why the conformance suite pins the algorithm, not just
-  // the digest.
-  if ((sighashType & Signature.SIGHASH_CHRONICLE) && (flags & interpreter().SCRIPT_ENABLE_CHRONICLE)) {
-    // fall through to the original algorithm
-  } else if ((sighashType & Signature.SIGHASH_FORKID) && (flags & interpreter().SCRIPT_ENABLE_SIGHASH_FORKID)) {
+  //   if(enabledSighashForkid && sigHashType.hasForkId() && !sigHashType.hasChronicle())
+  //       return SignatureHashBIP143(...);
+  //   return SignatureHashOriginal(...);
+  //
+  // hasChronicle() is (sigHash & 0x20) != 0, and the digest function consults no flag.
+  // This was gated on SCRIPT_ENABLE_CHRONICLE, which is off by default, on the reasoning
+  // that pre-Chronicle BIP-143 signatures exist whose type byte happens to set 0x20 and
+  // must not be reinterpreted. That concern is real, and the node answers it elsewhere:
+  // CheckSignatureEncoding rejects such a signature as SCRIPT_ERR_ILLEGAL_CHRONICLE, so it
+  // never reaches this function. Gating it here instead made the digest depend on a flag
+  // the node does not consult, which cost 260 of the node's 1000 vectors — and worse, it
+  // made this library's signer and its own verifier disagree: tx.sign() always produced
+  // BIP-143 while verification used OTDA when the flag was set, so the signatures it
+  // produced were rejected by its own interpreter.
+  //
+  // Note the sighash type byte is committed INSIDE the preimage either way, so setting
+  // this bit changes the digest even where it does not change the algorithm.
+  if ((sighashType & Signature.SIGHASH_FORKID) &&
+      !(sighashType & Signature.SIGHASH_CHRONICLE) &&
+      (flags & interpreter().SCRIPT_ENABLE_SIGHASH_FORKID)) {
     return sighashPreimageForForkId(txcopy, sighashType, inputNumber, subscript, satoshisBN as BN)
   }
 
-  // For no ForkId sighash, separators need to be removed.
+  // For no ForkId sighash, separators need to be removed — from a copy. Mutating the
+  // caller's script here edited a Script it still holds, and on a covenant path that is
+  // the script a later signature covers.
+  subscript = new (scriptClass())(subscript) as unknown as Script
   ;(subscript as unknown as { removeCodeseparators: () => void }).removeCodeseparators()
 
   let i

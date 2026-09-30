@@ -32,7 +32,9 @@ describe('sighash', function () {
     const scriptbuf = buffer.Buffer.from(vector[1], 'hex')
     const subscript = Script(scriptbuf)
     const nin = vector[2]
-    const nhashtype = vector[3]
+    // This row's hash type sets 0x20, which Chronicle gave to SIGHASH_CHRONICLE. The
+    // point of the row is the missing amount, not the digest, so the bit is cleared.
+    const nhashtype = vector[3] & ~Signature.SIGHASH_CHRONICLE
     const sighashbuf = buffer.Buffer.from(vector[4], 'hex')
     const tx = new Transaction(txbuf)
 
@@ -46,9 +48,25 @@ describe('sighash', function () {
   })
 
   const zeroBN = BN.Zero
+  // These vectors were recorded before Chronicle, when bit 0x20 of the sighash type
+  // carried no meaning and BIP-143 was selected on the forkid bit alone. Chronicle gave
+  // 0x20 to SIGHASH_CHRONICLE, which selects the original digest even when forkid is
+  // present, so for a row setting both bits the recorded digest is no longer the answer.
+  // Those rows are skipped rather than restated: editing a copied corpus costs it the
+  // outside-check value it was imported for, and the behaviour is covered properly by
+  // test/consensus/sv-sighash-vectors.js, whose vectors come from the Chronicle node
+  // itself and carry both digests for every row.
+  function usesChronicleDigest (nhashtype) {
+    const t = nhashtype >>> 0
+    return (t & Signature.SIGHASH_FORKID) !== 0 && (t & Signature.SIGHASH_CHRONICLE) !== 0
+  }
+
   vectorsSighash.forEach(function (vector, i) {
     if (i === 0 || !vector[4]) {
       // First element is just a row describing the next ones
+      return
+    }
+    if (usesChronicleDigest(vector[3])) {
       return
     }
     it('test vector from bitcoind #' + i + ' (' + vector[4].substring(0, 16) + ')', function () {

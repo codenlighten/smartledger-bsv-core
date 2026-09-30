@@ -37,7 +37,9 @@
     "vectors:sv-delta": "node tools/sv-vector-delta.js",
     "api:snapshot": "node scripts/api-surface.mjs --update",
     "check:api": "node scripts/api-surface.mjs",
-    "check:consumer-types": "bash scripts/check-consumer-types.sh"
+    "check:consumer-types": "bash scripts/check-consumer-types.sh",
+    "precheck:api": "npm run build",
+    "preapi:snapshot": "npm run build"
   },
   "files": [
     "CARVE.md",

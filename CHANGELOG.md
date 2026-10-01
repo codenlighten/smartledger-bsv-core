@@ -9,10 +9,11 @@ waiting for a major. See **Stability** in the README.
 
 ## [1.0.3] - 2026-10-01
 
-Five divergences from the reference node, all found by a differential fuzzer run against
-`@smartledger/bsv` by a second session, and all fail-closed: nothing was ever wrongly accepted.
-Each was invisible to the node's 1483-row corpus, which this package passes completely before and
-after.
+Seven divergences from the reference node. Five came from a differential fuzzer run against
+`@smartledger/bsv` by a second session; two more came from that session's review of the first
+fixes. **Six are fail-closed — wrong in the direction of refusal — and one is a false accept**,
+the empty-operand shift count described below. Each was invisible to the node's 1483-row corpus,
+which this package passes completely before and after.
 
 ### Fixed — four decode sites kept the 4-byte script-number limit after Genesis
 
@@ -75,6 +76,11 @@ post-Genesis element check, which is effectively unbounded, and the allocation t
 proportional to the operand's **value** rather than its length — work paid before any verdict was
 reached. A size the node refuses without allocating is now refused the same way.
 
+**The cap matches the node; it does not make the opcode cheap.** A size just under `INT32_MAX` is
+consensus-valid and still requests an allocation approaching 2 GB, from a script of a few bytes, so
+a limit on script size does not address it. This release adds no execution or allocation budget and
+this package enforces none — see the note on `OP_DIV` at the end.
+
 ### Changed — the shift opcodes cost one pass over the operand
 
 `OP_LSHIFT` and `OP_RSHIFT` now test the count as a big integer and, where it reaches the
@@ -91,9 +97,31 @@ allocates is proportional to the count. The previous implementation built the sh
 big integer first and then truncated, so work grew with the count rather than the operand: `ushln`
 allocates a value of the shifted width, which is the count's magnitude, not the operand's. Past a
 certain count the implied length is not a valid array length and it raised a `RangeError`, which
-the evaluator reported as `SCRIPT_ERR_UNKNOWN_ERROR`. Verified identical to the previous
-implementation on 719,360 operand-and-count pairs, and the shipped tests assert the cost bound as
-well as the verdicts.
+the evaluator reported as `SCRIPT_ERR_UNKNOWN_ERROR`. **That is a false reject as well as a cost
+problem**: the node returns zero bytes for the same script, so this package refused spends the node
+accepts. Verified identical to the previous
+implementation on 719,360 operand-and-count pairs — every value at operand lengths 1 to 4, sampled
+above 4096 per length, at every count from 0 to 8·len+4, both directions. That equivalence covers
+the **valid counts for which the previous implementation completed**, and over those the output is
+byte-identical; it deliberately does not cover the counts that previously threw, or the
+empty-operand counts above, where the verdict changes on purpose. Both have their own tests, and
+the shipped tests assert the cost bound as well as the verdicts.
+
+### Note on `OP_DIV` and `OP_MOD`
+
+Both are quadratic in operand length. **This is not a consensus divergence and is not changed in
+this release.** The node shares the shape: `OP_DIV`/`OP_MOD` are bounded only by
+`params.MaxScriptNumLength()` and its `bsv::bint` division is also schoolbook, so verdicts and
+bounds match and changing ours would diverge from consensus.
+
+Parity settles the verdict, not the cost. **Quadratic CPU exhaustion remains a risk when evaluating
+attacker-controlled scripts.** The node's practical protection is policy rather than consensus —
+`DEFAULT_MAX_SCRIPT_SIZE_POLICY_AFTER_GENESIS` of 500 KB and
+`DEFAULT_STACK_MEMORY_USAGE_POLICY_AFTER_GENESIS` of 100 MB — neither of which is a CPU-time bound,
+and this package enforces neither. Measured here: 320 KB of operand takes about 18 seconds, growing
+by roughly 4× per doubling. Evaluating untrusted scripts needs a bound on execution resources, not
+just on input size: run it in a process whose memory and CPU time are capped. An opt-in budget is
+under consideration and will not change default behaviour.
 
 ## [1.0.2] - 2026-10-01
 

@@ -689,6 +689,28 @@ describe('Interpreter', function () {
     '2 DUP DIV|1 EQUAL|P2SH,STRICTENC': 'OK',
     '7 3 MOD|1 EQUAL|P2SH,STRICTENC': 'OK',
 
+    //  - The Magnetic opcodes. Core disabled OP_MUL, OP_LSHIFT, OP_RSHIFT and OP_INVERT
+    //    permanently; BSV restored them in November 2018 and the node runs them with no flag
+    //    at all — IsOpcodeDisabled (src/script/interpreter.cpp) disables OP_2MUL and OP_2DIV
+    //    and nothing else. This package used to gate them behind
+    //    SCRIPT_ENABLE_MAGNETIC_OPCODES "for backwards compatibility", which refused 77 rows
+    //    of the node's OWN corpus as DISABLED_OPCODE. The node's corpus settles it: 77 of its
+    //    rows use these opcodes and it expects OK on 66, the rest failing for stack, range or
+    //    overflow reasons — never DISABLED_OPCODE. The rows below describe Core's rule, which
+    //    BSV has not applied since 2018.
+    '2 2 0 IF MUL ELSE 1 ENDIF|NOP|P2SH,STRICTENC': 'OK',
+    '2 2 0 IF MUL ELSE 1 ENDIF|NOP|P2SH,STRICTENC,MONOLITH_OPCODES': 'OK',
+    '2 2 0 IF LSHIFT ELSE 1 ENDIF|NOP|P2SH,STRICTENC': 'OK',
+    '2 2 0 IF LSHIFT ELSE 1 ENDIF|NOP|P2SH,STRICTENC,MONOLITH_OPCODES': 'OK',
+    '2 2 0 IF RSHIFT ELSE 1 ENDIF|NOP|P2SH,STRICTENC': 'OK',
+    '2 2 0 IF RSHIFT ELSE 1 ENDIF|NOP|P2SH,STRICTENC,MONOLITH_OPCODES': 'OK',
+    '2 DUP MUL|4 EQUAL|P2SH,STRICTENC': 'OK',
+    '2 DUP MUL|4 EQUAL|P2SH,STRICTENC,MONOLITH_OPCODES': 'OK',
+    '2 2 LSHIFT|8 EQUAL|P2SH,STRICTENC': 'OK',
+    '2 2 LSHIFT|8 EQUAL|P2SH,STRICTENC,MONOLITH_OPCODES': 'OK',
+    '2 1 RSHIFT|1 EQUAL|P2SH,STRICTENC': 'OK',
+    '2 1 RSHIFT|1 EQUAL|P2SH,STRICTENC,MONOLITH_OPCODES': 'OK',
+
     // SIGPUSHONLY is no longer a rule on its own. BSV's VerifyScript applies it only
     //
     //   if((IsGenesis(flags) && !IsChronicle(flags)) ||

@@ -7,6 +7,44 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.0.2] - 2026-10-01
+
+### Fixed — the Magnetic opcodes needed a flag the node does not have
+
+`OP_MUL`, `OP_LSHIFT`, `OP_RSHIFT` and `OP_INVERT` were refused unless
+`SCRIPT_ENABLE_MAGNETIC_OPCODES` was set, "for backwards compatibility". The reference node has
+no such flag: `IsOpcodeDisabled` (`src/script/interpreter.cpp`) disables `OP_2MUL` and `OP_2DIV`
+and nothing else, so those four execute in every era it can validate.
+
+Ported from `@smartledger/bsv`, where it was fixed first, and **1.0.0 and 1.0.1 both shipped
+with the gate**. A second session audited this package independently and measured the cost under
+the node's own per-row flags: **66 false rejects and 11 rows failing for the wrong reason**, no
+false accepts. Fail-closed throughout, so nothing was ever wrongly accepted, but they are spends
+the network accepts.
+
+Its full list, kept because it is more useful than the total: `OP_INVERT` rows 920–928,
+`OP_LSHIFT` 932–948, `OP_RSHIFT` 952–968, `OP_MUL` 976 and 978–999; and eleven rows where the
+node gives `INVALID_STACK_OPERATION`, `INVALID_NUMBER_RANGE`, `SCRIPTNUM_OVERFLOW` or
+`SCRIPTNUM_MINENCODE` and this package said `DISABLED_OPCODE`.
+
+The gate was invisible to the default gate because the harness grants both library-only opcode
+bits to every row so the report is not dominated by that difference. With them withheld the score
+is now **1483/1483 with no false accepts, no false rejects and no wrong-reason rows** — the
+acceptance test the auditing session set before the fix was written.
+
+Two regression cases came from its mutation probe and pin the other direction, that the fix did
+not remove too much: a Magnetic opcode in an **unexecuted** branch now runs in both eras, where
+it was `DISABLED_OPCODE` pre-Genesis, and `OP_2MUL` in an unexecuted branch is still
+`DISABLED_OPCODE` pre-Genesis and harmless after it — the node's rule being
+`IsOpcodeDisabled && (!utxo_after_genesis || fExec)`.
+
+The twelve Bitcoin Core rows expecting `DISABLED_OPCODE` are recorded as divergences. They
+describe Core's permanent disablement, which BSV abandoned in 2018; the node's own corpus uses
+these opcodes in 77 rows and expects `OK` on 66.
+
+Both flag constants remain exported and accepted, since they are public API. Setting either is
+now redundant.
+
 ## [1.0.1] - 2026-09-30
 
 ### Fixed — the starting figure quoted in 1.0.0 was not a real measurement

@@ -1233,27 +1233,42 @@ Interpreter.prototype.step = function (this: Interpreter) {
     switch (opcode) {
       case Opcode.OP_2MUL:
       case Opcode.OP_2DIV:
-        // Chronicle restores both. Until it is enabled they stay disabled, and
-        // "disabled" is stronger than "unimplemented": a disabled opcode fails
-        // the script even in an UNEXECUTED branch, which is why this lives in
-        // isOpcodeDisabled rather than in the evaluation switch.
+        // Chronicle restores both; until the UTXO is post-Chronicle they stay disabled.
+        //
+        // "Disabled" is stronger than "unimplemented", but only before Genesis. The node reads
+        //
+        //   if(IsOpcodeDisabled(opcode, utxoEra) && (!utxo_after_genesis || fExec))
+        //     return SCRIPT_ERR_DISABLED_OPCODE;
+        //
+        // so a disabled opcode in an UNEXECUTED branch fails a pre-Genesis spend and is harmless
+        // in a post-Genesis one. That is why this lives in isOpcodeDisabled, which the caller
+        // consults before testing fExec — the era decides, not the branch alone.
         if (!self.isAfterChronicle()) {
           return true
         }
         break
 
+      // Restored on BSV and never gated by the node. Monolith came back in May 2018 and
+      // Magnetic in November 2018, and IsOpcodeDisabled (src/script/interpreter.cpp) disables
+      // OP_2MUL and OP_2DIV and nothing else — so every opcode below executes in every era the
+      // node can validate, with no flag to enable.
+      //
+      // The four Magnetic ones used to be refused here unless SCRIPT_ENABLE_MAGNETIC_OPCODES
+      // was set, "for backwards compatibility". Measured against the node's own corpus with the
+      // library-only opcode bits withheld, that refused 77 rows as DISABLED_OPCODE: fail-closed,
+      // so nothing was wrongly accepted, but they are spends the network accepts. The node's
+      // corpus settles it — 77 of its rows use these opcodes and it expects OK on 66, the rest
+      // failing for stack, range or overflow reasons, and not one expects DISABLED_OPCODE.
+      //
+      // The Monolith group beside them had already made the opposite call on identical
+      // reasoning, so the two halves of one 2018 upgrade disagreed with each other.
+      //
+      // Both flag constants remain exported and accepted — they are public API — and setting
+      // either is now simply redundant.
       case Opcode.OP_INVERT:
       case Opcode.OP_MUL:
       case Opcode.OP_LSHIFT:
       case Opcode.OP_RSHIFT:
-        // Magnetic opcodes - still require flag for backwards compatibility
-        if ((self.flags & Interpreter.SCRIPT_ENABLE_MAGNETIC_OPCODES) === 0) {
-          return true
-        }
-        break
-
-      // Monolith opcodes are now enabled by default in SmartLedger BSV
-      // These were activated in May 2018 and are part of standard BSV consensus
       case Opcode.OP_DIV:
       case Opcode.OP_MOD:
       case Opcode.OP_SPLIT:
@@ -1263,7 +1278,6 @@ Interpreter.prototype.step = function (this: Interpreter) {
       case Opcode.OP_XOR:
       case Opcode.OP_BIN2NUM:
       case Opcode.OP_NUM2BIN:
-        // These opcodes are now always enabled - no flag required
         return false
 
       default:

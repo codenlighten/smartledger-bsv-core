@@ -1,6 +1,6 @@
 {
   "name": "@smartledger/bsv-core",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Bitcoin SV primitives: keys, addresses, script, transactions, encoding, SPV, ECIES, mnemonics, 1Sat Ordinals and OP_PUSH_TX covenants.",
   "author": "SmartLedger Technology <hello@smartledger.technology> (https://smartledger.technology)",
   "license": "MIT",

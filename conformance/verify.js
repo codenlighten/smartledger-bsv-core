@@ -92,11 +92,28 @@ async function main () {
 
   console.log('')
   if (missingFixtures.length) {
-    console.log(`no fixture recorded for: ${missingFixtures.join(', ')}`)
+    // A discovered suite with no fixture must FAIL, not be noted and skipped.
+    // `npm run conformance` is part of `npm run check`, so a fixture that is deleted,
+    // renamed or never committed would otherwise drop silently out of the gate while
+    // the run still printed PASS and exited 0 — the corpus reporting success for cases
+    // it never checked.
+    console.error(`FAIL: no fixture recorded for: ${missingFixtures.join(', ')}`)
+    console.error('Run `node conformance/generate.js` to record it, or correct --suite.')
+    process.exitCode = 1
+  }
+  if (!suites.length) {
+    // The same path swallowed a mistyped --suite, which selected zero suites and
+    // reported `PASS: 0 cases match the corpus`.
+    console.error('FAIL: no suites selected — check --suite')
+    process.exitCode = 1
   }
   if (totalDiffs) {
     console.log(`FAIL: ${totalDiffs} difference(s) across ${totalCases} cases`)
     process.exitCode = 1
+  } else if (process.exitCode) {
+    // Something above already failed the run. Printing PASS next to it is how this
+    // stayed invisible, so say what actually happened.
+    console.log(`(${totalCases} cases matched, but the run FAILED — see above)`)
   } else {
     console.log(`PASS: ${totalCases} cases match the corpus`)
   }

@@ -2073,9 +2073,20 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         buf1 = stacktop(-2)
-        if (buf1.length === 0) {
-          this.stack.pop() as Buffer
-        } else {
+        // No early-out for an empty operand. The node's only guard before decoding the count is
+        // `stack.size() < 2`; it reads the count and checks it NEGATIVE-first, and only then
+        // touches the operand at all:
+        //
+        //   CScriptNum n{top, requireMinimal, params.MaxScriptNumLength(), utxo_after_genesis};
+        //   if(n < 0) return SCRIPT_ERR_INVALID_NUMBER_RANGE;
+        //   stack.pop_back(); stack.pop_back();
+        //   auto values{vch1.GetElement()};
+        //
+        // Skipping the decode when the operand was empty skipped all three of its checks —
+        // negative, overflow and minimal encoding — so an invalid count was accepted whenever
+        // the value being shifted happened to be empty. A FALSE ACCEPT, and the one case in this
+        // block where the operand's length decided whether the count was validated at all.
+        {
           bn2 = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength())
           // The count is tested as a BN, before any toNumber(). The node does the same, and in
           // the same order:
@@ -2735,7 +2746,19 @@ Interpreter.prototype.step = function (this: Interpreter) {
         // A negative size is a push size failure, not an encoding one. Without the lower
         // bound it fell through to the rawnum.length > size test, which any number passes
         // when size is negative, and reported IMPOSSIBLE_ENCODING instead.
-        if (size < 0 || size > this.maxScriptElementSize()) {
+        // INT32_MAX is a hard cap in EVERY era, before the element-size test. The node reads
+        //
+        //   const CScriptNum n{arg_1, requireMinimal, params.MaxScriptNumLength(), utxo_after_genesis};
+        //   if(n < 0 || n > std::numeric_limits<int32_t>::max()) return SCRIPT_ERR_PUSH_SIZE;
+        //   const auto size{n.to_size_t_limited()};
+        //   if(!utxo_after_genesis && (size > MAX_SCRIPT_ELEMENT_SIZE_BEFORE_GENESIS))
+        //       return SCRIPT_ERR_PUSH_SIZE;
+        //
+        // so the era only widens the SECOND test; the first is fixed. Without it a size above
+        // INT32_MAX passed the post-Genesis element check, which is effectively unbounded, and
+        // the allocation below followed the operand's VALUE rather than its length — work paid
+        // before any verdict. The node refuses the same input without allocating.
+        if (size < 0 || size > 2147483647 || size > this.maxScriptElementSize()) {
           this.errstr = 'SCRIPT_ERR_PUSH_SIZE'
           return false
         }

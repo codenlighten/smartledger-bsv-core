@@ -47,6 +47,34 @@ time of the carve; the library has since fixed it, so preserving it stopped bein
 `checkLockTime` and `checkSequence` reached `this.tx!.inputs[this.nin!]!`. TypeScript's non-null
 assertion silences the compiler and emits nothing, so it read as checked and threw at runtime.
 
+### Security — an invalid shift count was accepted whenever the operand was empty
+
+`OP_LSHIFT` and `OP_RSHIFT` short-circuited when the value being shifted was empty, popping the
+count without decoding it — and therefore without any of its three checks. A negative count, a
+count too wide for the era, and a non-minimally-encoded count were all accepted, where the node
+refuses each by name. **A false accept**, and the only place in that block where the operand's
+length decided whether the count was validated at all. The node's sole guard before the decode is
+`stack.size() < 2`.
+
+Found by the reviewing session's own red-team of the fix plan, after my first attempt at the shift
+rewrite preserved the early-out.
+
+### Fixed — `OP_NUM2BIN`'s size was not bounded by INT32_MAX
+
+The node caps it in every era, **before** the element-size test:
+
+```cpp
+if(n < 0 || n > std::numeric_limits<int32_t>::max()) return SCRIPT_ERR_PUSH_SIZE;
+const auto size{n.to_size_t_limited()};
+if(!utxo_after_genesis && (size > MAX_SCRIPT_ELEMENT_SIZE_BEFORE_GENESIS))
+    return SCRIPT_ERR_PUSH_SIZE;
+```
+
+The era only widens the second test. Without the first, a size above INT32_MAX passed the
+post-Genesis element check, which is effectively unbounded, and the allocation that followed was
+proportional to the operand's **value** rather than its length — work paid before any verdict was
+reached. A size the node refuses without allocating is now refused the same way.
+
 ### Changed — the shift opcodes cost one pass over the operand
 
 `OP_LSHIFT` and `OP_RSHIFT` now test the count as a big integer and, where it reaches the
@@ -60,8 +88,10 @@ else { ... LShift(values, n.getint()) ... }
 
 Its `LShift` allocates `valtype result(x.size(), 0x00)` and loops over `x.size()`; nothing it
 allocates is proportional to the count. The previous implementation built the shifted value as a
-big integer first and then truncated, so work grew with the count rather than the operand, and a
-count beyond a machine integer could not be converted at all. Verified identical to the previous
+big integer first and then truncated, so work grew with the count rather than the operand: `ushln`
+allocates a value of the shifted width, which is the count's magnitude, not the operand's. Past a
+certain count the implied length is not a valid array length and it raised a `RangeError`, which
+the evaluator reported as `SCRIPT_ERR_UNKNOWN_ERROR`. Verified identical to the previous
 implementation on 719,360 operand-and-count pairs, and the shipped tests assert the cost bound as
 well as the verdicts.
 

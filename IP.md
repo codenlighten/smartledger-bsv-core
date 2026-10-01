@@ -12,6 +12,7 @@ Registrations are **hash-only**. The content and its blinding value never leave 
 
 | date | covers | type | record | signer | tag |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-01 | `src/` at v1.0.3 — the 1.0.3 release: era-dependent operand decoding, locktime gating, and the shift opcodes' cost and count validation | software, published | [`430fe9db…6086`](https://iptrust.org/v/430fe9db01189c1271c3ee0599f8f60b5478081e91c6af371ff23ca7f5426086) | Gregory J. Ward | `ip-2026-10-01` |
 | 2026-09-30 | `src/` at v1.0.0 — the 1.0.0 release: exact agreement with the reference node's script vectors | software, published | [`0212e6cd…c086`](https://iptrust.org/v/0212e6cd83e9e0702f93dd90a814dcab787f3b19f7494679eaa0f92446c7c086) | Gregory J. Ward | `ip-2026-09-30` |
 
 Authors on every record for this project: Gregory J. Ward, Bryan W. Daugherty, Shawn M. Ryan.

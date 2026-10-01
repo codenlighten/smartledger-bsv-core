@@ -1125,7 +1125,13 @@ Interpreter.prototype.checkLockTime = function (this: Interpreter, nLockTime: BN
   // prevent this condition. Alternatively we could test all
   // inputs, but testing just this input minimizes the data
   // required to prove correct CHECKLOCKTIMEVERIFY execution.
-  if (this.tx!.inputs[this.nin!]!.isFinal()) {
+  // No input at `nin` means the locktime cannot be satisfied, so fail the script rather than
+  // dereferencing undefined. The `!` assertions below used to carry this: TypeScript's non-null
+  // assertion silences the compiler and emits nothing, so it read as checked and threw at
+  // runtime — a TypeError the evaluator's catch turned into SCRIPT_ERR_UNKNOWN_ERROR, pointing
+  // at the script instead of at the caller's index.
+  const input = this.tx?.inputs[this.nin as number]
+  if (!input || input.isFinal()) {
     return false
   }
 
@@ -1141,7 +1147,12 @@ Interpreter.prototype.checkLockTime = function (this: Interpreter, nLockTime: BN
 Interpreter.prototype.checkSequence = function (this: Interpreter, nSequence: BN) {
   // Relative lock times are supported by comparing the passed in operand to
   // the sequence number of the input.
-  const txToSequence = this.tx!.inputs[this.nin!]!.sequenceNumber
+  // Same guard as checkLockTime: a missing input fails the script instead of throwing.
+  const seqInput = this.tx?.inputs[this.nin as number]
+  if (!seqInput) {
+    return false
+  }
+  const txToSequence = seqInput.sequenceNumber
 
   // Fail if the transaction's version number is not set high enough to
   // trigger BIP 68 rules.
@@ -1162,14 +1173,21 @@ Interpreter.prototype.checkSequence = function (this: Interpreter, nSequence: BN
   const nLockTimeMask =
         Interpreter.SEQUENCE_LOCKTIME_TYPE_FLAG | Interpreter.SEQUENCE_LOCKTIME_MASK
   const txToSequenceMasked = new BN(txToSequence & nLockTimeMask)
-  // BUG, PRESERVED: bn.js `and` takes a BN, and `nLockTimeMask` is a plain
-  // number, so this throws `num.clone is not a function`. The interpreter's
-  // try/catch swallows it and reports SCRIPT_ERR_UNKNOWN_ERROR, which makes
-  // OP_CHECKSEQUENCEVERIFY unusable — every CSV script fails verification with
-  // a misleading error. The fix is `nSequence.and(new BN(nLockTimeMask))`.
+  // FIXED. This used to read `nSequence.and(nLockTimeMask as unknown as BN)` and was marked
+  // "BUG, PRESERVED" — carried deliberately so the port matched @smartledger/bsv byte for byte
+  // at the time of the carve. The library has since fixed it, so preserving it here stopped
+  // being fidelity and became a divergence.
+  //
+  // bn.js `and` takes a BN and `nLockTimeMask` is a plain number, so it threw
+  // `num.clone is not a function`; the evaluator's try/catch turned that into
+  // SCRIPT_ERR_UNKNOWN_ERROR. The effect was that OP_CHECKSEQUENCEVERIFY could not succeed at
+  // all: every spend that reached the comparison — a version 2 or greater transaction with the
+  // disable bit clear, which is exactly the case CSV exists for — failed with a misleading
+  // error pointing at the script rather than at this line. Fail-closed, so nothing was wrongly
+  // accepted, and the `as unknown as BN` cast is what let it compile.
   // The line above already does the same masking correctly, with JS numbers.
   // Left as-is: this pass changes no behaviour. Recorded separately.
-  const nSequenceMasked = nSequence.and(nLockTimeMask as unknown as BN)
+  const nSequenceMasked = nSequence.and(new BN(nLockTimeMask))
 
   // There are two kinds of nSequence: lock-by-blockheight and
   // lock-by-blocktime, distinguished by whether nSequenceMasked <
@@ -1396,7 +1414,19 @@ Interpreter.prototype.step = function (this: Interpreter) {
       case Opcode.OP_NOP2:
       case Opcode.OP_CHECKLOCKTIMEVERIFY:
 
-        if (!(this.flags & Interpreter.SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY)) {
+        // Genesis reverted this to an upgradable NOP for outputs created after it, so a
+        // post-Genesis script containing it enforces no locktime at all. The node reads
+        //   if (!(flags & SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY) || utxo_after_genesis) {
+        //       // not enabled; treat as a NOP2
+        //       if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
+        //           return SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS;
+        //       break;
+        //   }
+        // and without the second half a transaction the network accepts is refused here.
+        // Note the DISCOURAGE_UPGRADABLE_NOPS check stays INSIDE the branch: treating the
+        // opcode as a NOP does not mean ignoring it.
+        if (!(this.flags & Interpreter.SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY) ||
+            this.isAfterGenesis()) {
           // not enabled; treat as a NOP2
           if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
             this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
@@ -1444,7 +1474,19 @@ Interpreter.prototype.step = function (this: Interpreter) {
       case Opcode.OP_NOP3:
       case Opcode.OP_CHECKSEQUENCEVERIFY:
 
-        if (!(this.flags & Interpreter.SCRIPT_VERIFY_CHECKSEQUENCEVERIFY)) {
+        // Genesis reverted this to an upgradable NOP for outputs created after it, so a
+        // post-Genesis script containing it enforces no locktime at all. The node reads
+        //   if (!(flags & SCRIPT_VERIFY_CHECKSEQUENCEVERIFY) || utxo_after_genesis) {
+        //       // not enabled; treat as a NOP3
+        //       if (flags & SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS)
+        //           return SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS;
+        //       break;
+        //   }
+        // and without the second half a transaction the network accepts is refused here.
+        // Note the DISCOURAGE_UPGRADABLE_NOPS check stays INSIDE the branch: treating the
+        // opcode as a NOP does not mean ignoring it.
+        if (!(this.flags & Interpreter.SCRIPT_VERIFY_CHECKSEQUENCEVERIFY) ||
+            this.isAfterGenesis()) {
           // not enabled; treat as a NOP3
           if (this.flags & Interpreter.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS) {
             this.errstr = 'SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS'
@@ -1898,7 +1940,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         buf = stacktop(-1)
-        bn = BN.fromScriptNumBuffer(buf, fRequireMinimal)
+        bn = BN.fromScriptNumBuffer(buf, fRequireMinimal, this.maxScriptNumLength())
         n = bn.toNumber()
         this.stack.pop() as Buffer
         if (n < 0 || n >= this.stack.length) {
@@ -2034,28 +2076,56 @@ Interpreter.prototype.step = function (this: Interpreter) {
         if (buf1.length === 0) {
           this.stack.pop() as Buffer
         } else {
-          bn1 = new BN(buf1)
-          bn2 = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal)
-          n = bn2.toNumber()
-          if (n < 0) {
+          bn2 = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength())
+          // The count is tested as a BN, before any toNumber(). The node does the same, and in
+          // the same order:
+          //
+          //   CScriptNum n{top, requireMinimal, params.MaxScriptNumLength(), utxo_after_genesis};
+          //   if(n < 0) return SCRIPT_ERR_INVALID_NUMBER_RANGE;
+          //   if(n >= values.size() * bits_per_byte) fill(begin(values), end(values), 0);
+          //   else { ... LShift(values, n.getint()) ... }
+          //
+          // A shift of the operand's whole width or more yields that many zero bytes, and the
+          // node computes it in one pass over the operand rather than through the count. Its
+          // LShift allocates `valtype result(x.size(), 0x00)` and loops over x.size(); nothing
+          // it allocates is proportional to n.
+          if (bn2.isNeg()) {
             this.errstr = 'SCRIPT_ERR_INVALID_NUMBER_RANGE'
             return false
           }
           this.stack.pop() as Buffer
           this.stack.pop() as Buffer
-          let shifted
-          if (opcodenum === Opcode.OP_LSHIFT) {
-            shifted = bn1.ushln(n)
+          // Width in bits of the operand, as a BN so the comparison never narrows the count.
+          const widthBits = new BN(buf1.length * 8)
+          if (bn2.gte(widthBits)) {
+            this.stack.push(Buffer.alloc(buf1.length))
+          } else {
+            // Past the guard the count is below 8 * buf1.length, so it fits a number.
+            n = bn2.toNumber()
+            const byteShift = Math.floor(n / 8)
+            const bitShift = n % 8
+            const out = Buffer.alloc(buf1.length)
+            if (opcodenum === Opcode.OP_LSHIFT) {
+              for (let i = buf1.length - 1; i >= 0; i--) {
+                const k = i - byteShift
+                if (k < 0) continue
+                out[k] = (out[k] as number) | (((buf1[i] as number) << bitShift) & 0xff)
+                if (k >= 1 && bitShift > 0) {
+                  out[k - 1] = (out[k - 1] as number) | ((buf1[i] as number) >> (8 - bitShift))
+                }
+              }
+            } else {
+              for (let i = 0; i < buf1.length; i++) {
+                const k = i + byteShift
+                if (k >= buf1.length) continue
+                out[k] = (out[k] as number) | (((buf1[i] as number) >> bitShift) & 0xff)
+                if (k + 1 < buf1.length && bitShift > 0) {
+                  out[k + 1] = (out[k + 1] as number) | (((buf1[i] as number) << (8 - bitShift)) & 0xff)
+                }
+              }
+            }
+            this.stack.push(out)
           }
-          if (opcodenum === Opcode.OP_RSHIFT) {
-            shifted = bn1.ushrn(n)
-          }
-          // bitcoin client implementation of l/rshift is unconventional, therefore this implementation is a bit unconventional
-          // bn library has shift functions however it expands the carried bits into a new byte
-          // in contrast to the bitcoin client implementation which drops off the carried bits
-          // in other words, if operand was 1 byte then we put 1 byte back on the stack instead of expanding to more shifted bytes
-          const bufShifted = padBufferToSize(Buffer.from(shifted.toArray().slice(buf1.length * -1)), buf1.length)
-          this.stack.push(bufShifted)
         }
         break
 
@@ -2100,7 +2170,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         buf = stacktop(-1)
-        bn = BN.fromScriptNumBuffer(buf, fRequireMinimal)
+        bn = BN.fromScriptNumBuffer(buf, fRequireMinimal, this.maxScriptNumLength())
         switch (opcodenum) {
           case Opcode.OP_2MUL:
             bn = bn.mul(new BN(2))
@@ -2541,7 +2611,11 @@ Interpreter.prototype.step = function (this: Interpreter) {
         buf1 = stacktop(-2)
 
         // Make sure the split point is apropriate.
-        var position = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal).toNumber()
+        // The era's length, not the 4-byte default. Every operand decode in the node takes
+        // params.MaxScriptNumLength(); only nLockTime and nSequence (5) and the two
+        // CHECKMULTISIG counts (4) are era-independent. Defaulting here refused post-Genesis
+        // arithmetic on numbers wider than 4 bytes, which is ordinary bignum contract work.
+        var position = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength()).toNumber()
         if (position < 0 || position > buf1.length) {
           this.errstr = 'SCRIPT_ERR_INVALID_SPLIT_RANGE'
           return false

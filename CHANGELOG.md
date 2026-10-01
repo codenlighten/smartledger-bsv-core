@@ -7,6 +7,64 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.0.3] - 2026-10-01
+
+Five divergences from the reference node, all found by a differential fuzzer run against
+`@smartledger/bsv` by a second session, and all fail-closed: nothing was ever wrongly accepted.
+Each was invisible to the node's 1483-row corpus, which this package passes completely before and
+after.
+
+### Fixed — four decode sites kept the 4-byte script-number limit after Genesis
+
+`OP_PICK`/`OP_ROLL`'s index, the `OP_1ADD` family's operand, `OP_LSHIFT`/`OP_RSHIFT`'s count and
+`OP_SPLIT`'s position. In the node every operand decode takes `params.MaxScriptNumLength()`;
+**only** `nLockTime` and `nSequence` (5 bytes) and the two `OP_CHECKMULTISIG` counts (4 bytes) are
+era-independent. Post-Genesis arithmetic on a number wider than four bytes — ordinary bignum
+contract work — was refused.
+
+The audit that found these proposed changing the multisig counts too. That would have made this
+package **more permissive than the node**, so those two stay at four, and a test now pins them in
+all three eras.
+
+### Fixed — `OP_CHECKLOCKTIMEVERIFY` and `OP_CHECKSEQUENCEVERIFY` were enforced after Genesis
+
+Genesis reverted both to upgradable NOPs for outputs created after it. The node reads
+`if (!(flags & SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY) || utxo_after_genesis)`, and
+`DISCOURAGE_UPGRADABLE_NOPS` still fires inside that branch — so the fix is not simply to skip
+the opcode.
+
+### Fixed — `OP_CHECKSEQUENCEVERIFY` could not succeed at all
+
+`nSequence.and(nLockTimeMask)` passed a plain number to bn.js, which throws
+`num.clone is not a function`; the evaluator reported `SCRIPT_ERR_UNKNOWN_ERROR`. Every spend that
+reached the comparison — a version 2 or greater transaction with the disable bit clear, which is
+precisely what CSV exists for — failed with an error pointing at the script rather than at this
+line. It was marked "BUG, PRESERVED" in the source, carried so the port matched the library at the
+time of the carve; the library has since fixed it, so preserving it stopped being fidelity.
+
+### Fixed — a missing input threw instead of returning a verdict
+
+`checkLockTime` and `checkSequence` reached `this.tx!.inputs[this.nin!]!`. TypeScript's non-null
+assertion silences the compiler and emits nothing, so it read as checked and threw at runtime.
+
+### Changed — the shift opcodes cost one pass over the operand
+
+`OP_LSHIFT` and `OP_RSHIFT` now test the count as a big integer and, where it reaches the
+operand's full width, return that many zero bytes directly — the node's shape:
+
+```cpp
+if(n < 0) return SCRIPT_ERR_INVALID_NUMBER_RANGE;
+if(n >= values.size() * bits_per_byte) fill(begin(values), end(values), 0);
+else { ... LShift(values, n.getint()) ... }
+```
+
+Its `LShift` allocates `valtype result(x.size(), 0x00)` and loops over `x.size()`; nothing it
+allocates is proportional to the count. The previous implementation built the shifted value as a
+big integer first and then truncated, so work grew with the count rather than the operand, and a
+count beyond a machine integer could not be converted at all. Verified identical to the previous
+implementation on 719,360 operand-and-count pairs, and the shipped tests assert the cost bound as
+well as the verdicts.
+
 ## [1.0.2] - 2026-10-01
 
 ### Fixed — the Magnetic opcodes needed a flag the node does not have

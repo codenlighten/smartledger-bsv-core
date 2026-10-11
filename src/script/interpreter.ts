@@ -844,6 +844,65 @@ Interpreter.prototype.isAfterGenesis = function (this: Interpreter): boolean {
 // clear for a pre-Chronicle output. Measured against 24,568 node-validated corpus rows: the
 // old reading disagreed on 571, this one on none. mainnetFlags() sets both bits, so the
 // default path is unchanged.
+/**
+ * This library's error names, mapped to the node's `script_error.h` names.
+ *
+ * Most of our codes ARE the node's, spelled identically; these eight are not. Four are
+ * deliberately finer — the node has one `SCRIPT_ERR_EVAL_FALSE` where we distinguish four
+ * authoring mistakes — and four are spelling differences with no intent behind them, kept
+ * because changing `errstr` breaks anyone matching on it.
+ *
+ * Both matter for one job: comparing this library's verdict against a node's, or against a
+ * corpus recording node names. A replay of 24,568 node-validated rows reported 456
+ * "mismatches" that were nothing but the EVAL_FALSE granularity, so the mapping is published
+ * rather than left for each caller to rediscover. Ported from @smartledger/bsv 9.31.0.
+ */
+Interpreter.NODE_ERROR_NAMES = {
+  // Finer than the node on purpose.
+  SCRIPT_ERR_EVAL_FALSE_IN_STACK: 'SCRIPT_ERR_EVAL_FALSE',
+  SCRIPT_ERR_EVAL_FALSE_NO_RESULT: 'SCRIPT_ERR_EVAL_FALSE',
+  SCRIPT_ERR_EVAL_FALSE_IN_P2SH_STACK: 'SCRIPT_ERR_EVAL_FALSE',
+  SCRIPT_ERR_EVAL_FALSE_NO_P2SH_STACK: 'SCRIPT_ERR_EVAL_FALSE',
+  // Spelling only. Each checked at its emit site, not matched by name: ours fire on the
+  // NULLFAIL flag, the LOW_S check, the DER-format check, and a chunk carrying no opcode —
+  // which is the node's GetOp failure.
+  SCRIPT_ERR_NULLFAIL: 'SCRIPT_ERR_SIG_NULLFAIL',
+  SCRIPT_ERR_SIG_DER_HIGH_S: 'SCRIPT_ERR_SIG_HIGH_S',
+  SCRIPT_ERR_SIG_DER_INVALID_FORMAT: 'SCRIPT_ERR_SIG_DER',
+  SCRIPT_ERR_UNDEFINED_OPCODE: 'SCRIPT_ERR_BAD_OPCODE'
+}
+
+/**
+ * Translate one error name to the node's spelling. A name the node shares is returned
+ * unchanged, so this is safe to apply to any `errstr`. Trailing detail
+ * (`'SCRIPT_ERR_UNKNOWN_ERROR: ...'`) survives on an unmapped code and is dropped on a mapped
+ * one, because a node name with our commentary attached compares equal to nothing.
+ */
+Interpreter.toNodeErrorName = function (name: string): string {
+  if (typeof name !== 'string' || name === '') return name
+  const bare = name.replace(/:.*$/, '')
+  const mapped = Interpreter.NODE_ERROR_NAMES[bare]
+  return mapped === undefined ? name : mapped
+}
+
+/**
+ * This interpreter's `errstr` in the node's spelling.
+ *
+ * A derived read, NOT a mode: nothing to set and nothing to restore. A settable "strict names"
+ * switch would be state that changes what a later caller sees — the shape of mistake the
+ * limits statics already make easy.
+ *
+ *   interp.errstr      'SCRIPT_ERR_EVAL_FALSE_NO_RESULT'   what went wrong, precisely
+ *   interp.nodeErrstr  'SCRIPT_ERR_EVAL_FALSE'             what the node would call it
+ */
+Object.defineProperty(Interpreter.prototype, 'nodeErrstr', {
+  configurable: true,
+  enumerable: false,
+  get: function (this: Interpreter): string {
+    return Interpreter.toNodeErrorName(this.errstr)
+  }
+})
+
 Interpreter.prototype.isAfterChronicle = function (this: Interpreter): boolean {
   return (this.flags & Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE) !== 0
 }

@@ -7,6 +7,55 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.4.0] - 2026-10-11
+
+Additive, ported from `@smartledger/bsv` 9.31.0. No behaviour changes: `errstr` is untouched
+and every script verifies exactly as it did in 1.3.0.
+
+### Added — `nodeErrstr`, `Interpreter.toNodeErrorName()` and `Interpreter.NODE_ERROR_NAMES`
+
+Most of this package's error names are the node's, spelled identically. Eight are not, and a
+caller comparing a verdict against a node — or against a corpus recording `script_error.h`
+names — had to work that out alone.
+
+Four are deliberately finer: the node has one `SCRIPT_ERR_EVAL_FALSE` where this package
+distinguishes `EVAL_FALSE_IN_STACK`, `EVAL_FALSE_NO_RESULT`, `EVAL_FALSE_IN_P2SH_STACK` and
+`EVAL_FALSE_NO_P2SH_STACK`. The other four differ only in spelling and are kept because
+changing `errstr` breaks anyone matching on it:
+
+```
+SCRIPT_ERR_NULLFAIL                -> SCRIPT_ERR_SIG_NULLFAIL
+SCRIPT_ERR_SIG_DER_HIGH_S          -> SCRIPT_ERR_SIG_HIGH_S
+SCRIPT_ERR_SIG_DER_INVALID_FORMAT  -> SCRIPT_ERR_SIG_DER
+SCRIPT_ERR_UNDEFINED_OPCODE        -> SCRIPT_ERR_BAD_OPCODE
+```
+
+Each was confirmed at its emit site, not matched by name.
+
+```ts
+interp.errstr      // 'SCRIPT_ERR_EVAL_FALSE_NO_RESULT'  — what went wrong, precisely
+interp.nodeErrstr  // 'SCRIPT_ERR_EVAL_FALSE'            — what the node would call it
+```
+
+**A derived read, not a mode**: no switch to set and nothing to restore, which keeps it clear
+of the trap the process-wide limits statics set. `toNodeErrorName()` is the same translation as
+a pure function and is safe on any string.
+
+### What it closed
+
+Against the 24,568-row bsv-lean-proofs corpus, whose expectations are `script_error.h` names
+validated on a compiled bitcoin-sv v1.2.3, reading `nodeErrstr` instead of `errstr` takes the
+error-name comparison from 456 mismatches to **0 across all 21,978 rows where both reject**.
+With 1.3.0's 24,568 of 24,568 outcome agreement, this package now matches that corpus on every
+verdict and every reason.
+
+### The guard
+
+`test/script/node_error_names.js` scans `src/script/interpreter.ts` for every `'SCRIPT_ERR_*'`
+literal it can assign to `errstr` and fails if any neither appears in `script_error.h` nor has
+a mapping, so adding a novel name without deciding the node's spelling breaks the build. It
+also asserts the map has no dead entries and that every target exists in the header.
+
 ## [1.3.0] - 2026-10-11
 
 **Two consensus fixes, and together they refuse scripts 1.2.x accepted.** A minor rather than a

@@ -160,6 +160,8 @@ export interface Interpreter {
    */
   isAfterGenesis: () => boolean
   isAfterChronicle: () => boolean
+  /** `errstr` in the node's script_error.h spelling. A derived read, not a mode. */
+  readonly nodeErrstr: string
   /**
    * False where Chronicle applies and the spending transaction's version is above 1, which
    * is how a transaction opts into malleability. LOW_S, MINIMALDATA, MINIMALIF, NULLFAIL,
@@ -203,6 +205,14 @@ export interface InterpreterConstructor extends InterpreterFlags {
    * not reachable through setLimits at all.
    */
   setLimits: (limits?: ScriptLimits) => InterpreterConstructor
+  /**
+   * This library's error names mapped to the node's script_error.h names. Eight entries: four
+   * where we are deliberately finer than the node's single SCRIPT_ERR_EVAL_FALSE, four that
+   * differ only in spelling.
+   */
+  NODE_ERROR_NAMES: Record<string, string>
+  /** Translate an `errstr` to the node's spelling; a shared name is returned unchanged. */
+  toNodeErrorName: (name: string) => string
   /** BSV mainnet consensus flags. Excludes CLTV/CSV — Genesis made both NOPs. */
   mainnetFlags: (opts?: { afterChronicle?: boolean }) => number
   /** Applies Genesis limits AND returns mainnet flags. Mutates process-wide state. */

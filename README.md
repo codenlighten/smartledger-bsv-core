@@ -20,6 +20,21 @@ const tx = new bsv.Transaction()
   .sign(key)
 ```
 
+## Requirements
+
+- **Node.js >= 20.19** (`engines`). Not arbitrary: the package is CommonJS and depends on
+  ESM-only `@noble/curves`, which needs `require(esm)` — unflagged from 20.19.
+- **TypeScript >= 5.3** to parse the bundled declarations, and **>= 5.7** to type-check
+  against them cleanly. Both numbers are measured, not assumed. 5.3 is the floor for the
+  `resolution-mode` import attribute one declaration needs; below it the declarations fail to
+  parse even with `skipLibCheck: true`. 5.7 is the floor for a clean check, because
+  `@types/node` serves its `ts5.6/` fallback to 5.6 and below, where `Buffer` is not generic,
+  while the declarations reference `Buffer<ArrayBuffer>` (~15 x TS2315). JavaScript consumers
+  are unaffected by both.
+
+Declarations are checked against a consumer install in three resolution modes
+(`node`, `node16`, `bundler`) by `npm run check:consumer-types` before every release.
+
 ## Why a separate package
 
 The monolith was ~35,500 lines, of which ~16,600 were application protocols at

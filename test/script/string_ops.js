@@ -85,4 +85,85 @@ describe('String opcodes OP_SUBSTR / OP_LEFT / OP_RIGHT', function () {
     const lock = new Script().add(Opcode.OP_LEFT) // nothing to operate on
     interp.verify(new Script(), lock, new Transaction(), 0, CHRONICLE).should.equal(false)
   })
+
+  describe('the length operand is an int64, not a big number', function () {
+    // Ported from @smartledger/bsv 9.28.2, where the defect was found. The node builds these
+    // operands with CScriptNum's span constructor and does NOT pass `big_int`, which DEFAULTS
+    // TO FALSE (src/script/script_num.h), so the value must survive
+    // `bsv::deserialize<int64_t>`; the constructor throws SCRIPT_ERR_SCRIPTNUM_OVERFLOW when
+    // it will not. `MaxScriptNumLength()` is therefore not the only bound: post-Chronicle it
+    // is 32,000,000, and a 600-byte operand clears that and still overflows, because the rule
+    // is on the ENCODED LENGTH and not the value.
+    //
+    // Both libraries read these as big numbers bounded only by maxScriptNumLength() and
+    // ACCEPTED a script a compiled node rejects — `script-20261008-14051` from the
+    // bsv-lean-proofs corpus, an OP_RIGHT whose length operand was a 600-byte push of zeros.
+    // The node's asymmetry is deliberate: OP_SPLIT and OP_NUM2BIN DO pass
+    // `utxo_after_genesis` as `big_int`, so they take big numbers after Genesis, while these
+    // three string opcodes take an int64 in every era.
+    const ERA = Interpreter.SCRIPT_UTXO_AFTER_GENESIS |
+                Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE |
+                Interpreter.SCRIPT_ENABLE_CHRONICLE
+
+    // `<data> <operand> <op> OP_DROP OP_1` — ends TRUTHY on purpose. A probe that leaves a
+    // falsy stack rejects for an unrelated reason (EVAL_FALSE) and cannot see a false accept;
+    // that cost a round when this was first measured.
+    function errOf (opcode, operandBuf) {
+      const lock = new Script().add(DATA).add(operandBuf).add(opcode)
+        .add(Opcode.OP_DROP).add(Opcode.OP_1)
+      const interp = new Interpreter()
+      interp.verify(new Script(), lock, new Transaction(), 0, ERA)
+      return interp.errstr || ''
+    }
+
+    it('overflows on an operand wider than 9 bytes, whatever its value', function () {
+      errOf(Opcode.OP_RIGHT, Buffer.alloc(600)).should.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+      errOf(Opcode.OP_LEFT, Buffer.alloc(600)).should.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+      errOf(Opcode.OP_RIGHT, Buffer.alloc(10)).should.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+    })
+
+    it('overflows on the 11-byte operand a compiled node rejects', function () {
+      errOf(Opcode.OP_RIGHT, Buffer.from('0100000000000000000080', 'hex'))
+        .should.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+    })
+
+    it('accepts 9 bytes only when the top byte carries nothing but the sign', function () {
+      errOf(Opcode.OP_RIGHT, Buffer.concat([Buffer.alloc(8), Buffer.from([0x00])]))
+        .should.not.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+      errOf(Opcode.OP_RIGHT, Buffer.concat([Buffer.alloc(8), Buffer.from([0x01])]))
+        .should.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+    })
+
+    it('rejects a 9-byte operand whose low 8 bytes are a negative int64', function () {
+      errOf(Opcode.OP_RIGHT,
+        Buffer.concat([Buffer.alloc(7), Buffer.from([0x80]), Buffer.from([0x00])]))
+        .should.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+      errOf(Opcode.OP_RIGHT,
+        Buffer.concat([Buffer.alloc(7), Buffer.from([0x80]), Buffer.from([0x80])]))
+        .should.not.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+    })
+
+    it('still takes an ordinary operand, so the bound did not swallow the honest case', function () {
+      const lock = new Script().add(DATA).add(Opcode.OP_2).add(Opcode.OP_RIGHT)
+        .add(Buffer.from('ccdd', 'hex')).add(Opcode.OP_EQUAL)
+      const interp = new Interpreter()
+      interp.verify(new Script(), lock, new Transaction(), 0, ERA).should.equal(true)
+    })
+
+    it('bounds both of OP_SUBSTR\'s operands, the length one first', function () {
+      const wide = Buffer.alloc(12)
+      const lock = new Script().add(DATA).add(wide).add(wide).add(Opcode.OP_SUBSTR)
+      const interp = new Interpreter()
+      interp.verify(new Script(), lock, new Transaction(), 0, ERA)
+      interp.errstr.should.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+    })
+
+    it('leaves OP_SPLIT on big numbers, as the node does', function () {
+      // The contrast that makes the rule a rule and not a guess.
+      const lock = new Script().add(DATA).add(Buffer.alloc(12)).add(Opcode.OP_SPLIT)
+      const interp = new Interpreter()
+      interp.verify(new Script(), lock, new Transaction(), 0, ERA)
+      interp.errstr.should.not.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+    })
+  })
 })

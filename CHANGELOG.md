@@ -7,6 +7,121 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.2.0] - 2026-10-11
+
+A minor rather than a patch because consensus tracking overrides the versioning policy (see
+**Stability** in the README): scripts that verified under 1.1.0 and earlier are refused here,
+and they were never valid on the network.
+
+### Fixed — OP_LEFT / OP_RIGHT / OP_SUBSTR accepted an operand the network rejects
+
+Ported from `@smartledger/bsv` 9.29.0, where it was found. The length and offset operands of
+the Chronicle string opcodes were read as big numbers bounded only by `maxScriptNumLength()`,
+which post-Chronicle is 32,000,000 — so a 600-byte operand passed, while a compiled
+bitcoin-sv v1.2.3 rejects it with `SCRIPT_ERR_SCRIPTNUM_OVERFLOW`.
+
+`MaxScriptNumLength()` is not the only bound. `CScriptNum`'s span constructor takes a fourth
+argument, `big_int`, which **defaults to false** (`src/script/script_num.h`), and when it is
+false the value must survive `bsv::deserialize<int64_t>` or the constructor throws.
+`deserialize<int64_t>` tests the **encoded length, not the value**: more than 9 bytes always
+fails, and at exactly 9 the top byte must carry nothing but the sign. An all-zero 600-byte
+operand is numerically 0 and still overflows.
+
+The node's asymmetry is deliberate, and porting "the same as the neighbouring opcodes" is what
+produced the bug in both libraries:
+
+```
+OP_SPLIT, OP_NUM2BIN          big number after Genesis (passes utxo_after_genesis as big_int).
+                              Unchanged; it was correct.
+OP_SUBSTR, OP_LEFT, OP_RIGHT  int64 in every era, post-Chronicle included. Fixed.
+OP_CHECKMULTISIG counts        4 bytes. Already correct.
+```
+
+Found by `script-20261008-14051` from the bsv-lean-proofs corpus. This package accepted it;
+the second row (`...-22371`) it already rejected, but as `SCRIPT_ERR_INVALID_NUMBER_RANGE` —
+the right outcome for the wrong reason. Both now report the node's code.
+
+Seven regression tests in `test/script/string_ops.js`, matching the ones added upstream, so
+the two libraries are pinned to the same rule by the same cases. The guard is written
+byte-wise rather than with BigInt so both ports read identically.
+
+### Fixed — the shipped declarations broke CommonJS consumers on `node16`/`nodenext`
+
+The declaration half of this release. The emitted JavaScript is byte-identical to 1.1.0 — verified by
+hashing the built `dist/**/*.js` tree before and after the change — so no runtime behaviour
+moves. Only `.d.ts` output and the release gate differ.
+
+### Fixed — the shipped declarations broke CommonJS consumers on `node16`/`nodenext`
+
+`dist/crypto/point.types.d.ts` carried a top-level import of `@noble/curves`, which is
+ESM-only, because the source derived a type from it with a value import:
+
+```ts
+import { secp256k1 } from '@noble/curves/secp256k1.js'
+export type NoblePoint = ReturnType<typeof secp256k1.Point.fromHex>
+```
+
+TypeScript emits that import into the declaration file, so a **CommonJS** consumer compiling
+with `moduleResolution: node16` or `nodenext` got `TS1479` ("the referenced file is an
+ECMAScript module and cannot be imported with 'require'") from a declaration they never asked
+for. Present in every 1.0.x and in 1.1.0. Runtime was never affected: the package is CommonJS
+on Node >= 20.19, where `require(esm)` resolves @noble at runtime, which is what that `engines`
+floor is for.
+
+Scope, measured rather than assumed — only one consumer configuration failed:
+
+```
+CJS + moduleResolution node16/nodenext   TS1479
+CJS + moduleResolution node (legacy)     clean
+bundler, and ESM consumers               clean
+```
+
+The type is still **derived** from @noble rather than restated, now via a type-position import
+carrying `resolution-mode: 'import'`. Restating the shape locally would have decoupled the
+public declarations from @noble's module format, at the cost of hand-mirroring a curve
+implementation's point API where drift is silent; `_p` is internal, so the tracking is worth
+more than the decoupling.
+
+**One narrow compatibility cost, stated because it is real.** The `resolution-mode` attribute
+needs TypeScript >= 5.3 to parse. `skipLibCheck: true` does not help: it suppresses errors
+reported inside a declaration file, but the file is still parsed. Measured against the
+published 1.1.0:
+
+```
+TS 5.2, skipLibCheck true    1.1.0 -> 0 errors    1.2.0 -> 7 (parse)
+TS 5.6, skipLibCheck false   1.1.0 -> 16          1.2.0 -> 15
+TS 5.9, skipLibCheck false   1.1.0 -> 1           1.2.0 -> 0
+```
+
+So a consumer on TypeScript 5.2 who had `skipLibCheck: true` compiled against 1.1.0 and does
+not compile against 1.2.0. TypeScript 5.2 predates the Node 20.19 floor this package already
+required, and the 15 errors remaining at 5.6 are `@types/node` serving a non-generic `Buffer`
+to 5.6 and below — unchanged from 1.1.0, not introduced here.
+
+### Added — the release gate now tests five consumer configurations, not one
+
+`check:consumer-types` compiled a consumer against the packed tarball, which is the right
+shape and caught three real defects at 1.0.0. It pinned `"moduleResolution": "node"` — the one
+mode in which TypeScript does **not** enforce ESM/CJS import legality — so it stayed green
+through every release carrying the defect above. A gate that tests one resolution mode cannot
+see that whole class of defect.
+
+It now compiles in `node`/commonjs, `node16`, `bundler`/esnext and `nodenext`, plus a real
+`"type": "module"` consumer in its own directory with an `.mts` entry and
+`skipLibCheck: false`, because a compiler flag alone cannot reproduce how ESM resolution treats
+this package. The ESM rows needed their own smoke file: the existing
+`import bsv = require(...)` is illegal when targeting ES modules, so reusing it would have
+tested the smoke file's syntax instead of the package. Both smokes now also touch
+`crypto.Point`, so the rows exercise the declaration that carried the defect rather than only
+importing the package root.
+
+### Documentation
+
+README gains a **Requirements** section stating both TypeScript floors (>= 5.3 to parse the
+declarations, >= 5.7 to type-check against them cleanly) and why Node >= 20.19 is required.
+The package previously documented no TypeScript minimum, so a consumer on 5.6 met ~15 errors
+with nothing pointing at the cause.
+
 ## [1.1.0] - 2026-10-11
 
 Parity with `@smartledger/bsv` 9.17.0–9.28.0. A measured comparison found this package level

@@ -834,6 +834,78 @@ Interpreter.prototype.isAfterChronicle = function (this: Interpreter): boolean {
     (Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE | Interpreter.SCRIPT_ENABLE_CHRONICLE)) !== 0
 }
 
+/**
+ * The node reads SOME script-number operands as an int64 rather than a big number, and the
+ * difference is consensus-visible.
+ *
+ * `CScriptNum`'s span constructor takes a fourth argument, `big_int`, which DEFAULTS TO FALSE
+ * (src/script/script_num.h):
+ *
+ *   explicit CScriptNum(std::span<const uint8_t>, min_encoding_check,
+ *                       size_t max_length = MAXIMUM_ELEMENT_SIZE, bool big_int = false);
+ *
+ * and when it is false the value must survive `bsv::deserialize<int64_t>`, which returns an
+ * empty optional for anything that will not fit — at which point the constructor throws
+ * `scriptnum_overflow_error`, i.e. SCRIPT_ERR_SCRIPTNUM_OVERFLOW.
+ *
+ * So `max_length` is NOT the only bound. Post-Chronicle `MaxScriptNumLength()` is 32,000,000,
+ * and a 600-byte operand passes that check and still overflows. The rule is on the ENCODED
+ * LENGTH, not the value: an all-zero 600-byte operand is numerically 0 and still overflows.
+ *
+ * Which call sites are affected is a deliberate asymmetry in the node, and porting "the same
+ * as the neighbouring opcodes" is what got this wrong in both libraries:
+ *
+ *   OP_SPLIT, OP_NUM2BIN        CScriptNum{..., MaxScriptNumLength(), utxo_after_genesis}
+ *                               -> big number after Genesis. Our bignum read is correct.
+ *   OP_SUBSTR, OP_LEFT, OP_RIGHT
+ *                               CScriptNum{..., MaxScriptNumLength()}   // big_int omitted
+ *                               -> int64, in EVERY era, including post-Chronicle.
+ *
+ * Found in @smartledger/bsv by a vector from the bsv-lean-proofs corpus
+ * (`script-20261008-14051`) that a compiled node rejects with SCRIPTNUM_OVERFLOW and both
+ * libraries ACCEPTED: an `OP_RIGHT` whose length operand was a 600-byte push of zeros. A
+ * false accept, which is the direction that costs money.
+ *
+ * Faithful port of `bsv::deserialize<int64_t>` (src/script/int_serialization.h). Called
+ * BEFORE the bignum read, after the stack-depth check, so the node's order of errors holds.
+ */
+function assertScriptNumFitsInt64 (buf: Buffer): void {
+  const n = 8 // sizeof(int64_t)
+  const d = buf.length
+  if (d === 0) return // `if(s.empty()) return N{}`
+  if (d > n + 1) throw scriptNumOverflow()
+  // readUInt8 rather than buf[i]: under noUncheckedIndexedAccess an index read is
+  // `number | undefined`, and silencing that with `!` would hide a genuine short read.
+  if (d === n + 1 && (buf.readUInt8(d - 1) & 0x7f) !== 0) throw scriptNumOverflow()
+  if (d <= n) return
+  // d === 9 with a sign-only top byte. The node builds `result` from bytes 0..d-2 — here the
+  // full 8 low bytes, as a two's-complement int64 — then:
+  //   if(result == INT64_MIN) return negative ? result : nullopt;
+  //   if(result < 0) return {};
+  // Both questions are answerable from the bytes, with no 64-bit arithmetic: `result` is
+  // negative exactly when the top of those 8 bytes has its sign bit set, and equals INT64_MIN
+  // exactly when that byte is 0x80 and the other seven are zero. Kept byte-wise so this port
+  // and @smartledger/bsv's read identically; a BigInt literal is also a parse error for that
+  // package's linter.
+  const topIsNegative = (buf.readUInt8(n - 1) & 0x80) !== 0
+  let isInt64Min = buf.readUInt8(n - 1) === 0x80
+  for (let k = 0; k < n - 1 && isInt64Min; k++) {
+    if (buf.readUInt8(k) !== 0) isInt64Min = false
+  }
+  const negative = (buf.readUInt8(d - 1) & 0x80) !== 0
+  if (isInt64Min) {
+    if (!negative) throw scriptNumOverflow()
+    return
+  }
+  if (topIsNegative) throw scriptNumOverflow()
+}
+
+function scriptNumOverflow (): Error & { scriptErr?: string } {
+  const e: Error & { scriptErr?: string } = new Error('script number overflow')
+  e.scriptErr = 'SCRIPT_ERR_SCRIPTNUM_OVERFLOW'
+  return e
+}
+
 /** Genesis removed this limit; before it, whatever the statics say. */
 Interpreter.prototype.maxScriptElementSize = function (this: Interpreter): number {
   return this.isAfterGenesis() ? Interpreter.UNLIMITED : Interpreter.MAX_SCRIPT_ELEMENT_SIZE
@@ -2671,6 +2743,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         buf1 = stacktop(-2)
+        assertScriptNumFitsInt64(stacktop(-1)) // node: CScriptNum big_int defaults to false
         n = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength()).toNumber()
         // ERRORS on out of range; it does not clamp. The node is
         // `if(len < 0 || len > size) return SCRIPT_ERR_INVALID_NUMBER_RANGE`.
@@ -2716,7 +2789,10 @@ Interpreter.prototype.step = function (this: Interpreter) {
         }
         {
           buf1 = stacktop(-3)
+          // node: both are CScriptNum with big_int defaulted to false, length operand first
+          assertScriptNumFitsInt64(stacktop(-1))
           const subSize = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength()).toNumber()
+          assertScriptNumFitsInt64(stacktop(-2))
           const subBegin = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal, this.maxScriptNumLength()).toNumber()
           // ERRORS on out of range, matching
           //   offset < 0 || offset >= size || len < 0 || len > size - offset

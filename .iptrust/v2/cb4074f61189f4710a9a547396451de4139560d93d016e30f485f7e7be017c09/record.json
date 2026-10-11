@@ -1,0 +1,68 @@
+{
+  "v": "iptrust/1",
+  "type": "Work",
+  "payload": {
+    "title": "@smartledger/bsv-core 1.3.0 — the Chronicle opcodes follow the output's era, and the covenant helper gains the era flags",
+    "workType": "software",
+    "commitment": {
+      "scheme": "iptrust-commit/1",
+      "kind": "manifest",
+      "c256": "b6f24cc2ace2f12c654ff3edc96374841e235d1798bf1c6d13ea8734840615bc",
+      "c3": "cba4601c9db277df8ecceffb6742168d938d5bf9f4b3740be2be7ccf654e4b6e"
+    },
+    "creators": [
+      {
+        "name": "Bryan W. Daugherty",
+        "role": "co-author"
+      },
+      {
+        "name": "Gregory J. Ward",
+        "role": "author",
+        "signerKey": {
+          "suite": "secp256k1-prehash",
+          "publicKey": "03a2f39f201f556c3bdadeb2baa4bbb21c13afe04f2fc10c4e2f9e6b4fdafc34a8"
+        }
+      },
+      {
+        "name": "Shawn M. Ryan",
+        "role": "co-author"
+      }
+    ],
+    "claimant": {
+      "name": "Gregory J. Ward, Bryan W. Daugherty, Shawn M. Ryan",
+      "basis": "creator"
+    },
+    "status": "published",
+    "aiUse": {
+      "used": true,
+      "description": "Human-led and human-directed: conceived, specified, directed and reviewed by the named authors. Implementation drafted with AI coding assistance under the authors' direction and accepted by them."
+    },
+    "firstPublished": {
+      "date": "2026-10-11",
+      "where": "https://www.npmjs.com/package/@smartledger/bsv-core/v/1.3.0"
+    },
+    "statements": [
+      {
+        "role": "author",
+        "lang": "en",
+        "text": "I, Gregory J. Ward, state that I am an author of the work titled \"@smartledger/bsv-core 1.3.0 — the Chronicle opcodes follow the output's era, and the covenant helper gains the era flags\", whose content is committed to by b6f24cc2ace2f12c654ff3edc96374841e235d1798bf1c6d13ea8734840615bc, and that the information in this record is true to the best of my knowledge. I understand this record is evidence and does not itself create or register any right."
+      }
+    ]
+  },
+  "references": [],
+  "retrieval": {
+    "profile": "held"
+  },
+  "signatures": [
+    {
+      "protected": {
+        "role": "author",
+        "suite": "secp256k1-prehash",
+        "publicKey": "03a2f39f201f556c3bdadeb2baa4bbb21c13afe04f2fc10c4e2f9e6b4fdafc34a8",
+        "statementDigest": "b15e01010be5ce03d90ebe25d2e7101f0e7cc912856cf0dfc9594c4dfa4e9fd5",
+        "claimedSignedAt": "2026-10-11T20:56:56Z"
+      },
+      "sig": "a3d2cfb77fe40409017cb5d2e48a766f1f97b4755b78e46d62a3538a16f60c67521fa274c59be678aa01716830c5fac7170911b95a08b733169dd858a4133690"
+    }
+  ]
+}

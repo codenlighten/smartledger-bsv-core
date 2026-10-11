@@ -143,6 +143,31 @@ describe('String opcodes OP_SUBSTR / OP_LEFT / OP_RIGHT', function () {
         .should.not.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
     })
 
+    it('reports MINENCODE, not OVERFLOW, when the operand fails both', function () {
+      // The node's span constructor runs three checks IN ORDER: size against max_length,
+      // then minimal encoding, then the int64 fit. An operand that is both non-minimal and
+      // wider than 9 bytes must therefore report SCRIPTNUM_MINENCODE, because that is the
+      // one the node reaches first.
+      //
+      // Measured regression: the guard was first placed BEFORE the bignum read and reported
+      // OVERFLOW here — the same reject for the wrong reason, on 4 rows of a 24,568-row
+      // corpus. An accept/reject comparison cannot see that; only the error name can.
+      const WIDE_FLAGS = ERA | Interpreter.SCRIPT_VERIFY_MINIMALDATA
+      function errWith (operandBuf) {
+        const lock = new Script().add(Buffer.from('aabbccdd', 'hex')).add(operandBuf)
+          .add(Opcode.OP_RIGHT).add(Opcode.OP_DROP).add(Opcode.OP_1)
+        const interp = new Interpreter()
+        interp.verify(new Script(), lock, new Transaction(), 0, WIDE_FLAGS)
+        return interp.errstr || ''
+      }
+      // 12 zero bytes: numerically 0, so non-minimal, and also too wide.
+      errWith(Buffer.alloc(12)).should.equal('SCRIPT_ERR_SCRIPTNUM_MINENCODE')
+      // Minimal and too wide: the top byte carries value bits, so no shorter encoding exists
+      // and the minimal check passes — then the int64 rule fires.
+      errWith(Buffer.from('ffffffffffffffffff7f', 'hex'))
+        .should.equal('SCRIPT_ERR_SCRIPTNUM_OVERFLOW')
+    })
+
     it('still takes an ordinary operand, so the bound did not swallow the honest case', function () {
       const lock = new Script().add(DATA).add(Opcode.OP_2).add(Opcode.OP_RIGHT)
         .add(Buffer.from('ccdd', 'hex')).add(Opcode.OP_EQUAL)

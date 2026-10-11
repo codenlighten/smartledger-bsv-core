@@ -7,6 +7,21 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.2.1] - 2026-10-11
+
+Error-name only, ported from `@smartledger/bsv` 9.29.1. No outcome changes.
+
+### Fixed — the 1.2.0 guard ran one step too early in the node's order of checks
+
+The node's `CScriptNum` span constructor applies three checks in order: size against
+`max_length`, then minimal encoding, then the int64 fit. 1.2.0 placed the int64 test before
+the bignum read, which performs the first two, so an operand that is both non-minimal and
+wider than nine bytes reported `SCRIPTNUM_OVERFLOW` where the node reports
+`SCRIPTNUM_MINENCODE` — the same reject for the wrong reason.
+
+Found by comparing error names rather than verdicts across a 24,568-row corpus, which an
+accept/reject comparison cannot do. Pinned by a test asserting both directions.
+
 ## [1.2.0] - 2026-10-11
 
 A minor rather than a patch because consensus tracking overrides the versioning policy (see

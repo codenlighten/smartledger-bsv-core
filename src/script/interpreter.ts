@@ -867,7 +867,9 @@ Interpreter.prototype.isAfterChronicle = function (this: Interpreter): boolean {
  * false accept, which is the direction that costs money.
  *
  * Faithful port of `bsv::deserialize<int64_t>` (src/script/int_serialization.h). Called
- * BEFORE the bignum read, after the stack-depth check, so the node's order of errors holds.
+ * AFTER the bignum read, because this is the node's THIRD check: the max_length overflow and
+ * the minimal-encoding error both precede it, and an operand failing two of the three must
+ * report the one the node reaches first.
  */
 function assertScriptNumFitsInt64 (buf: Buffer): void {
   const n = 8 // sizeof(int64_t)
@@ -2743,8 +2745,12 @@ Interpreter.prototype.step = function (this: Interpreter) {
           return false
         }
         buf1 = stacktop(-2)
-        assertScriptNumFitsInt64(stacktop(-1)) // node: CScriptNum big_int defaults to false
+        // AFTER the bignum read, not before. fromScriptNumBuffer performs the node's first two
+        // checks in the node's order — size against max_length, then minimal encoding — and the
+        // int64 test is the node's THIRD. Running it first reported OVERFLOW on an operand that
+        // is both non-minimal and too wide, where the node reports MINENCODE.
         n = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength()).toNumber()
+        assertScriptNumFitsInt64(stacktop(-1))
         // ERRORS on out of range; it does not clamp. The node is
         // `if(len < 0 || len > size) return SCRIPT_ERR_INVALID_NUMBER_RANGE`.
         // Clamping made scripts the node rejects succeed here.
@@ -2789,11 +2795,12 @@ Interpreter.prototype.step = function (this: Interpreter) {
         }
         {
           buf1 = stacktop(-3)
-          // node: both are CScriptNum with big_int defaulted to false, length operand first
-          assertScriptNumFitsInt64(stacktop(-1))
+          // node: both are CScriptNum with big_int defaulted to false, length operand first, and
+          // each operand's three checks run in the node's order (size, minimal encoding, int64).
           const subSize = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, this.maxScriptNumLength()).toNumber()
-          assertScriptNumFitsInt64(stacktop(-2))
+          assertScriptNumFitsInt64(stacktop(-1))
           const subBegin = BN.fromScriptNumBuffer(stacktop(-2), fRequireMinimal, this.maxScriptNumLength()).toNumber()
+          assertScriptNumFitsInt64(stacktop(-2))
           // ERRORS on out of range, matching
           //   offset < 0 || offset >= size || len < 0 || len > size - offset
           // Note `offset >= size` is strict: a begin index AT the end is an

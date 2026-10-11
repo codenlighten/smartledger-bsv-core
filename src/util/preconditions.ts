@@ -16,8 +16,20 @@ type ErrCtor = new (...args: unknown[]) => Error
 const err = (name: string): ErrCtor => errors[name] as ErrCtor
 
 const preconditions = {
-  checkState: function (condition: unknown, message?: string): void {
-    if (condition === false || condition == null || condition === 0 || condition === '') {
+  checkState: function (
+    condition: unknown,
+    // Accepts an Error as well as a string, exactly as checkArgument's second
+    // parameter does (see crypto/ecdsa's hashbuf guard); the error formatter
+    // stringifies it to "Error: <message>".
+    message?: unknown
+  ): void {
+    // `!condition`, not an enumerated falsy list. The TS conversion (777fda5) replaced
+    // the original `if (!condition)` with
+    //   condition === false || condition == null || condition === 0 || condition === ''
+    // which looks exhaustive and is not: it MISSES NaN, so `checkArgument(NaN)` passed a
+    // guard that exists to stop it. `!condition` is the whole falsy set in one operator
+    // and cannot drift out of step with it.
+    if (!condition) {
       throw new (err('InvalidState'))(message)
     }
   },
@@ -30,7 +42,7 @@ const preconditions = {
     message?: string,
     docsPath?: string
   ): void {
-    if (condition === false || condition == null || condition === 0 || condition === '') {
+    if (!condition) {
       throw new (err('InvalidArgument'))(argumentName, message, docsPath)
     }
   },

@@ -19,6 +19,36 @@ describe('preconditions', function () {
     }).should.not.throw()
   })
 
+  // Every falsy value, named. The TS conversion replaced `!condition` with an
+  // enumerated list that omitted NaN, and nothing here noticed: "throws no false
+  // negative" only ever passed `true`. A guard is only worth its call sites if it
+  // refuses the whole set, so the set is now the test.
+  it('refuses every falsy condition, NaN included', function () {
+    const falsy = [false, 0, -0, '', null, undefined, NaN]
+    falsy.forEach(function (v) {
+      (function () {
+        $.checkState(v, 'testing')
+      }).should.throw(errors.InvalidState, undefined, 'checkState accepted ' + String(v));
+
+      (function () {
+        $.checkArgument(v, 'testing')
+      }).should.throw(errors.InvalidArgument, undefined, 'checkArgument accepted ' + String(v))
+    })
+  })
+
+  it('accepts every truthy condition', function () {
+    const truthy = [true, 1, -1, 'a', '0', [], {}, Infinity]
+    truthy.forEach(function (v) {
+      (function () {
+        $.checkState(v, 'testing')
+      }).should.not.throw();
+
+      (function () {
+        $.checkArgument(v, 'testing')
+      }).should.not.throw()
+    })
+  })
+
   it('can be used to check an argument', function () {
     (function () {
       $.checkArgument(false, 'testing')

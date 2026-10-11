@@ -1417,6 +1417,25 @@ Interpreter.prototype.step = function (this: Interpreter) {
     this.errstr = 'SCRIPT_ERR_UNDEFINED_OPCODE'
     return false
   }
+
+  // A push declaring more bytes than the script carries. This is a DECODE failure, and the
+  // node discovers it reading the instruction, before any per-instruction check:
+  //
+  //   if (!script.GetOp(pc, opcode, vchPushValue))
+  //       return SCRIPT_ERR_BAD_OPCODE;                      // interpreter.cpp:450-451
+  //
+  // which sits above the push-size, op-count, disabled-opcode and minimal-push checks, and
+  // above the fExec logic entirely. So it is tested here, FIRST and UNCONDITIONALLY. It used
+  // to live inside `if (fExec && isPush)` after the minimal-push test, which was wrong twice:
+  // a non-minimal truncated push reported MINIMALDATA, and a truncated push in an unexecuted
+  // branch was tolerated and the script ran to its end, reporting UNBALANCED_CONDITIONAL.
+  // 24 rows of a 24,568-row corpus disagreed with a compiled node on the reason for exactly
+  // these two shapes; the verdict was reject either way, so only an error-NAME comparison
+  // could see it. Ported from @smartledger/bsv 9.29.2.
+  if (chunk.buf != null && chunk.len !== undefined && chunk.len !== chunk.buf.length) {
+    this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
+    return false
+  }
   if (chunk.buf != null && chunk.buf!.length > this.maxScriptElementSize()) {
     this.errstr = 'SCRIPT_ERR_PUSH_SIZE'
     return false
@@ -1438,15 +1457,9 @@ Interpreter.prototype.step = function (this: Interpreter) {
       this.errstr = 'SCRIPT_ERR_MINIMALDATA'
       return false
     }
+    // The undecodable-push case is already handled above, at instruction-read time.
     if (!chunk.buf) {
       this.stack.push(Interpreter.false)
-    } else if (chunk.len !== chunk.buf!.length) {
-      // A push declaring more bytes than the script carries — "PUSHDATA1 with not enough
-      // bytes" and its PUSHDATA2/4 counterparts. The node fails these as
-      // SCRIPT_ERR_BAD_OPCODE. Throwing reached the evaluator's catch and became
-      // UNKNOWN_ERROR; this is inside step(), which can simply fail.
-      this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
-      return false
     } else {
       this.stack.push(chunk.buf as Buffer)
     }

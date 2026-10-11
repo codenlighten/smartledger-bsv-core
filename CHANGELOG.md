@@ -7,6 +7,28 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.2.2] - 2026-10-11
+
+Error-name only, ported from `@smartledger/bsv` 9.29.2. No outcome changes.
+
+### Fixed — an undecodable push was reported as MINIMALDATA, or not noticed at all
+
+A push declaring more bytes than the script carries is a decode failure, which the node finds
+while reading the instruction (`GetOp` returning false, `SCRIPT_ERR_BAD_OPCODE`,
+interpreter.cpp:450-451) — above the push-size, op-count, disabled-opcode and minimal-push
+checks, and above the `fExec` logic. This package had the check inside
+`if (fExec && isPush)` and after the minimal-push test, so a truncated push that was also
+non-minimal reported `MINIMALDATA`, and one inside a branch that never executes was skipped
+entirely, the script running on to report `UNBALANCED_CONDITIONAL`.
+
+Hoisted to instruction-read time and made unconditional, matching the node and
+`@smartledger/bsv`.
+
+Established by a compiled bitcoin-sv v1.2.3 oracle replaying all 3,835 `BAD_OPCODE` rows of
+the bsv-lean-proofs corpus (3,835 agree, 0 differ), so the node and that corpus were right and
+both our libraries were wrong. The verdict was reject either way, which is why only an
+error-name comparison could see it.
+
 ## [1.2.1] - 2026-10-11
 
 Error-name only, ported from `@smartledger/bsv` 9.29.1. No outcome changes.

@@ -1,6 +1,11 @@
 'use strict'
 
-import assert from 'assert'
+// `import assert = require(...)`, not a default import: tsc emits a default import's call
+// as `(0, assert_1.default)(expr)`, and node's assert reads the call-site SOURCE to build
+// its message — from that shape it recovers only `(expr)`, so the AssertionError text
+// differed from @smartledger/bsv's for the same failure. This emits a plain `assert(expr)`
+// call, and matches the `import X = require()` form used by every other import here.
+import assert = require('assert')
 
 /**
  * Accumulates buffers and concatenates them once, on demand.

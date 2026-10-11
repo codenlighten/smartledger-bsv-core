@@ -24,34 +24,38 @@ import type { PrivateKey, PayeeLike, VerifyOptions, FundAndSpendOptions, Address
 // SIGHASH_ALL | SIGHASH_FORKID — the BSV default these covenants are built for.
 const SIGHASH = Signature.SIGHASH_ALL | Signature.SIGHASH_FORKID // 0x41
 
-// Post-Genesis consensus + STANDARD RELAY flags — what mainnet miners actually
-// enforce. Includes SCRIPT_VERIFY_MINIMALDATA (every push must be minimal) and
-// SCRIPT_VERIFY_LOW_S (canonical signatures). Verifying with these flags locally
-// mirrors mainnet relay/consensus policy, so a covenant that passes here is
-// expected to be accepted on broadcast — catch non-relayable scripts before then.
-function flags () {
-  const I = Interpreter
-  return I.SCRIPT_VERIFY_P2SH |
-    I.SCRIPT_VERIFY_STRICTENC |
-    I.SCRIPT_VERIFY_DERSIG |
-    I.SCRIPT_VERIFY_LOW_S |
-    I.SCRIPT_VERIFY_MINIMALDATA |
-    I.SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY |
-    I.SCRIPT_VERIFY_CHECKSEQUENCEVERIFY |
-    I.SCRIPT_ENABLE_SIGHASH_FORKID |
-    I.SCRIPT_ENABLE_MAGNETIC_OPCODES |
-    I.SCRIPT_ENABLE_MONOLITH_OPCODES |
-    // REQUIRED, not optional. pushTxCore emits OP_RIGHT/OP_LEFT — see
-    // extractHashOutputs and assertSighashType — and those bytes (180/181) are
-    // upgradable NOPs on the network until Chronicle activates. Without this
-    // flag the interpreter treats them as no-ops, exactly as a pre-Chronicle
-    // node does, and the covenant does not verify.
-    //
-    // The consequence is worth stating plainly: OP_PUSH_TX covenants built by
-    // this library DEPEND on Chronicle. They cannot be spent on a pre-Chronicle
-    // chain. That was previously invisible because the interpreter ran the
-    // string opcodes unconditionally — more permissively than the network.
-    I.SCRIPT_ENABLE_CHRONICLE
+/**
+ * Current BSV mainnet consensus + standard relay flags — what miners actually enforce. A
+ * covenant that verifies here is expected to be accepted on broadcast.
+ *
+ * This DELEGATES to Interpreter.mainnetFlags() rather than assembling a list, which is the
+ * whole point. The hand-assembled list this replaces omitted all three UTXO-ERA flags —
+ * SCRIPT_GENESIS, SCRIPT_UTXO_AFTER_GENESIS and SCRIPT_UTXO_AFTER_CHRONICLE — while carrying
+ * SCRIPT_ENABLE_CHRONICLE. Measured: 0x111e4f against mainnetFlags()'s 0x3d586f.
+ *
+ * The omission was easy to miss for exactly the reason 1.3.0 fixes elsewhere: while
+ * `isAfterChronicle()` accepted the opt-in bit, the string opcodes ran anyway and only the
+ * LIMITS were wrong — so every covenant here was verified under PRE-GENESIS rules, a 520-byte
+ * element cap BSV removed in February 2020. An OP_PUSH_TX preimage is ~585 bytes, so this
+ * package's flagship feature could not verify against its own harness, and `enableGenesis()`
+ * papered over it by raising process-wide statics. That treats the symptom: raising the
+ * statics cannot enable post-Genesis arithmetic (only the era flags can) and it weakens
+ * pre-Genesis validation.
+ *
+ * Delegating also means the covenant path tracks consensus automatically instead of drifting
+ * the next time an era activates, and it is the same function a no-flags verify() uses, so
+ * "verify locally" and "what the network does" cannot diverge again without both moving.
+ *
+ * Two flags from the old list are deliberately gone: SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY and
+ * SCRIPT_VERIFY_CHECKSEQUENCEVERIFY. Genesis reverted OP_CLTV/OP_CSV to upgradable NOPs for
+ * outputs created after it, so once the era flags are present these two change nothing, and
+ * keeping them implied a time-lock guarantee mainnet does not provide. NULLFAIL is gained,
+ * which is strictly stricter.
+ *
+ * Ported from @smartledger/bsv, where this was corrected in 8.4.0.
+ */
+function flags (): number {
+  return Interpreter.mainnetFlags()
 }
 
 /**

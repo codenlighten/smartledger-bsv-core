@@ -823,15 +823,29 @@ Interpreter.prototype.isAfterGenesis = function (this: Interpreter): boolean {
  * bit; the latter is what the node actually gates the restored opcodes on. Either
  * enables them, so existing callers are unaffected.
  */
-// Every Chronicle-restored opcode gates on this, never on SCRIPT_ENABLE_CHRONICLE alone:
-// the node asks whether the OUTPUT BEING SPENT is post-Chronicle (utxo_after_chronicle).
-// Gating on the opt-in made OP_VER, OP_LEFT, OP_RIGHT, OP_SUBSTR, OP_LSHIFTNUM and
-// OP_RSHIFTNUM behave as upgradable NOPs under the node's own UTXO_AFTER_CHRONICLE flag
-// sets: they consumed nothing, the script ran on, and both false accepts and false
-// rejects followed.
+// Is the OUTPUT BEING SPENT post-Chronicle? SCRIPT_UTXO_AFTER_CHRONICLE, and nothing else.
+//
+// The comment here used to say exactly that — "never on SCRIPT_ENABLE_CHRONICLE alone" — above
+// an implementation that accepted bit 20 as well. The comment was right and the code was not.
+//
+//   SCRIPT_CHRONICLE (bit 20)             era of the BLOCK. Gates the malleability
+//     == SCRIPT_ENABLE_CHRONICLE          relaxations, via EnforceNonMalleability.
+//   SCRIPT_UTXO_AFTER_CHRONICLE (bit 21)  era of the OUTPUT being spent. Gates the restored
+//                                         opcodes and the per-era limits.
+//
+// `IsUtxoAfterChronicle(flags)` alone is what the node tests, at all eight sites that gate a
+// Chronicle opcode (interpreter.cpp v1.2.3: OP_2MUL/OP_2DIV L417, OP_VER L600, OP_SUBSTR L611,
+// OP_LEFT L644, OP_RIGHT L669, OP_LSHIFTNUM L694, OP_RSHIFTNUM L730, OP_VERIF/OP_VERNOTIF
+// L775), and it is what derives utxoEra, hence MaxScriptNumLength.
+//
+// Accepting bit 20 made the restored opcodes live when spending a PRE-Chronicle output in a
+// POST-Chronicle block — the ordinary mainnet case, and exactly the combination a correct
+// caller must express, since bit 20 is required for the relaxations while bit 21 must stay
+// clear for a pre-Chronicle output. Measured against 24,568 node-validated corpus rows: the
+// old reading disagreed on 571, this one on none. mainnetFlags() sets both bits, so the
+// default path is unchanged.
 Interpreter.prototype.isAfterChronicle = function (this: Interpreter): boolean {
-  return (this.flags &
-    (Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE | Interpreter.SCRIPT_ENABLE_CHRONICLE)) !== 0
+  return (this.flags & Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE) !== 0
 }
 
 /**

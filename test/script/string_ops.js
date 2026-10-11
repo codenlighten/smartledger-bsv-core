@@ -7,7 +7,13 @@ const Interpreter = bsv.Script.Interpreter
 const Script = bsv.Script
 const Opcode = bsv.Opcode
 const Transaction = bsv.Transaction
-const CHRONICLE = Interpreter.SCRIPT_ENABLE_CHRONICLE
+// The POST-CHRONICLE ERA. SCRIPT_ENABLE_CHRONICLE alone does NOT make these opcodes live: it
+// is the era of the BLOCK, while the node gates them on `utxo_after_chronicle`, the era of the
+// OUTPUT BEING SPENT. This file used to pass bit 20 alone and they ran — the permissiveness
+// 1.3.0 removed.
+const CHRONICLE = Interpreter.SCRIPT_UTXO_AFTER_GENESIS |
+                  Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE |
+                  Interpreter.SCRIPT_ENABLE_CHRONICLE
 
 // OP_SUBSTR / OP_LEFT / OP_RIGHT — Chronicle string opcodes at 0xb3/0xb4/0xb5.
 //
@@ -68,7 +74,7 @@ describe('String opcodes OP_SUBSTR / OP_LEFT / OP_RIGHT', function () {
     errors(function (s) { s.add(Opcode.OP_10).add(Opcode.OP_RIGHT) }).should.equal(true)
   })
 
-  it('is a no-op without SCRIPT_ENABLE_CHRONICLE, as a pre-Chronicle node is', function () {
+  it('is a no-op for a PRE-Chronicle output, as a pre-Chronicle node is', function () {
     const interp = new Interpreter()
     const lock = new Script().add(DATA).add(Opcode.OP_2).add(Opcode.OP_LEFT)
     interp.verify(new Script(), lock, new Transaction(), 0, 0).should.equal(true)

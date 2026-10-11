@@ -72,10 +72,18 @@ describe('Interpreter era and mandatory-rule flags', function () {
       interp(0).isAfterGenesis().should.equal(false)
     })
 
-    it('accepts either Chronicle flag', function () {
+    it('reads the OUTPUT era only, not the opt-in flag', function () {
+      // Until 1.3.0 this accepted either bit. They are different eras and the node never
+      // conflates them: SCRIPT_UTXO_AFTER_CHRONICLE (bit 21) is the era of the output being
+      // spent and gates the restored opcodes and the limits; SCRIPT_ENABLE_CHRONICLE (bit 20)
+      // is the era of the block and gates the malleability relaxations via
+      // EnforceNonMalleability.
       interp(Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE).isAfterChronicle().should.equal(true)
-      interp(Interpreter.SCRIPT_ENABLE_CHRONICLE).isAfterChronicle().should.equal(true)
+      interp(Interpreter.SCRIPT_ENABLE_CHRONICLE).isAfterChronicle().should.equal(false)
       interp(0).isAfterChronicle().should.equal(false)
+      // Both set is the ordinary post-Chronicle case.
+      interp(Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE | Interpreter.SCRIPT_ENABLE_CHRONICLE)
+        .isAfterChronicle().should.equal(true)
     })
 
     it('derives the script-number width from the era, not from the static', function () {

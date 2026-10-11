@@ -7,6 +7,76 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.3.0] - 2026-10-11
+
+**Two consensus fixes, and together they refuse scripts 1.2.x accepted.** A minor rather than a
+major because consensus tracking overrides the versioning policy (see **Stability** in the
+README): the scripts this now refuses were never valid on the network.
+
+### Fixed — the Chronicle opcodes followed the BLOCK's era instead of the OUTPUT's
+
+Ported from `@smartledger/bsv` 9.30.0. `isAfterChronicle()` accepted either
+`SCRIPT_UTXO_AFTER_CHRONICLE` or `SCRIPT_ENABLE_CHRONICLE`, which are different eras:
+
+```
+SCRIPT_CHRONICLE (bit 20)             era of the BLOCK. Gates the malleability relaxations.
+  == SCRIPT_ENABLE_CHRONICLE
+SCRIPT_UTXO_AFTER_CHRONICLE (bit 21)  era of the OUTPUT being spent. Gates the restored
+                                      opcodes and the per-era limits.
+```
+
+The node gates every restored Chronicle opcode on `utxo_after_chronicle` alone, at all eight
+sites, and derives its limits era from the same bit. Accepting bit 20 made those opcodes live
+when spending a pre-Chronicle output in a post-Chronicle block — the ordinary mainnet case,
+and precisely the combination a correct caller must express.
+
+**The comment above this function already said "never on SCRIPT_ENABLE_CHRONICLE alone". The
+code accepted it anyway.** The comment was right and the implementation was not.
+
+Measured against 24,568 node-validated rows of the bsv-lean-proofs corpus: the old reading
+disagreed on 571, this one on none.
+
+#### What a caller must change
+
+`mainnetFlags()` sets both bits, so the default path is unchanged. A caller who passed
+`SCRIPT_ENABLE_CHRONICLE` alone must add `SCRIPT_UTXO_AFTER_GENESIS |
+SCRIPT_UTXO_AFTER_CHRONICLE`.
+
+### Fixed — `Covenant.Helpers.flags()` omitted all three era flags
+
+Exposed by the fix above and wrong on its own. The hand-assembled list returned `0x111e4f`
+where `Interpreter.mainnetFlags()` returns `0x3d586f`: no `SCRIPT_GENESIS`, no
+`SCRIPT_UTXO_AFTER_GENESIS`, no `SCRIPT_UTXO_AFTER_CHRONICLE`.
+
+The era flags are what the interpreter derives its data limits from, so **every covenant
+verified through this helper was judged under pre-Genesis rules** — a 520-byte element cap BSV
+removed in February 2020. An OP_PUSH_TX preimage is around 585 bytes, so the package's
+flagship feature could not verify against its own harness, and `enableGenesis()` papered over
+it by raising process-wide statics. That treats the symptom: raising the statics cannot enable
+post-Genesis arithmetic, and it weakens pre-Genesis validation.
+
+It was invisible for the same reason the first fix was needed: while `isAfterChronicle()`
+accepted bit 20, the string opcodes ran and only the *limits* were wrong.
+
+Now delegates to `Interpreter.mainnetFlags()`, as `@smartledger/bsv` has since 8.4.0, so the
+covenant path tracks consensus automatically. `SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY` and
+`SCRIPT_VERIFY_CHECKSEQUENCEVERIFY` are deliberately gone (Genesis reverted OP_CLTV/OP_CSV to
+upgradable NOPs for outputs created after it, so with the era flags present they change
+nothing) and `SCRIPT_VERIFY_NULLFAIL` is gained, which is strictly stricter.
+
+### Verification
+
+The conformance corpus **was not regenerated.** Its Chronicle suite passed bit 20 alone, so 17
+of its 455 cases changed; giving the suite the era word it should always have had reproduces
+every frozen value exactly. That is the evidence these fixes touched the era gating and
+nothing else — a regenerated fixture would have proved nothing, which is why
+`conformance/generate.js` demands `--force`.
+
+455 of 455 conformance cases match, 4,425 tests pass, 100.000% agreement with the external
+corpus, and two tests that asserted the old permissive contract — "accepts the opt-in flag as
+well, since both mean Chronicle applies" and "accepts either Chronicle flag" — now assert its
+negation.
+
 ## [1.2.2] - 2026-10-11
 
 Error-name only, ported from `@smartledger/bsv` 9.29.2. No outcome changes.

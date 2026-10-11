@@ -118,7 +118,16 @@ function runChronicle (bsv, build, version) {
   build(script, bsv.Opcode, bsv)
   let verified
   try {
-    verified = i.verify(new bsv.Script(), script, tx, 0, I.SCRIPT_ENABLE_CHRONICLE, new bsv.crypto.BN(0))
+    // The POST-CHRONICLE ERA, not SCRIPT_ENABLE_CHRONICLE alone. The restored opcodes gate on
+    // `utxo_after_chronicle` — the era of the OUTPUT being spent — and bit 20 is the era of the
+    // BLOCK. This suite passed bit 20 alone and the opcodes ran, because the interpreter
+    // accepted either bit; once it stopped (bsv 9.30.0 / core 1.3.0) all 17 Chronicle cases
+    // here became NOPs. The FIXTURES ARE UNCHANGED: giving the suite the era word it should
+    // always have had reproduces every frozen value, which is what shows the fix touched the
+    // era gating and nothing else.
+    const era = I.SCRIPT_UTXO_AFTER_GENESIS | I.SCRIPT_UTXO_AFTER_CHRONICLE |
+      I.SCRIPT_ENABLE_CHRONICLE
+    verified = i.verify(new bsv.Script(), script, tx, 0, era, new bsv.crypto.BN(0))
   } catch (err) {
     return { threw: err.name + ': ' + err.message }
   }
@@ -571,10 +580,17 @@ const cases = {
       const verified = i.verify(new bsv.Script(), script, new bsv.Transaction(), 0, flags, new bsv.crypto.BN(0))
       return { verified, errstr: i.errstr || '', stack: i.stack.map((b) => b.toString('hex')) }
     }
+    // `on` means the OUTPUT being spent is post-Chronicle, which is what the node gates these
+    // opcodes on (`utxo_after_chronicle`). It was written as SCRIPT_ENABLE_CHRONICLE alone,
+    // the era of the BLOCK, and that happened to work only because the interpreter accepted
+    // either bit. The recorded VALUE is unchanged — the opcodes still execute — so this
+    // fixture is reproduced, not regenerated.
+    const era = I.SCRIPT_UTXO_AFTER_GENESIS | I.SCRIPT_UTXO_AFTER_CHRONICLE |
+      I.SCRIPT_ENABLE_CHRONICLE
     return {
       off: at(0),
       discouraged: at(I.SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS),
-      on: at(I.SCRIPT_ENABLE_CHRONICLE)
+      on: at(era)
     }
   },
 

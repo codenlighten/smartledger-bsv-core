@@ -65,9 +65,28 @@ describe('Chronicle opcodes follow the UTXO era, not the opt-in flag', function 
       .should.equal('SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS')
   })
 
-  it('accepts the opt-in flag as well, since both mean Chronicle applies', function () {
+  it('does NOT accept the opt-in flag alone — that is the BLOCK era, not the output era', function () {
+    // This test asserted the opposite until 1.3.0: "accepts the opt-in flag as well, since
+    // both mean Chronicle applies". They do not mean the same thing. SCRIPT_ENABLE_CHRONICLE
+    // is bit 20, the era of the BLOCK being built, and gates the malleability relaxations.
+    // SCRIPT_UTXO_AFTER_CHRONICLE is bit 21, the era of the OUTPUT being spent, and is what
+    // the node gates every restored opcode on (`utxo_after_chronicle`, interpreter.cpp v1.2.3,
+    // all eight sites).
+    //
+    // Accepting either made these opcodes live when spending a PRE-Chronicle output in a
+    // POST-Chronicle block — the ordinary mainnet case. Measured against 24,568 node-validated
+    // corpus rows, the permissive reading disagreed on 571 of them and this one on none.
     const optIn = Interpreter.SCRIPT_VERIFY_P2SH | Interpreter.SCRIPT_UTXO_AFTER_GENESIS |
       Interpreter.SCRIPT_ENABLE_CHRONICLE
-    run('aabbcc OP_2 OP_LEFT aabb OP_EQUAL', optIn).ok.should.equal(true)
+    const r = run('aabbcc OP_2 OP_LEFT aabb OP_EQUAL', optIn)
+    r.ok.should.equal(false)
+    // OP_LEFT was a no-op, so the comparison sees the untouched operands.
+    r.errstr.should.match(/EVAL_FALSE/)
+  })
+
+  it('needs the output era, and then the same script passes', function () {
+    const era = Interpreter.SCRIPT_VERIFY_P2SH | Interpreter.SCRIPT_UTXO_AFTER_GENESIS |
+      Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE | Interpreter.SCRIPT_ENABLE_CHRONICLE
+    run('aabbcc OP_2 OP_LEFT aabb OP_EQUAL', era).ok.should.equal(true)
   })
 })

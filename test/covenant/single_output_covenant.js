@@ -95,10 +95,31 @@ describe('valueCovenantSingle (SIGHASH_SINGLE output covenant)', function () {
     const pinned = pinnedOutput()
     ;(function () {
       PushTx.valueCovenantSingle(pinned, { sighashType: PushTx.SIGHASH_ALL_FORKID })
-    }).should.throw(/SIGHASH_SINGLE variant/)
+    }).should.throw(/needs SIGHASH_SINGLE\|FORKID/)
     ;(function () { PushTx.valueCovenantSingle(Buffer.alloc(31)) }).should.throw(/32-byte/)
     ;(function () { PushTx.valueCovenantSingle('deadbeef') }).should.throw(/32-byte/)
     ;(function () { PushTx.valueCovenantSingle() }).should.throw(/32-byte/)
+  })
+
+  it('accepts only the two legal SIGHASH_SINGLE words, not a mask match', function () {
+    // The guard used to be `(sighashType & 0x1f) !== SIGHASH_SINGLE`, which let through
+    // 0x03 (SINGLE without FORKID) and anything carrying stray high bits. Neither fails
+    // loudly: pushTxCore's synthetic signature commits to the flag word, so the lock just
+    // refuses the honest spend, at the same byte count.
+    const pinned = pinnedOutput()
+    PushTx.valueCovenantSingle(pinned, { sighashType: SINGLE })
+      .toHex().should.equal(PushTx.valueCovenantSingle(pinned).toHex())
+    ;[0x03, 0x83, 0x143, -1, 0, null, '0x43'].forEach(function (bad) {
+      ;(function () {
+        PushTx.valueCovenantSingle(pinned, { sighashType: bad })
+      }).should.throw(/needs SIGHASH_SINGLE\|FORKID/, 'accepted sighashType ' + String(bad))
+    })
+  })
+
+  it('refuses an object that merely has toBufferWriter', function () {
+    ;(function () {
+      PushTx.valueCovenantSingle({ toBufferWriter: function () {} })
+    }).should.throw(/with script and satoshis/)
   })
 
   it('constrains ONE output and leaves the rest free — the documented hazard', function () {

@@ -188,16 +188,35 @@ function valueCovenant (expectedHashOutputs: Buffer) {
 function valueCovenantSingle (pinned: Output | Buffer, opts?: { sighashType?: number }): Script {
   const o = opts ?? {}
   const sighashType = o.sighashType === undefined ? SIGHASH_SINGLE_FORKID : o.sighashType
-  if ((sighashType & 0x1f) !== Signature.SIGHASH_SINGLE) {
-    throw new Error('valueCovenantSingle needs a SIGHASH_SINGLE variant; got 0x' +
-      (sighashType & 0xff).toString(16) + '. Use valueCovenant for SIGHASH_ALL.')
+  // A WHITELIST, not a mask test. `(sighashType & 0x1f) !== SIGHASH_SINGLE` admitted 0x03 —
+  // SIGHASH_SINGLE without FORKID — and anything carrying stray high bits. Those do not fail
+  // loudly: pushTxCore's synthetic signature commits to the flag word, so the lock simply
+  // refuses the honest spend, at the same byte count, which is the exact class of silent
+  // mistake this helper exists to prevent. The sighash byte has a base type in its low five
+  // bits plus ANYONECANPAY (0x80) and FORKID (0x40), so with SINGLE and FORKID both required
+  // there are exactly two legal words, and naming them is clearer than deriving them.
+  if (sighashType !== SIGHASH_SINGLE_FORKID &&
+      sighashType !== SIGHASH_SINGLE_ANYONECANPAY_FORKID) {
+    throw new Error('valueCovenantSingle needs SIGHASH_SINGLE|FORKID (0x' +
+      SIGHASH_SINGLE_FORKID.toString(16) + ') or SIGHASH_SINGLE|ANYONECANPAY|FORKID (0x' +
+      SIGHASH_SINGLE_ANYONECANPAY_FORKID.toString(16) + '); got ' +
+      (typeof sighashType === 'number' ? '0x' + (sighashType >>> 0).toString(16) : typeof sighashType) +
+      '. Use valueCovenant for SIGHASH_ALL.')
   }
+  // Structural, not `instanceof Output`: the Output type is imported here as a TYPE only,
+  // and a runtime import would close a cycle (see scripts/check-cycle-safety.js).
+  // `toBufferWriter` alone is too weak a discriminator — plenty of unrelated objects carry
+  // one — so the two fields hashOutputs actually serialises are required too.
+  const asOutput = pinned as Output
+  const looksLikeOutput = Boolean(pinned) && typeof asOutput.toBufferWriter === 'function' &&
+    asOutput.script !== undefined && asOutput.satoshis !== undefined
   const expected = Buffer.isBuffer(pinned)
     ? pinned
-    : (pinned && typeof (pinned as Output).toBufferWriter === 'function') ? hashOutputs([pinned as Output]) : null
+    : looksLikeOutput ? hashOutputs([asOutput]) : null
   if (!expected || expected.length !== 32) {
-    throw new Error('valueCovenantSingle needs a Transaction.Output, or its 32-byte ' +
-      'hashOutputs digest; got ' + (expected ? expected.length + ' bytes' : typeof pinned))
+    throw new Error('valueCovenantSingle needs a Transaction.Output (with script and ' +
+      'satoshis), or its 32-byte hashOutputs digest; got ' +
+      (expected ? expected.length + ' bytes' : typeof pinned))
   }
   let allZero = true
   for (let i = 0; i < 32; i++) if (expected[i] !== 0) { allZero = false; break }

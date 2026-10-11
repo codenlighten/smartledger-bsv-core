@@ -46,6 +46,25 @@ AESCBC.decrypt = function (encbuf: Buffer, keybuf: Buffer, ivbuf: Buffer) {
   return buf(cbc(Uint8Array.from(keybuf), Uint8Array.from(ivbuf)).decrypt(Uint8Array.from(encbuf)))
 }
 
+// `fixedPublicKey` really does override the key carried in the message, so the caller
+// should hear about it once — but the bare `console.log` fired on EVERY decrypt and could
+// not be turned off, which made ordinary operation noisy and un-silenceable. Same shape as
+// the other notices in this library: console.warn, once per process, with a documented
+// switch and an env escape.
+let fixedKeyNoticeShown = false
+function noticeOnce (): void {
+  if ((ECIES as unknown as ElectrumECIESConstructor).notices === false) return
+  // Guarded: this module is bundled for browsers, where an unguarded `process` read is a
+  // ReferenceError in any bundler that does not shim it.
+  if (typeof process !== 'undefined' && process.env && process.env.BSV_NO_ECIES_NOTICE) return
+  if (fixedKeyNoticeShown) return
+  fixedKeyNoticeShown = true
+  console.warn('\n[@smartledger/bsv-core] Notice: fixedPublicKey overrides the public key ' +
+    'carried in the message. If you are not talking to Electrum and do not want an ephemeral ' +
+    "key, the 'noKey' option is the one you want.\n(shown once per process; set " +
+    'ECIES.notices = false or BSV_NO_ECIES_NOTICE=1 to silence)\n')
+}
+
 const ECIES = function ECIES (this: ElectrumECIES, opts?: ECIESOptions, algorithm = 'BIE1') {
   if (algorithm !== 'BIE1') throw new (err('UnsupportAlgorithm'))(algorithm)
   if (!(this instanceof ECIES)) {
@@ -126,7 +145,7 @@ ECIES.prototype.decrypt = function (this: ElectrumECIES, encbuf: Buffer) {
   }
   if (!this.opts.noKey) {
     const pub = encbuf.slice(4, 37)
-    if (this.opts.fixedPublicKey) console.log('Notice: Overriding PublicKey in message. Consider use "noKey" option if you are not sending message to electrum and do not want to use ephemeral key')
+    if (this.opts.fixedPublicKey) noticeOnce()
     else this._publicKey = PublicKey.fromDER(pub)
     offset = 37
   }
@@ -151,5 +170,9 @@ ECIES.prototype.decrypt = function (this: ElectrumECIES, encbuf: Buffer) {
 }
 
 ECIES.bitcoreECIES = bitcoreECIES
+
+// The switch named in the notice. Assigned here rather than declared in the function
+// expression because ECIES is a callable, not a class.
+;(ECIES as unknown as ElectrumECIESConstructor).notices = true
 
 export = ECIES as unknown as ElectrumECIESConstructor

@@ -88,7 +88,11 @@ ECDSA.prototype.calci = function (this: ECDSA): ECDSA {
     try {
       Qprime = this.toPublicKey()
     } catch (e) {
-      console.error(e)
+      // Expected. calci() tries all four recovery ids and most of them do not yield a
+      // point; the throw IS the signal that this i is wrong, and `continue` is the
+      // handling. Printing it meant ordinary message signing wrote exceptions to stderr.
+      // Not swallowed in the sense that matters: if no i works, the loop falls through
+      // and the caller is told.
       continue
     }
 
@@ -289,7 +293,12 @@ ECDSA.prototype.sign = function (this: ECDSA): ECDSA {
   const d = privkey.bn
 
   $.checkState(hashbuf != null && privkey != null && d != null, 'invalid parameters')
-  $.checkState(Buffer.isBuffer(hashbuf) && hashbuf.length === 32, 'hashbuf must be a 32 byte buffer')
+  // Wrapped in an Error, not a bare string, to match @smartledger/bsv's wording: the
+  // error formatter stringifies it to "Invalid state: Error: hashbuf must be a 32 byte
+  // buffer". The bare string reads better in isolation, but it diverged from the
+  // published library on two conformance cases, and the corpus is only worth anything
+  // while the two libraries answer identically. Change it here and in bsv together.
+  $.checkState(Buffer.isBuffer(hashbuf) && hashbuf.length === 32, new Error('hashbuf must be a 32 byte buffer'))
 
   const e = BN.fromBuffer(hashbuf, this.endian
     ? {

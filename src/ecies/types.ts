@@ -98,4 +98,9 @@ export interface ElectrumECIESConstructor {
   prototype: ElectrumECIES
   /** The other wire format, reachable from the default export. */
   bitcoreECIES: BitcoreECIESConstructor
+  /**
+   * Set false to silence the one-time `fixedPublicKey` notice (BSV_NO_ECIES_NOTICE=1
+   * does the same from the environment). Notices are on by default.
+   */
+  notices: boolean
 }

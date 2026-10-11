@@ -93,18 +93,47 @@ const sighashPreimageForForkId = function (transaction: TransactionLike, sighash
   let hashSequence: Buffer = Buffer.alloc(32)
   let hashOutputs: Buffer = Buffer.alloc(32)
 
+  // hashPrevouts, hashSequence and hashOutputs are identical for every input of this
+  // transaction, and each costs a pass over all inputs or all outputs. Recomputing them
+  // per input makes signing quadratic in the input count.
+  //
+  // `Transaction.prototype.getSignatures` opens a cache for the duration of its pass and
+  // removes it in a `finally`. That window needs no invalidation logic, because the pass
+  // only COLLECTS signatures — `sign()` applies them afterwards — so no input or output
+  // changes while the cache is open. Outside that window there is no cache and nothing is
+  // remembered, which is why this cannot go stale.
+  //
+  // The SIGHASH_SINGLE branch is deliberately NOT cached: it hashes one output chosen by
+  // `inputNumber`, so it differs per input and is O(1) anyway.
+  const midstates = transaction && transaction._sighashMidstates
+
   if (!(sighashType & Signature.SIGHASH_ANYONECANPAY)) {
-    hashPrevouts = GetPrevoutHash(transaction)
+    if (midstates) {
+      if (!midstates.prevouts) midstates.prevouts = GetPrevoutHash(transaction)
+      hashPrevouts = midstates.prevouts
+    } else {
+      hashPrevouts = GetPrevoutHash(transaction)
+    }
   }
 
   if (!(sighashType & Signature.SIGHASH_ANYONECANPAY) &&
     (sighashType & 31) !== Signature.SIGHASH_SINGLE &&
     (sighashType & 31) !== Signature.SIGHASH_NONE) {
-    hashSequence = GetSequenceHash(transaction)
+    if (midstates) {
+      if (!midstates.sequence) midstates.sequence = GetSequenceHash(transaction)
+      hashSequence = midstates.sequence
+    } else {
+      hashSequence = GetSequenceHash(transaction)
+    }
   }
 
   if ((sighashType & 31) !== Signature.SIGHASH_SINGLE && (sighashType & 31) !== Signature.SIGHASH_NONE) {
-    hashOutputs = GetOutputsHash(transaction)
+    if (midstates) {
+      if (!midstates.outputsAll) midstates.outputsAll = GetOutputsHash(transaction)
+      hashOutputs = midstates.outputsAll
+    } else {
+      hashOutputs = GetOutputsHash(transaction)
+    }
   } else if ((sighashType & 31) === Signature.SIGHASH_SINGLE && inputNumber < transaction.outputs.length) {
     hashOutputs = GetOutputsHash(transaction, inputNumber)
   }

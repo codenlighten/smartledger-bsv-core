@@ -1119,9 +1119,27 @@ Transaction.prototype.sign = function (this: Transaction, privateKey: PrivateKey
     })
     return this
   }
-  _.each(this.getSignatures(privateKey, sigtype), function (signature) {
-    self.applySignature(signature)
-  })
+  // The window covers the APPLY loop as well as the collect, because
+  // `applySignature` -> `addSignature` re-verifies each signature before applying it,
+  // which recomputes the preimage — so the apply loop is quadratic for the same reason
+  // the collect loop is.
+  //
+  // Widening it is safe because the only thing the apply loop changes is each input's
+  // SCRIPT, and none of the three cached digests depends on a script: hashPrevouts
+  // covers outpoints, hashSequence covers sequence numbers, hashOutputs covers outputs.
+  // A script cannot alter any of them.
+  //
+  // The `_.isArray` recursion above re-enters this function, so an existing cache is
+  // left alone and only the outermost call clears it.
+  const owns = !this._sighashMidstates
+  if (owns) this._sighashMidstates = {}
+  try {
+    _.each(this.getSignatures(privateKey, sigtype), function (signature) {
+      self.applySignature(signature)
+    })
+  } finally {
+    if (owns) delete this._sighashMidstates
+  }
   return this
 }
 
@@ -1134,11 +1152,18 @@ Transaction.prototype.getSignatures = function (this: Transaction, privKey: Priv
   const transaction = this
   const results: TransactionSignature[] = []
   const hashData = Hash.sha256ripemd160(key.publicKey.toBuffer())
-  _.each(this.inputs, function forEachInput (input, index) {
-    _.each(input.getSignatures(transaction, key, index, sigtype, hashData), function (signature: TransactionSignature) {
-      results.push(signature)
+  // Opened here too, so a caller using getSignatures directly also gets the linear path.
+  const ownsCache = !this._sighashMidstates
+  if (ownsCache) this._sighashMidstates = {}
+  try {
+    _.each(this.inputs, function forEachInput (input, index) {
+      _.each(input.getSignatures(transaction, key, index, sigtype, hashData), function (signature: TransactionSignature) {
+        results.push(signature)
+      })
     })
-  })
+  } finally {
+    if (ownsCache) delete this._sighashMidstates
+  }
   return results
 }
 

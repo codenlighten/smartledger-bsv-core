@@ -305,6 +305,16 @@ export interface Transaction {
   _fee?: number | undefined
   _feePerKb?: number | undefined
   _hash?: string | undefined
+  /**
+   * BIP-143 midstates shared by every input of one signing pass, opened by
+   * getSignatures and removed in its `finally` — see sighash.ts for why it cannot go
+   * stale. Absent outside that window, which is the point.
+   */
+  _sighashMidstates?: {
+    prevouts?: Buffer | undefined
+    sequence?: Buffer | undefined
+    outputsAll?: Buffer | undefined
+  } | undefined
 
   readonly hash: string
   readonly id: string

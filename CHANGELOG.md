@@ -7,6 +7,122 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.1.0] - 2026-10-11
+
+Parity with `@smartledger/bsv` 9.17.0–9.28.0. A measured comparison found this package level
+with the published library on everything both implement — 455 of 455 conformance cases, in
+outcome *and* error message — once the five items below landed. Nothing here is a false
+accept; the security work in bsv 9.19.0–9.27.0 was confined to modules this package does not
+have (`gdaf/`, `notaryhash/`), which was checked by diffing the changed file list against
+this tree rather than inferred from the changelog.
+
+### Fixed — `checkArgument`/`checkState` accepted NaN
+
+The TypeScript conversion replaced `if (!condition)` with an enumerated falsy list,
+`condition === false || condition == null || condition === 0 || condition === ''`. The list
+looks exhaustive and is not: it omits NaN, so `checkArgument(NaN)` passed a guard that exists
+to stop it. Reachable through `PublicKey(NaN)` and `Address(NaN)`, which skipped the guard and
+were then refused downstream with a `TypeError` instead of the declared
+`ErrorInvalidArgument` — fail-closed, but by accident rather than by the guard.
+
+Restored to `!condition`, which is the whole falsy set in one operator and cannot drift out of
+step with it. The test now asserts the set (`false, 0, -0, '', null, undefined, NaN`) rather
+than passing `true` once; "throws no false negative" had only ever tried `true`.
+
+`checkState`'s `message` parameter is widened to `unknown`, matching `checkArgument`'s second
+parameter, because callers pass an `Error` as well as a string.
+
+### Fixed — the library printed to stderr during ordinary operation
+
+`ECDSA.prototype.calci` tried all four recovery ids inside a `try`/`catch` and ran
+`console.error(e)` on each failure. Most ids do not yield a point, so the throw IS the signal
+that the id is wrong and `continue` is the handling — which meant ordinary message signing
+wrote exceptions to stderr. Nothing is swallowed in the sense that matters: if no id works the
+loop falls through and the caller is told.
+
+`electrum-ecies`' `fixedPublicKey` notice fired on every decrypt through a bare `console.log`
+that could not be turned off. It is now a `console.warn` once per process, silenceable with
+`ECIES.notices = false` or `BSV_NO_ECIES_NOTICE=1`.
+
+### Added — `util.deprecate`, and the first API marked with it
+
+A semver major is a promise that the consumer's code breaks. This separates the moment we say
+an API is wrong from the moment we break callers: a minor marks it and callers keep working,
+a major removes it on a schedule already in the consumer's logs. Marking is therefore
+non-breaking and belongs in a minor. Nothing in it ever throws on the consumer's path.
+
+`Script.fromHex()` is the first user. `Buffer.from(str, 'hex')` stops at the first character
+it cannot decode and returns what it had, so a malformed string yields a SHORTER script, or
+none, instead of an error — and a caller that builds an output from the result pays to a
+truncated script with nothing to tell it. `Script.fromString` has always refused that;
+`fromHex` never did. Truncation can only drop a suffix, so an address derived from the result
+is always the one the input's leading bytes named, which bounds the damage without making it
+correct. **Behaviour is unchanged in 1.1.0** — it warns, and 2.0.0 will throw. Callers wanting
+the strict behaviour now should check the round trip:
+`Script.fromHex(h).toHex() === h.toLowerCase()`.
+
+### Changed — signing many inputs no longer recomputes the shared digests per input
+
+A FORKID preimage's `hashPrevouts`, `hashSequence` and `hashOutputs` are identical for every
+input of a transaction, and each costs a pass over all inputs or all outputs, so signing *n*
+inputs did that work *n* times. `getSignatures` (and `sign`, for the apply loop) now opens a
+cache for the duration of its pass and removes it in a `finally`.
+
+**No speedup is claimed at any size measured here.** The change removes work that was
+provably redundant — the three digests are identical for every input — but on this machine
+the effect stayed below the noise floor up to 5,000 inputs: per-input ECDSA dominates, and
+run-order drift (whichever of two sequential runs goes second is slower) exceeded the
+difference, in both directions, across repeated pairs. The same build with the midstate slot
+neutered measured 92.6 s at 5,000 inputs against 101.8 s with it active, and reversing the
+order reversed the sign — which is the definition of a measurement that says nothing.
+
+So this is an algorithmic fix on the strength of the argument, not the stopwatch: it deletes
+an O(n²) term from a path that is O(n) in ECDSA besides. Signing remains superlinear, and the
+dominant remaining term is the re-verify inside `applySignature`, which this does not address.
+Anyone quoting a figure for it should measure on a quiet machine, alternating the order.
+
+Nothing survives the call, so there is no invalidation to get wrong. Widening the window over
+the apply loop is safe because the only thing that loop changes is each input's *script*, and
+none of the three digests covers a script. The SIGHASH_SINGLE output digest is deliberately
+NOT cached: it hashes the one output at the input's index, so it differs per input and is O(1)
+anyway.
+
+### Added — `Covenant.PushTx.valueCovenantSingle`
+
+An output covenant under SIGHASH_SINGLE: the spend is valid only if the output at the spending
+input's own index is the one pinned. Unlike `valueCovenant` it says nothing about the other
+outputs, which is what makes it composable — several such locks can be spent in one
+transaction, each pinning its own output.
+
+It is not sugar. Two things are easy to get wrong, and both are now refused or pinned by test:
+
+* **The order.** `pushTxCore` consumes the preimage copy it checks, so the sighash flag has to
+  be asserted while a copy is still on the stack. Composing this the obvious way —
+  `valueCovenant(hashOutputs([pinned]))` with `assertSighashType` appended afterwards — builds
+  a lock that fails the HONEST spend, at the same byte count, so size gives no clue.
+* **An all-zero pin.** 32 zero bytes is not a digest; it is what BIP-143 puts in `hashOutputs`
+  when the input's index is out of range under SIGHASH_SINGLE, i.e. when there is no output
+  there. A lock pinned to it is satisfied by a spend with no outputs at all, so it pins nothing
+  while looking like it pins something. Refused at construction.
+
+The documented hazard is asserted rather than tolerated: this covenant binds ONE output and
+leaves the rest free, because that is what SIGHASH_SINGLE means. Use `valueCovenant` to bind
+every output.
+
+These are this package's first covenant tests; `valueCovenant`, `pushTxCore` and `grind` had
+none.
+
+### Fixed — the AssertionError text differed from `@smartledger/bsv` for the same failure
+
+`encoding/bufferwriter` imported `assert` as an ESM default, which `tsc` emits as
+`(0, assert_1.default)(expr)`. Node's `assert` builds its message by reading the call-site
+source, and from that shape it recovers only `(expr)` — so the same failing assertion reported
+different text in the two libraries. Now imported as `import assert = require('assert')`, the
+form every other import here uses, which emits a plain `assert(expr)` call.
+
+`conformance/fixtures/sighash.json` is regenerated for that one case, and only that one; the
+manifest's per-suite stamps are refreshed from the fixture files, which had drifted.
+
 ## [1.0.3] - 2026-10-01
 
 Seven divergences from the reference node. Five came from a differential fuzzer run against

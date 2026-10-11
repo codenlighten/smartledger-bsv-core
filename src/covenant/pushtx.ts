@@ -163,6 +163,58 @@ function valueCovenant (expectedHashOutputs: Buffer) {
   return script
 }
 
+/**
+ * Output covenant under SIGHASH_SINGLE: the spend is valid only if the output AT THE
+ * SPENDING INPUT'S OWN INDEX is the one pinned here. Unlike `valueCovenant`, it says
+ * nothing about the transaction's other outputs, which is what makes it composable —
+ * several such locks can be spent in one transaction, each pinning its own output.
+ *
+ * `pinned` is a Transaction.Output, or its 32-byte hashOutputs digest if you already
+ * have it.
+ *
+ * Two things here are easy to get wrong, which is why this helper exists rather than
+ * leaving callers to compose it:
+ *
+ *   1. The ORDER. `pushTxCore` consumes the preimage copy it checks, so the sighash
+ *      flag has to be asserted while a copy is still on the stack. Appending
+ *      `assertSighashType` after the covenant body leaves it nothing to read, and the
+ *      resulting lock fails the HONEST spend.
+ *   2. An ALL-ZERO pin. 32 zero bytes is not a digest: it is the value BIP-143 puts in
+ *      hashOutputs when the input's index is out of range under SIGHASH_SINGLE, i.e.
+ *      when there is no output at that index. A lock pinned to it is satisfied by a
+ *      spend with NO outputs at all, so it pins nothing while looking like it pins
+ *      something. Refused at construction.
+ */
+function valueCovenantSingle (pinned: Output | Buffer, opts?: { sighashType?: number }): Script {
+  const o = opts ?? {}
+  const sighashType = o.sighashType === undefined ? SIGHASH_SINGLE_FORKID : o.sighashType
+  if ((sighashType & 0x1f) !== Signature.SIGHASH_SINGLE) {
+    throw new Error('valueCovenantSingle needs a SIGHASH_SINGLE variant; got 0x' +
+      (sighashType & 0xff).toString(16) + '. Use valueCovenant for SIGHASH_ALL.')
+  }
+  const expected = Buffer.isBuffer(pinned)
+    ? pinned
+    : (pinned && typeof (pinned as Output).toBufferWriter === 'function') ? hashOutputs([pinned as Output]) : null
+  if (!expected || expected.length !== 32) {
+    throw new Error('valueCovenantSingle needs a Transaction.Output, or its 32-byte ' +
+      'hashOutputs digest; got ' + (expected ? expected.length + ' bytes' : typeof pinned))
+  }
+  let allZero = true
+  for (let i = 0; i < 32; i++) if (expected[i] !== 0) { allZero = false; break }
+  if (allZero) {
+    throw new Error('valueCovenantSingle refuses an all-zero pin: under SIGHASH_SINGLE that ' +
+      'is the hashOutputs of an out-of-range input index, so the lock would be spendable ' +
+      'with no outputs at all. Pin a real output.')
+  }
+  const script = new Script().add(Opcode.OP_DUP)
+  assertSighashType(script, sighashType)
+  pushTxCore(script, { sighashType })
+  script.add(Opcode.OP_VERIFY)
+  extractHashOutputs(script)
+  script.add(Buffer.from(expected)).add(Opcode.OP_EQUAL)
+  return script
+}
+
 // floor(n/2) — the canonical low-S boundary (matches Signature.hasLowS()).
 const HALF_N = new BN('7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0', 'hex')
 
@@ -256,6 +308,7 @@ export = {
   SIGHASH_ALL_ANYONECANPAY_FORKID,
   hashOutputs,
   valueCovenant,
+  valueCovenantSingle,
   sFromPreimage,
   grind
 }

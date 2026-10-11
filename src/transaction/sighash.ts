@@ -97,14 +97,20 @@ const sighashPreimageForForkId = function (transaction: TransactionLike, sighash
   // transaction, and each costs a pass over all inputs or all outputs. Recomputing them
   // per input makes signing quadratic in the input count.
   //
-  // `Transaction.prototype.getSignatures` opens a cache for the duration of its pass and
-  // removes it in a `finally`. That window needs no invalidation logic, because the pass
-  // only COLLECTS signatures — `sign()` applies them afterwards — so no input or output
-  // changes while the cache is open. Outside that window there is no cache and nothing is
-  // remembered, which is why this cannot go stale.
+  // `sign()` and `getSignatures()` open a cache for the duration of their pass and remove
+  // it in a `finally`, so a cache THEY created cannot outlive the call or survive a throw.
+  // Within that window there is nothing to invalidate: the only mutation is each input's
+  // script, and none of the three digests covers a script.
   //
-  // The SIGHASH_SINGLE branch is deliberately NOT cached: it hashes one output chosen by
-  // `inputNumber`, so it differs per input and is O(1) anyway.
+  // What is NOT enforced: `_sighashMidstates` is an ordinary writable property, and a
+  // pre-existing one is trusted rather than re-derived. A caller that sets it by hand and
+  // then changes an outpoint, a sequence number or an output will read stale digests. It is
+  // private to the built-in signing path by convention, not by construction.
+  //
+  // Only the SIGHASH_SINGLE OUTPUT digest is left uncached: it hashes the one output chosen
+  // by `inputNumber`, so it differs per input and is O(1) anyway, and caching it would sign
+  // every input over the same output. hashPrevouts is still cached under SINGLE, since it
+  // depends only on ANYONECANPAY.
   const midstates = transaction && transaction._sighashMidstates
 
   if (!(sighashType & Signature.SIGHASH_ANYONECANPAY)) {

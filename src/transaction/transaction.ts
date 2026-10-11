@@ -1129,8 +1129,11 @@ Transaction.prototype.sign = function (this: Transaction, privateKey: PrivateKey
   // covers outpoints, hashSequence covers sequence numbers, hashOutputs covers outputs.
   // A script cannot alter any of them.
   //
-  // The `_.isArray` recursion above re-enters this function, so an existing cache is
-  // left alone and only the outermost call clears it.
+  // `owns` is for the getSignatures-inside-sign nesting: sign() opens the cache, the
+  // getSignatures call below finds it and must not clear it on the way out, or the apply
+  // loop would run uncached. The `_.isArray` branch above returns BEFORE this point, so
+  // each recursive single-key sign() opens and clears a cache of its own — the guard is
+  // not what makes that case work.
   const owns = !this._sighashMidstates
   if (owns) this._sighashMidstates = {}
   try {

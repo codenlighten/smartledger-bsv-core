@@ -56,7 +56,11 @@ function noticeOnce (): void {
   if ((ECIES as unknown as ElectrumECIESConstructor).notices === false) return
   // Guarded: this module is bundled for browsers, where an unguarded `process` read is a
   // ReferenceError in any bundler that does not shim it.
-  if (typeof process !== 'undefined' && process.env && process.env.BSV_NO_ECIES_NOTICE) return
+  // `=== '1'`, not truthiness: the notice itself tells the reader to set
+  // BSV_NO_ECIES_NOTICE=1, and a truthiness test silences it on =0 as well, which is the
+  // opposite of what someone setting 0 means. (@smartledger/bsv's copy still tests
+  // truthiness here, though its util/deprecate gets this right.)
+  if (typeof process !== 'undefined' && process.env && process.env.BSV_NO_ECIES_NOTICE === '1') return
   if (fixedKeyNoticeShown) return
   fixedKeyNoticeShown = true
   console.warn('\n[@smartledger/bsv-core] Notice: fixedPublicKey overrides the public key ' +

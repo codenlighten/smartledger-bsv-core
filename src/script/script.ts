@@ -10,6 +10,7 @@ import $ = require('../util/preconditions')
 import _ = require('../util/_')
 import errors = require('../errors')
 import JSUtil = require('../util/js')
+import deprecate = require('../util/deprecate')
 import type { Script, ScriptConstructor, ScriptChunk, ScriptAddressInfo, ScriptAddable, AddressLike, PublicKeyLike, NetworkLike, MultisigOpts } from './script.types'
 import type { PublicKey } from '../publickey.types'
 import type { Address } from '../address.types'
@@ -230,7 +231,37 @@ Script.fromASM = function (str: string) {
   return script
 }
 
+// A pair of hex digits per byte, or nothing. Covers both ways a string can fail to
+// decode whole: a character that is not hex, and an odd number of digits. `JSUtil.isHexa`
+// is not enough on its own — it accepts '76a91', which drops its last nibble.
+const FULL_HEX = /^(?:[0-9a-fA-F]{2})*$/
+
 Script.fromHex = function (str: string) {
+  // `Buffer.from(str, 'hex')` stops at the first character it cannot decode and returns
+  // what it had, so a malformed string yields a SHORTER script, or none, instead of an
+  // error. `Script.fromString` just below has always refused that with `JSUtil.isHexa`;
+  // this function never did. A caller that builds an output from the result pays to a
+  // truncated script and nothing tells it:
+  //
+  //   Script.fromHex('<p2pkh hex>' + '\n...')  -> the 25-byte prefix, still a valid P2PKH
+  //   Script.fromHex('<html>503</html>')       -> 0 bytes, and addOutput accepts it
+  //
+  // Truncation can only ever drop a suffix — it cannot change the bytes it did decode —
+  // so an address derived from the result is always the one the input's leading bytes
+  // named, never a third party's. That bounds the damage but does not make it correct.
+  //
+  // Refusing it outright is a breaking change, so this marks it and 2.0.0 throws.
+  // Callers who want the strict behaviour now should test the round trip:
+  // `Script.fromHex(h).toHex() === h.toLowerCase()`.
+  if (typeof str === 'string' && !FULL_HEX.test(str)) {
+    deprecate({
+      what: 'Script.fromHex() with a string that is not whole hex',
+      since: '1.1.0',
+      removeIn: '2.0.0',
+      why: 'Buffer.from() stops at the first character it cannot decode, so the script is silently truncated',
+      use: 'a round-trip check, Script.fromHex(h).toHex() === h.toLowerCase()'
+    })
+  }
   return new Script(Buffer.from(str, 'hex'))
 }
 

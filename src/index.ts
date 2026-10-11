@@ -47,6 +47,7 @@ import _encoding_bufferwriter = require('./encoding/bufferwriter')
 import _encoding_varint = require('./encoding/varint')
 import _util_js = require('./util/js')
 import _util_preconditions = require('./util/preconditions')
+import _util_deprecate = require('./util/deprecate')
 import _errors = require('./errors')
 import _address = require('./address')
 import _privatekey = require('./privatekey')
@@ -110,6 +111,7 @@ bsv.encoding.Varint = _encoding_varint
 bsv.util = {}
 bsv.util.js = _util_js
 bsv.util.preconditions = _util_preconditions
+bsv.util.deprecate = _util_deprecate
 
 // errors thrown by the library
 bsv.errors = _errors
@@ -189,6 +191,7 @@ interface BsvCore {
   util: {
     js: typeof _util_js
     preconditions: typeof _util_preconditions
+    deprecate: typeof _util_deprecate
   }
   errors: typeof _errors
   Address: typeof _address

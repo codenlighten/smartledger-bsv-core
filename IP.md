@@ -12,6 +12,7 @@ Registrations are **hash-only**. The content and its blinding value never leave 
 
 | date | covers | type | record | signer | tag |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-11 | `src/` at v1.1.0 — the 1.1.0 release: parity with @smartledger/bsv across its 9.17-9.28 releases (the deprecation mechanism, the sighash midstate cache, `valueCovenantSingle` and this package's first covenant tests), a NaN that passed the argument guards, and the stderr noise in ordinary message signing | software, unpublished at registration | [`2bb5512d…52692`](https://iptrust.org/v/2bb5512d80c50fb9206364dc8732d3e3836f76915105dbb791826b0beba52692) | Gregory J. Ward | `ip-2026-10-11` |
 | 2026-10-01 | `src/` at v1.0.3 — the 1.0.3 release: era-dependent operand decoding, locktime gating, and the shift opcodes' cost and count validation | software, published | [`430fe9db…6086`](https://iptrust.org/v/430fe9db01189c1271c3ee0599f8f60b5478081e91c6af371ff23ca7f5426086) | Gregory J. Ward | `ip-2026-10-01` |
 | 2026-09-30 | `src/` at v1.0.0 — the 1.0.0 release: exact agreement with the reference node's script vectors | software, published | [`0212e6cd…c086`](https://iptrust.org/v/0212e6cd83e9e0702f93dd90a814dcab787f3b19f7494679eaa0f92446c7c086) | Gregory J. Ward | `ip-2026-09-30` |
 
@@ -36,9 +37,9 @@ neither is an `ip-*` tag.
 Verification runs in a separate worktree, so the working copy is never touched:
 
 ```sh
-git worktree add /tmp/at-tag ip-2026-09-30 && cp -r .iptrust /tmp/at-tag/
-(cd /tmp/at-tag && iptrust2 verify 0212e6cd83e9e0702f93dd90a814dcab787f3b19f7494679eaa0f92446c7c086 --fetch-headers)
-git worktree remove --force /tmp/at-tag
+git worktree add /tmp/at-tag-smartledger-bsv-core ip-2026-09-30 && cp -r .iptrust /tmp/at-tag-smartledger-bsv-core/
+(cd /tmp/at-tag-smartledger-bsv-core && iptrust2 verify 0212e6cd83e9e0702f93dd90a814dcab787f3b19f7494679eaa0f92446c7c086 --fetch-headers)
+git worktree remove --force /tmp/at-tag-smartledger-bsv-core
 ```
 
 Expect `verdict: valid` and `content: matched`. Block headers can come from any source, so the

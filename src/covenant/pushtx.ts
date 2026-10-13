@@ -153,6 +153,20 @@ function hashOutputs (outputs: Output[]) {
 /**
  * Value/output covenant: the spend is valid only if its outputs hash to
  * `expectedHashOutputs` — coins can only go where the covenant says.
+ *
+ * This pins the digest of the ENTIRE output set under SIGHASH_ALL — count, order,
+ * values and scripts — so exactly ONE output set is admissible. In particular there
+ * is no room for a change output unless you pin that too: a lock built from
+ * `hashOutputs([payout])` rejects the spend `[payout, change]`. Pinning change fixes
+ * its AMOUNT, not the fee, because extra inputs raise the input value while the
+ * outputs stay identical.
+ *
+ * To bind one output and leave the rest free, use `valueCovenantSingle` — which pins
+ * the output at the spending INPUT's index, not one you choose, and leaves every
+ * other output unconstrained. To allow arbitrary change under SIGHASH_ALL, the
+ * spender has to push the change output's serialization so the script can rebuild and
+ * hash the whole output list itself; this function offers no free-form change
+ * facility.
  */
 function valueCovenant (expectedHashOutputs: Buffer) {
   const script = new Script().add(Opcode.OP_DUP)

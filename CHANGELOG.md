@@ -34,8 +34,11 @@ The dust check now asks whether the script is `null` first. A script that did no
 satisfy either data-output test, so the result is the typed `Transaction.DustOutputs` the
 expression already gave for any non-data output. This preserves **this package's**
 dust-exemption rule — the analogue of the node's parsing `Solver`/TX_NULL_DATA classification —
-and is deliberately not a claim of parity with the node's dust policy, whose OP_RETURN tests
-(`IsUnspendable`, `IsKnownOpReturn`) are pure prefix tests on raw bytes that never parse.
+and is deliberately not a claim of parity with the node's dust policy. The node does have
+OP_RETURN tests that need no parse (`IsUnspendable`, `IsKnownOpReturn` — pure prefix tests on
+raw bytes), so a prefix-based rule could classify `6a4c` where ours cannot; which test governs
+the node's dust call site is not established, and a regtest probe could not discriminate it
+because no dust limit was enforced on any shape.
 
 `getSize()` falls back to `_scriptBuffer.length` only when the script is `null`; a parsed
 script keeps the existing calculation.

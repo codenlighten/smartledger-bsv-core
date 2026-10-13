@@ -285,9 +285,11 @@ Transaction.prototype._hasDustOutputs = function (this: Transaction, opts: Seria
     // verdict is the one this expression already gives for any non-data output. That
     // preserves THIS library's dust-exemption rule, which is the analogue of the node's
     // parsing `Solver`/TX_NULL_DATA classification. It is deliberately NOT a claim of
-    // parity with the node's own dust policy: the node's OP_RETURN tests for that purpose
-    // (`IsUnspendable`, `IsKnownOpReturn`, script.h) are pure prefix tests on raw bytes
-    // and never parse, and DUST_AMOUNT here is our policy constant guarding what we BUILD.
+    // parity with the node's own dust policy. The node HAS OP_RETURN tests that need no
+    // parse at all (`IsUnspendable`, `IsKnownOpReturn`, script.h — pure prefix tests on raw
+    // bytes), so a prefix-based rule could classify `6a4c` where ours cannot; which test
+    // governs the node's dust call site is NOT established here. DUST_AMOUNT here is our
+    // own policy constant guarding what we BUILD.
     const outScript = output.script
     const dataOutput = outScript !== null &&
       (outScript.isDataOut() || outScript.isSafeDataOut())

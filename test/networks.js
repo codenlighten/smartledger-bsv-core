@@ -86,9 +86,9 @@ describe('Networks', function () {
 
   constants.forEach(function (key) {
     it('should have constant ' + key + ' for livenet, testnet and stn', function () {
-      networks.testnet.hasOwnProperty(key).should.equal(true)
-      networks.livenet.hasOwnProperty(key).should.equal(true)
-      networks.stn.hasOwnProperty(key).should.equal(true)
+      Object.prototype.hasOwnProperty.call(networks.testnet, key).should.equal(true)
+      Object.prototype.hasOwnProperty.call(networks.livenet, key).should.equal(true)
+      Object.prototype.hasOwnProperty.call(networks.stn, key).should.equal(true)
     })
   })
 

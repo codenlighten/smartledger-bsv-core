@@ -38,7 +38,7 @@ describe('Address', function () {
   })
 
   describe('bitcoind compliance', function () {
-    validbase58.map(function (d) {
+    validbase58.forEach(function (d) {
       if (!d[2].isPrivkey) {
         it('should describe address ' + d[0] + ' as valid', function () {
           let type
@@ -55,7 +55,7 @@ describe('Address', function () {
         })
       }
     })
-    invalidbase58.map(function (d) {
+    invalidbase58.forEach(function (d) {
       it('should describe input ' + d[0].slice(0, 10) + '... as invalid', function () {
         expect(function () {
           return new Address(d[0])
@@ -627,4 +627,3 @@ describe('Address', function () {
     })
   })
 })
-

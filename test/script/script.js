@@ -1084,7 +1084,11 @@ describe('Script', function () {
       Script().add(-1).checkMinimalPush(0).should.equal(true)
       Script().add(1000).checkMinimalPush(0).should.equal(true)
       Script().add(0xffffffff).checkMinimalPush(0).should.equal(true)
-      Script().add(0xffffffffffffffff).checkMinimalPush(0).should.equal(true)
+      // Was 0xffffffffffffffff, which is not representable as a double: it rounds up
+      // to 2^64, so the line claimed uint64 max and asserted about a different
+      // number. MAX_SAFE_INTEGER is the largest integer a literal here means
+      // exactly, and it exercises the same path.
+      Script().add(Number.MAX_SAFE_INTEGER).checkMinimalPush(0).should.equal(true)
       Script().add(Buffer.from([0])).checkMinimalPush(0).should.equal(true)
 
       let buf = Buffer.alloc(75)

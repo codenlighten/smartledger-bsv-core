@@ -243,7 +243,7 @@ describe('Mnemonic', function () {
     const vectorwordlists = {}
 
     for (const key in Mnemonic.Words) {
-      if (Mnemonic.Words.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(Mnemonic.Words, key)) {
         vectorwordlists[key.toLowerCase()] = Mnemonic.Words[key]
       }
     }
@@ -267,7 +267,7 @@ describe('Mnemonic', function () {
     }
 
     for (const key in bip39vectors) {
-      if (bip39vectors.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(bip39vectors, key)) {
         for (let v = 0; v < bip39vectors[key].length; v++) {
           testvector(v, key)
         }

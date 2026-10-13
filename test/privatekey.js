@@ -89,7 +89,7 @@ describe('PrivateKey', function () {
   })
 
   describe('bitcoind compliance', function () {
-    validbase58.map(function (d) {
+    validbase58.forEach(function (d) {
       if (d[2].isPrivkey) {
         it('should instantiate WIF private key ' + d[0] + ' with correct properties', function () {
           let network = Networks.livenet
@@ -102,7 +102,7 @@ describe('PrivateKey', function () {
         })
       }
     })
-    invalidbase58.map(function (d) {
+    invalidbase58.forEach(function (d) {
       it('should describe input ' + d[0].slice(0, 10) + '... as invalid', function () {
         expect(function () {
           return new PrivateKey(d[0])

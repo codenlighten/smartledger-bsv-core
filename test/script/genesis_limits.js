@@ -1,7 +1,7 @@
 'use strict'
 
 /* global describe, it, beforeEach, afterEach */
-const should = require('chai').should()
+require('chai').should()
 const bsv = require('../..')
 const Interpreter = bsv.Script.Interpreter
 const Script = bsv.Script

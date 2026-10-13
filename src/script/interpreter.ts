@@ -3,6 +3,7 @@
 import _ = require('../util/_')
 
 import Script = require('./script')
+import { isUndecodablePush } from './push-decode'
 import Opcode = require('../opcode')
 import BN = require('../crypto/bn')
 import Hash = require('../crypto/hash')
@@ -1505,7 +1506,11 @@ Interpreter.prototype.step = function (this: Interpreter) {
   // 24 rows of a 24,568-row corpus disagreed with a compiled node on the reason for exactly
   // these two shapes; the verdict was reject either way, so only an error-NAME comparison
   // could see it. Ported from @smartledger/bsv 9.29.2.
-  if (chunk.buf != null && chunk.len !== undefined && chunk.len !== chunk.buf.length) {
+  // Shared with Script#isPushOnly, which needs the same question answered and did not ask
+  // it — see ./push-decode.ts. The test is `<`, not `!==`: a chunk holding MORE bytes than
+  // it declares is not a truncated push but a chunk disagreeing with its own serialization,
+  // and `!==` made that a FALSE REJECT.
+  if (isUndecodablePush(chunk)) {
     this.errstr = 'SCRIPT_ERR_BAD_OPCODE'
     return false
   }

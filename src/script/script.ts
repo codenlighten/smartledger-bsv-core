@@ -11,6 +11,7 @@ import _ = require('../util/_')
 import errors = require('../errors')
 import JSUtil = require('../util/js')
 import deprecate = require('../util/deprecate')
+import { isUndecodablePush } from './push-decode'
 import type { Script, ScriptConstructor, ScriptChunk, ScriptAddressInfo, ScriptAddable, AddressLike, PublicKeyLike, NetworkLike, MultisigOpts } from './script.types'
 import type { PublicKey } from '../publickey.types'
 import type { Address } from '../address.types'
@@ -640,6 +641,22 @@ Script.prototype.getData = function (this: Script) {
  */
 Script.prototype.isPushOnly = function (this: Script) {
   return _.every(this.chunks, function (chunk) {
+    // A push the script does not actually carry the bytes for is NOT a push. The node
+    // reaches the same answer without a test, because `IsPushOnly` walks the script with
+    // `GetOp` and a push running past the end makes that parse fail:
+    //
+    //   while (pc < end()) {
+    //       if (!GetOp(pc, opcode)) return false;             // script.cpp, IsPushOnly
+    //       if (opcode > OP_16) return false;
+    //   }
+    //
+    // This library parses eagerly and keeps the broken push as a chunk, so the condition
+    // has to be asked for. Without it `4c50` followed by ten bytes — PUSHDATA1 declaring
+    // eighty — counted as a push, this gate passed, and the scriptSig went on to be
+    // evaluated and fail at the instruction read with SCRIPT_ERR_BAD_OPCODE. The node
+    // refuses it HERE instead, above EvalScript, as SCRIPT_ERR_SIG_PUSHONLY. See
+    // ./push-decode.ts for why the predicate is shared rather than written out twice.
+    if (isUndecodablePush(chunk)) return false
     return chunk.opcodenum <= Opcode.OP_16 ||
       chunk.opcodenum === Opcode.OP_PUSHDATA1 ||
       chunk.opcodenum === Opcode.OP_PUSHDATA2 ||

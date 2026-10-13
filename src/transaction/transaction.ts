@@ -276,7 +276,22 @@ Transaction.prototype._hasDustOutputs = function (this: Transaction, opts: Seria
   let index, output
   for (index in this.outputs) {
     output = this.outputs[index] as OutputType
-    if ((output.satoshis as number) < Transaction.DUST_AMOUNT && !output.script.isDataOut() && !output.script.isSafeDataOut()) {
+    // `output.script` is null when the raw bytes could not be decoded (see
+    // Output#setScriptFromBuffer). That happens for scripts the node ACCEPTS and MINES —
+    // a top-level OP_RETURN followed by a cut-off length field, `6a4c`, is the measured
+    // case — so this check has to stay answerable rather than throw a raw TypeError.
+    //
+    // Neither data-output test can be satisfied by a script we could not parse, so the
+    // verdict is the one this expression already gives for any non-data output. That
+    // preserves THIS library's dust-exemption rule, which is the analogue of the node's
+    // parsing `Solver`/TX_NULL_DATA classification. It is deliberately NOT a claim of
+    // parity with the node's own dust policy: the node's OP_RETURN tests for that purpose
+    // (`IsUnspendable`, `IsKnownOpReturn`, script.h) are pure prefix tests on raw bytes
+    // and never parse, and DUST_AMOUNT here is our policy constant guarding what we BUILD.
+    const outScript = output.script
+    const dataOutput = outScript !== null &&
+      (outScript.isDataOut() || outScript.isSafeDataOut())
+    if ((output.satoshis as number) < Transaction.DUST_AMOUNT && !dataOutput) {
       return new (err('Transaction.DustOutputs'))()
     }
   }

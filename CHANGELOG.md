@@ -7,6 +7,47 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.5.2] - 2026-10-13
+
+Crash fixes only, ported from `@smartledger/bsv` 9.33.2. No verdict changes.
+
+### Fixed — two raw TypeErrors on an output script the node accepts and mines
+
+A locking script of `OP_RETURN` followed by a push whose LENGTH FIELD is cut off — `6a4c`,
+`6a4d01`, `6a4e0100` — is valid, because post-Genesis a top-level `OP_RETURN` terminates
+evaluation as successful before the remainder is read. Two independent harnesses confirmed this
+against a compiled node on 2026-10-13, one of them by funding each lock on live nodes,
+broadcasting the spends and mining them.
+
+The eager `Script` parser throws on those bytes, and `Output#setScriptFromBuffer` turns the
+throw into `_script = null` while keeping the raw bytes in `_scriptBuffer`. Two call sites
+dereferenced it without asking:
+
+* `Transaction#_hasDustOutputs` — `TypeError: ... (reading 'isDataOut')`, below the dust
+  threshold only; reached from `getSerializationError()` and `serialize()`.
+* `Output#getSize` — `TypeError: ... (reading 'toBuffer')`; reached from
+  `Transaction#_estimateSize()`, so fee estimation could not run at all.
+
+Both were untyped and so unclassifiable by a consumer's `instanceof` check.
+
+The dust check now asks whether the script is `null` first. A script that did not parse cannot
+satisfy either data-output test, so the result is the typed `Transaction.DustOutputs` the
+expression already gave for any non-data output. This preserves **this package's**
+dust-exemption rule — the analogue of the node's parsing `Solver`/TX_NULL_DATA classification —
+and is deliberately not a claim of parity with the node's dust policy, whose OP_RETURN tests
+(`IsUnspendable`, `IsKnownOpReturn`) are pure prefix tests on raw bytes that never parse.
+
+`getSize()` falls back to `_scriptBuffer.length` only when the script is `null`; a parsed
+script keeps the existing calculation.
+
+### Known — `getSize()` measures the Script object, which serialization does not
+
+`output.script` hands out the live `Script` object while `toBufferWriter` writes
+`_scriptBuffer`, so an in-place mutation is visible to `getSize()` but dropped from the
+serialized transaction. Both sides are pinned in
+`test/transaction/output_unparseable_script.js`. Not changed here: either resolution alters
+observable behaviour for well-formed scripts. Use `setScript()`, which is honoured correctly.
+
 ## [1.5.1] - 2026-10-13
 
 Error-name and check-order only. No script that verified before verifies differently now, and

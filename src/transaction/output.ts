@@ -188,7 +188,17 @@ Output.prototype.toBufferWriter = function (this: Output, writer?: BufferWriter)
 // ???  script size (VARINT)
 // ???  script
 Output.prototype.getSize = function (this: Output): number {
-  const scriptSize = this.script.toBuffer().length
+  // `this.script` is null when the raw bytes could not be decoded (see setScriptFromBuffer),
+  // which happens for outputs the node accepts and mines, so the size must still be
+  // answerable. ONLY that case falls back to the raw buffer. A parsed script keeps the
+  // existing calculation, because a caller may have mutated the Script object in place and
+  // getSize() has always measured the object — `_scriptBuffer` is what actually serializes,
+  // and the two disagree after such a mutation. Making them agree is a separate change with
+  // its own behaviour consequences; both sides are pinned in
+  // test/transaction/output_unparseable_script.js.
+  const scriptSize = this.script === null
+    ? (this._scriptBuffer as Buffer).length
+    : this.script.toBuffer().length
   const varintSize = Varint(scriptSize).toBuffer().length
   return 8 + varintSize + scriptSize
 }

@@ -167,6 +167,54 @@ describe('a truncated push in a scriptSig', function () {
     })
   })
 
+  describe('whether the gate applies at all is an ERA AND TX-VERSION question', function () {
+    // This is the condition that makes "the node says SIG_PUSHONLY" true only sometimes, and
+    // it is worth pinning in both directions because reading only one of them is how two
+    // labs came to believe the node was ASYMMETRIC between a truncated length field and
+    // truncated data. It is not. The gate's own condition differs:
+    //
+    //   if(VerifySigPushOnly(flags)) {
+    //       if((IsGenesis(flags) && !IsChronicle(flags)) ||
+    //          (IsChronicle(flags) && !IsMalleableTxnVersion(checker.Version())))
+    //           if(!scriptSig.IsPushOnly()) return SCRIPT_ERR_SIG_PUSHONLY;
+    //
+    // with `IsMalleableTxnVersion(v)` being `v > 1` (interpreter.cpp:34-38, "Post-Chronicle,
+    // malleability is permitted if txn version > 1"). So post-Chronicle the gate fires ONLY
+    // for tx version <= 1; at version 2 it is skipped entirely and the sole possible error is
+    // the instruction read. Pre-Chronicle but post-Genesis the version is irrelevant.
+    //
+    // A measurement taken post-Chronicle at version 2 therefore reports BAD_OPCODE for EVERY
+    // truncated push, which looks exactly like the push-only fix not working.
+    const SIG = '4c50' + 'cd'.repeat(10)
+
+    function withVersion (v, flags) {
+      const tx = new bsv.Transaction()
+      tx.version = v
+      tx.from({ txId: 'ab'.repeat(32), outputIndex: 0, script: '51', satoshis: 1000 })
+      tx.to(new bsv.PrivateKey().toAddress(), 500)
+      const i = new Interpreter()
+      i.verify(Script.fromHex(SIG), LOCK, tx, 0, flags, new BN(1000))
+      return i.errstr
+    }
+
+    it('fires post-Chronicle at tx version 0 and 1', function () {
+      withVersion(0, Interpreter.mainnetFlags()).should.equal('SCRIPT_ERR_SIG_PUSHONLY')
+      withVersion(1, Interpreter.mainnetFlags()).should.equal('SCRIPT_ERR_SIG_PUSHONLY')
+    })
+
+    it('is SKIPPED post-Chronicle at tx version 2 and above, leaving BAD_OPCODE', function () {
+      withVersion(2, Interpreter.mainnetFlags()).should.equal('SCRIPT_ERR_BAD_OPCODE')
+      withVersion(3, Interpreter.mainnetFlags()).should.equal('SCRIPT_ERR_BAD_OPCODE')
+    })
+
+    it('fires pre-Chronicle at any version, because the version test is Chronicle-only', function () {
+      const pre = Interpreter.mainnetFlags() &
+        ~Interpreter.SCRIPT_CHRONICLE & ~Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE
+      withVersion(1, pre).should.equal('SCRIPT_ERR_SIG_PUSHONLY')
+      withVersion(2, pre).should.equal('SCRIPT_ERR_SIG_PUSHONLY')
+    })
+  })
+
   describe('arrives this way from the wire, not only from fromHex', function () {
     it('survives transaction parsing and is then refused', function () {
       // How such a script actually reaches a verifier: the scriptSig is a length-prefixed

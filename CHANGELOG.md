@@ -35,6 +35,13 @@ comparator falls through to the script when two outputs have equal satoshis, and
 
 All were untyped and so unclassifiable by a consumer's `instanceof` check.
 
+The enumeration is self-enforcing rather than prose: all 14 `.script.<prop>` dereferences in
+`src/` are listed in `test/transaction/null_script_deref_registry.js` with the reason each
+receiver cannot be null, and a new dereference fails the suite until it is classified.
+
+`Output#inspect` and `Input#toObject` were already guarded with `if (this.script)`, so the
+convention existed and these crashes were inconsistency with it.
+
 The same enumeration turned up a second null-returning accessor that is NOT a defect and is
 now pinned: `Input#script` returns null for the coinbase input (`isNull()`), and every path
 exercised on a coinbase transaction already handles it.

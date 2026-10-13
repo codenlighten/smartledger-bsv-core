@@ -7,6 +7,60 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.5.1] - 2026-10-13
+
+Error-name and check-order only. No script that verified before verifies differently now, and
+no script that was refused is accepted. Ported from `@smartledger/bsv` 9.33.1.
+
+### Fixed
+
+- **A truncated push counted as a push, so the push-only gate let it through.**
+  `Script#isPushOnly()` tested only each chunk's opcode number, so a push declaring more
+  bytes than the script carries counted as a push — `4c50` followed by ten bytes is
+  `OP_PUSHDATA1` declaring eighty. The gate passed, the scriptSig was evaluated, and the
+  failure surfaced from the instruction read as `SCRIPT_ERR_BAD_OPCODE`.
+
+  The node refuses it before evaluating. `VerifyScript` puts the push-only gate above
+  `EvalScript` (interpreter.cpp:2329), and `CScript::IsPushOnly` walks the script with
+  `GetOp`, which **fails** on a push running past the end. So on today's mainnet flags the
+  node reports `SCRIPT_ERR_SIG_PUSHONLY` and never runs the script. Both reject, which is why
+  only an error-NAME comparison could see it — the fifth divergence of that family, and the
+  first found by someone outside the project.
+
+  Six shapes were wrong rather than the one reported: `OP_PUSHDATA1`/`2`/`4` declaring more
+  than they carry, a direct push opcode doing the same, and `01` — one byte of declared push
+  with nothing after it, whose buffer is present but **empty**.
+
+  The condition already existed in the interpreter, added in 1.2.2 for a different divergence
+  of the same family, and the node calls one `GetOp` from both places while this package had
+  the test in only one. It now lives in `src/script/push-decode.ts` and both callers use it.
+
+  `isDataOut()` and `isSafeDataOut()` move with it, as `Solver`'s `TX_NULL_DATA`
+  classification does, using the same `IsPushOnly` on the script after the `OP_RETURN`.
+
+- **Latent since 1.2.2: the interpreter's copy of the test compared `len !== buf.length`,**
+  which is not the condition `GetOp2` fails on. A chunk holding MORE bytes than it declares is
+  not a truncated push but a chunk disagreeing with its own serialization, and the extra bytes
+  are the instructions that follow: `{opcodenum: 1, len: 1, buf: <aa51>}` serializes to
+  `01 aa 51`, which parses back as a one-byte push and `OP_1`, both push-only. We answered
+  false where the node answers true — a **false reject** in the predicate that decides whether
+  a scriptSig may be evaluated at all. The test is now `<`.
+
+### Known, not fixed
+
+- A push whose **length field** is truncated (`4c`, `4d01`, `4e0100`) has no verdict here.
+  The node parses the script object and refuses it at evaluation; this package parses eagerly
+  and has nothing to put in `len`, so `Script.fromBuffer` throws. Both sides reject and the
+  throw is fail-closed, so nothing is wrongly accepted. Giving the parser a representation for
+  an instruction it could not decode changes what `fromBuffer` may return, which is a design
+  decision with its own false-accept risk — recorded in the `@smartledger/bsv` repository's
+  `docs/NODE_DIVERGENCES.md`, with containment pinned by test here.
+
+Reported by the op-codes lab against `@smartledger/bsv` 9.33.0 and this package at 1.5.0,
+from 24 vectors judged by a compiled `bitcoin-sv` v1.2.3. Reproduced in both packages before
+being accepted, and `IsPushOnly`, `GetOp2`, `VerifyScript` and `Solver` were read at v1.2.3
+to confirm the mechanism rather than the symptom.
+
 ## [1.5.0] - 2026-10-13
 
 ### Fixed

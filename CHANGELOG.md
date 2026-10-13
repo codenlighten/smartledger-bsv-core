@@ -7,6 +7,55 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.5.0] - 2026-10-13
+
+### Fixed
+
+- **`OP_RSHIFTNUM` accepted a shift count the node refuses — a FALSE ACCEPT.**
+  `<v> <2^32+1> OP_RSHIFTNUM OP_DROP OP_1` verified here and fails on the
+  network: a lock this library calls spendable that no miner will accept, so
+  coins sent to it stay there.
+
+  The node hands the count straight to `CScriptNum::operator>>=` as a
+  `CScriptNum` — `interpreter.cpp` does `values >>= n;` with no `getint()`,
+  unlike the bitwise `OP_RSHIFT`, which calls `n.getint()` and chunks by
+  `INT32_MAX`. That operator narrows the count to a 32-bit shift and raises
+  `bsv::big_int_error` above `INT32_MAX`, surfacing as `SCRIPT_ERR_BIG_INT`.
+  This library had no bound: the count fell through to the
+  `shiftBy >= bitLength()` short-circuit and the opcode pushed an empty result.
+
+  Measured against a compiled bitcoin-sv v1.2.3 under flags `0x3d586f`: counts
+  at and above 2^31 abort with `SCRIPT_ERR_BIG_INT`, counts at or below 2^31-1
+  shift, and the value is irrelevant because the count is narrowed before
+  anything is shifted.
+
+  The bound is tested on the `BN` **before** `toNumber()`, which here is
+  `parseInt(toString(10))` and does not throw past 2^53 — a 26-byte count
+  narrowed to `4.1e62`. Both operands are read first, in the node's order, so a
+  value failing its own validation still reports *its* error: a non-minimal
+  value with a 2^32+1 count gives `SCRIPT_ERR_SCRIPTNUM_MINENCODE`.
+  `OP_LSHIFTNUM` is deliberately exempt — its result-size bound runs first and
+  fires whatever the value is, including zero, and it cannot reach the
+  `big_int` path at all.
+
+  Pre-Chronicle behaviour is asserted unchanged: for a pre-Chronicle UTXO these
+  bytes are upgradable NOPs, and the new error must not refuse a script the
+  network accepts.
+
+  Found by an outside lab building a locking-script catalogue on 1.4.0, with
+  reference verdicts from a compiled node — not by this suite, whose existing
+  shift-count cases all sit far below the boundary. The same defect was present
+  in `@smartledger/bsv` and is fixed in 9.33.0.
+
+### Documentation
+
+- `valueCovenant`'s doc comment never mentioned change. It pins the digest of
+  the **entire output set** under SIGHASH_ALL — count, order, values and
+  scripts — so a lock built from `hashOutputs([payout])` rejects the spend
+  `[payout, change]`. Pinning change fixes its *amount*, not the fee.
+  `valueCovenantSingle` is the one-output form, pinning the output at the
+  spending **input's** index.
+
 ## [1.4.0] - 2026-10-11
 
 Additive, ported from `@smartledger/bsv` 9.31.0. No behaviour changes: `errstr` is untouched

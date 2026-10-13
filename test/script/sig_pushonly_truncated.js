@@ -213,6 +213,38 @@ describe('a truncated push in a scriptSig', function () {
       withVersion(1, pre).should.equal('SCRIPT_ERR_SIG_PUSHONLY')
       withVersion(2, pre).should.equal('SCRIPT_ERR_SIG_PUSHONLY')
     })
+
+    it('lets a plainly NON-PUSH scriptSig through at version 2 post-Chronicle', function () {
+      // The strongest available statement that the gate is inactive, and a better probe than
+      // the BAD_OPCODE above: a truncated push failing with BAD_OPCODE only shows that the
+      // instruction read ran, which several things could explain. A non-push-only scriptSig
+      // that VERIFIES can only mean the gate was never applied.
+      //
+      // `515193` is OP_1 OP_1 OP_ADD — 0x93 is above OP_16, so it is unambiguously not
+      // push-only — leaving 2 on the stack for the OP_DROP OP_1 lock. Probe contributed by
+      // the go-sdk review session, which measured the same cell on go-sdk v1.7.2 and on a
+      // compiled node; this is better than the `75` (OP_DROP) I had suggested, which would
+      // underflow the stack and reject at evaluation without distinguishing the two causes.
+      const NON_PUSH = '515193'
+      Script.fromHex(NON_PUSH).isPushOnly().should.equal(false)
+
+      function cell (v, flags) {
+        const tx = new bsv.Transaction()
+        tx.version = v
+        tx.from({ txId: 'ab'.repeat(32), outputIndex: 0, script: '51', satoshis: 1000 })
+        tx.to(new bsv.PrivateKey().toAddress(), 500)
+        const i = new Interpreter()
+        const ok = i.verify(Script.fromHex(NON_PUSH), LOCK, tx, 0, flags, new BN(1000))
+        return ok ? 'ACCEPT' : i.errstr
+      }
+
+      const pre = Interpreter.mainnetFlags() &
+        ~Interpreter.SCRIPT_CHRONICLE & ~Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE
+      cell(1, pre).should.equal('SCRIPT_ERR_SIG_PUSHONLY')
+      cell(1, Interpreter.mainnetFlags()).should.equal('SCRIPT_ERR_SIG_PUSHONLY')
+      cell(2, pre).should.equal('SCRIPT_ERR_SIG_PUSHONLY')
+      cell(2, Interpreter.mainnetFlags()).should.equal('ACCEPT')
+    })
   })
 
   describe('arrives this way from the wire, not only from fromHex', function () {

@@ -113,6 +113,61 @@ describe('an output script the node accepts but we cannot parse', function () {
   })
 })
 
+describe('BIP69 output sorting stays total when a script did not parse', function () {
+  // Transaction#sort()'s output comparator falls through to the script when the satoshis are
+  // equal, and dereferenced `output.script` without asking. Found by enumerating every
+  // `.script.` dereference in lib/ rather than grepping for the shape I had already fixed —
+  // the first pass over this bug missed it.
+  it('sorts a transaction carrying an unparseable output script', function () {
+    var raw = '0100000001' + '00'.repeat(32) + '0100000000' + 'ffffffff' +
+      '02' + 'e803000000000000' + '02' + '6a4c' +
+      'e803000000000000' + '02' + '6a51' + '00000000'
+    var tx = new bsv.Transaction(raw)
+    tx.sort()
+    tx.outputs.length.should.equal(2)
+    tx.outputs.map(function (o) { return o._scriptBuffer.toString('hex') })
+      .should.deep.equal(['6a4c', '6a51'])
+  })
+
+  it('leaves the ordering of two WELL-FORMED outputs exactly as it was', function () {
+    var raw = '0100000001' + '00'.repeat(32) + '0100000000' + 'ffffffff' +
+      '02' + 'e803000000000000' + '02' + '6a52' +
+      'e803000000000000' + '02' + '6a51' + '00000000'
+    var tx = new bsv.Transaction(raw)
+    tx.sort()
+    tx.outputs.map(function (o) { return o._scriptBuffer.toString('hex') })
+      .should.deep.equal(['6a51', '6a52'], 'lexicographic by script, unchanged')
+  })
+})
+
+describe('an input script can be null too, and that is the coinbase', function () {
+  // Enumerating the sentinels turned up a second null-returning accessor: Input#script
+  // returns null when isNull() — prevTxId all zeros and outputIndex 0xffffffff, i.e. the
+  // coinbase input every block has. Pinned because it is long-standing behaviour that the
+  // library's own paths DO handle, and a future null guard must not "fix" it into something
+  // else.
+  var COINBASE = '01000000' + '01' + '00'.repeat(32) + 'ffffffff' +
+    '08' + '0401020304aabbcc' + 'ffffffff' +
+    '01' + '00f2052a01000000' + '19' + '76a914' + '11'.repeat(20) + '88ac' + '00000000'
+
+  it('returns null for the coinbase input while keeping its raw bytes', function () {
+    var tx = new bsv.Transaction(COINBASE)
+    tx.inputs[0].isNull().should.equal(true)
+    expect(tx.inputs[0].script).to.equal(null)
+    tx.inputs[0]._scriptBuffer.toString('hex').should.equal('0401020304aabbcc')
+  })
+
+  it('round-trips, sorts, sizes and inspects a coinbase transaction', function () {
+    var tx = new bsv.Transaction(COINBASE)
+    tx.toString().should.equal(COINBASE)
+    tx.sort()
+    tx.toString().should.equal(COINBASE)
+    tx._estimateSize().should.be.a('number')
+    tx.inspect().should.be.a('string')
+    tx.toObject().should.be.an('object')
+  })
+})
+
 describe('getSize measures the Script OBJECT, which serialization does not', function () {
   // Documented current behaviour, deliberately NOT changed here.
   //

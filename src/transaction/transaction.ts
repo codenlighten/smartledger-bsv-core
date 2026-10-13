@@ -1022,6 +1022,14 @@ Transaction.prototype.removeOutput = function (this: Transaction, index: number)
  * @see {https://github.com/bitcoin/bips/blob/master/bip-0069.mediawiki}
  * @return {Transaction} this
  */
+/**
+ * The bytes BIP69 orders outputs by. `output.script` is null for raw bytes we could not
+ * decode, and the authoritative bytes are the ones that serialize either way.
+ */
+function outputScriptBytes (output: Output): Buffer {
+  return output.script === null ? (output._scriptBuffer as Buffer) : output.script.toBuffer()
+}
+
 Transaction.prototype.sort = function (this: Transaction) {
   this.sortInputs(function (inputs: InputType[]) {
     const copy = Array.prototype.concat.apply([], inputs)
@@ -1034,8 +1042,12 @@ Transaction.prototype.sort = function (this: Transaction) {
   this.sortOutputs(function (outputs: OutputType[]) {
     const copy = Array.prototype.concat.apply([], outputs)
     copy.sort(function (first, second) {
-      return first.satoshis - second.satoshis ||
-        first.script.toBuffer().compare(second.script.toBuffer())
+      // `output.script` is null when the raw bytes could not be decoded, which happens for
+      // outputs the node accepts and mines, so the comparator has to stay total rather than
+      // throw a raw TypeError on a transaction read from the chain. The fallback is the raw
+      // buffer ONLY in that case, matching Output#getSize.
+      return (first.satoshis as number) - (second.satoshis as number) ||
+        outputScriptBytes(first).compare(outputScriptBytes(second))
     })
     return copy
   })

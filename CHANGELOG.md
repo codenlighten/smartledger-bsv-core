@@ -28,7 +28,16 @@ dereferenced it without asking:
 * `Output#getSize` — `TypeError: ... (reading 'toBuffer')`; reached from
   `Transaction#_estimateSize()`, so fee estimation could not run at all.
 
-Both were untyped and so unclassifiable by a consumer's `instanceof` check.
+A third site of the same class was found by enumerating every `.script.` dereference in
+`src/` rather than grepping for the shape already fixed: `Transaction#sort()`'s BIP69 output
+comparator falls through to the script when two outputs have equal satoshis, and threw
+`TypeError: ... (reading 'toBuffer')`. Output ordering for well-formed scripts is unchanged.
+
+All were untyped and so unclassifiable by a consumer's `instanceof` check.
+
+The same enumeration turned up a second null-returning accessor that is NOT a defect and is
+now pinned: `Input#script` returns null for the coinbase input (`isNull()`), and every path
+exercised on a coinbase transaction already handles it.
 
 The dust check now asks whether the script is `null` first. A script that did not parse cannot
 satisfy either data-output test, so the result is the typed `Transaction.DustOutputs` the

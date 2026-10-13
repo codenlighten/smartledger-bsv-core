@@ -1742,6 +1742,61 @@ Interpreter.prototype.step = function (this: Interpreter) {
           const valueBn = BN.fromScriptNumBuffer(stacktop(-1), fRequireMinimal, maxNumSize)
           this.stack.pop()
 
+          // The COUNT must fit an int32, and that bound belongs to OP_RSHIFTNUM alone.
+          // Tested BEFORE toNumber() below, not after, because the whole point is to
+          // keep an out-of-range count away from the narrowing.
+          //
+          // The node hands the count straight to CScriptNum::operator>>= as a
+          // CScriptNum (interpreter.cpp does `values >>= n;` with no getint(),
+          // unlike the bitwise OP_RSHIFT beneath it, which calls n.getint() and
+          // chunks by INT32_MAX). That operator narrows the count to a 32-bit
+          // shift internally and raises bsv::big_int_error above INT32_MAX, which
+          // EvalScript's catch turns into SCRIPT_ERR_BIG_INT. So on the network
+          // the script ABORTS; it does not shift.
+          //
+          // Measured against a compiled bitcoin-sv v1.2.3 under flags 0x3d586f: the
+          // counts tested at and above 2^31 (2^31 and 2^32+1) all aborted with
+          // SCRIPT_ERR_BIG_INT, including with a zero value, and the counts tested
+          // at or below 2^31-1 (1000 and 2^31-1) shifted. That is boundary evidence,
+          // not a verdict on every count. This library instead reached the
+          // `shiftBy >= bitLength()` short-circuit
+          // below and pushed an empty result, so
+          // `<v> <2^32+1> OP_RSHIFTNUM OP_DROP OP_1` VERIFIED here and fails on
+          // the network: a FALSE ACCEPT, the direction that leaves coins
+          // unspendable behind a lock this library called good.
+          //
+          // Compared as a BN, because BN.prototype.toNumber here is
+          // `parseInt(toString(10))` — it does not throw past 2^53, it returns a
+          // rounded float (a 26-byte count came back as 4.1e62), so a bound tested
+          // on the narrowed value is a bound on an approximation.
+          //
+          // Both operands have already been read above, in the node's order — the
+          // count first, then the value — so a value that fails its own CScriptNum
+          // validation (non-minimal, or longer than the era's script-number length)
+          // still reports ITS error, not this one. Pinned by test; the ordering is
+          // the whole reason the check sits here rather than directly after the
+          // count is read.
+          //
+          // OP_LSHIFTNUM is deliberately NOT given this check. Its operator<<=
+          // bounds the RESULT size first, so a large count surfaces as
+          // SCRIPT_ERR_SCRIPTNUM_OVERFLOW on both sides — measured against the same
+          // node build at 2^31 and 2^32+1.
+          //
+          // It cannot reach the big_int path at all, and the margin is wide rather
+          // than lucky: the size bound below trips once floor(count/8) exceeds
+          // maxScriptNumLength, i.e. at a count above 8 * 32,000,000 = 256,000,000,
+          // while INT32_MAX is 2,147,483,647 — and 32,000,000 is the ONLY value in
+          // play, because maxScriptNumLength() tests isAfterChronicle() first and
+          // these opcodes are upgradable NOPs unless that is true. The pre-Genesis 4
+          // and post-Genesis 750,000 are smaller still, and setLimits() does not
+          // expose this length, so a caller cannot raise it. Adding the check there
+          // would replace an agreeing error name with a disagreeing one, which is the
+          // defect class the nodeErrstr work went after.
+          if (opcodenum === Opcode.OP_RSHIFTNUM && shiftBn.gt(new BN(0x7fffffff))) {
+            this.errstr = 'SCRIPT_ERR_BIG_INT'
+            return false
+          }
+
           const shiftBy = shiftBn.toNumber()
           const negative = valueBn.isNeg()
           // Shift the MAGNITUDE and carry the sign. That is what "preserving

@@ -7,6 +7,7 @@ import BufferWriter = require('../encoding/bufferwriter')
 import Varint = require('../encoding/varint')
 import $ = require('../util/preconditions')
 import errors = require('../errors')
+import deprecate = require('../util/deprecate')
 import type { Output, OutputConstructor } from './types'
 import type { ScriptConstructor } from '../script/script.types'
 import type { BufferReader } from '../encoding/types'
@@ -207,15 +208,36 @@ Output.prototype.toBufferWriter = function (this: Output, writer?: BufferWriter)
 Output.prototype.getSize = function (this: Output): number {
   // `this.script` is null when the raw bytes could not be decoded (see setScriptFromBuffer),
   // which happens for outputs the node accepts and mines, so the size must still be
-  // answerable. ONLY that case falls back to the raw buffer. A parsed script keeps the
-  // existing calculation, because a caller may have mutated the Script object in place and
-  // getSize() has always measured the object — `_scriptBuffer` is what actually serializes,
-  // and the two disagree after such a mutation. Making them agree is a separate change with
-  // its own behaviour consequences; both sides are pinned in
+  // answerable. ONLY that case falls back to the raw buffer; both sides are pinned in
   // test/transaction/output_unparseable_script.js.
-  const scriptSize = this.script === null
-    ? (this._scriptBuffer as Buffer).length
-    : this.script.toBuffer().length
+  if (this.script === null) {
+    const rawSize = (this._scriptBuffer as Buffer).length
+    return 8 + Varint(rawSize).toBuffer().length + rawSize
+  }
+  // A parsed script keeps measuring the OBJECT, as it always has, while `_scriptBuffer` is what
+  // serializes — so after a caller mutates the Script in place the two disagree, the mutation
+  // never reaches the transaction, and this size describes an output that will not be
+  // broadcast. Both byte strings have just been computed, so saying so costs a Buffer.equals
+  // and never a second serialization, and nothing but a mutation can make them differ: every
+  // path that sets an output keeps them equal, and parsing then re-encoding is byte-faithful
+  // (measured in the JS library over every script of three bytes or fewer plus a push-biased
+  // random sweep, 17,243,009 in all, 0 divergences; pinned here in
+  // test/transaction/output_inplace_mutation.js). Ported from bsv 9.39.0.
+  const scriptBytes = this.script.toBuffer()
+  if (!scriptBytes.equals(this._scriptBuffer as Buffer)) {
+    deprecate({
+      what: 'mutating a parsed output script in place and expecting it to serialize',
+      since: '1.7.0',
+      removeIn: '2.0.0',
+      why: 'the serializer writes the bytes the output was set from, so the mutation is ' +
+        'dropped from the transaction and this size describes an output that will not be ' +
+        'broadcast; where the mutation changed the length, the fee is wrong as well',
+      use: 'output.setScript(output.script) after mutating — which changes the output, so the ' +
+        'txid changes and any signature already made over it must be remade; better still, ' +
+        'build the script before setting it'
+    })
+  }
+  const scriptSize = scriptBytes.length
   const varintSize = Varint(scriptSize).toBuffer().length
   return 8 + varintSize + scriptSize
 }

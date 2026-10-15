@@ -7,6 +7,38 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.7.0] - 2026-10-15
+
+### Added — a notice when a mutated output script is not the one that will serialize
+
+Ported from `bsv` 9.39.0, because this package has the identical shape. `output.script` hands out
+the live `Script` object, while `Output#toBufferWriter` writes `_scriptBuffer` — the bytes the
+output was *set from*:
+
+```js
+tx.outputs[0].script.add(bsv.Opcode.OP_NOP)   // dropped from the broadcast bytes
+tx.outputs[0].getSize()                        // but measured here: 35 against a 34-byte output
+tx.outputs[0].setScript(tx.outputs[0].script)  // the remedy, one line
+```
+
+So the mutation never reaches the transaction while `getSize()` measures it, and the fee is
+computed for an output that will not be broadcast. `getSize()` now compares the two byte strings it
+has just computed — a `Buffer.equals`, never a second serialization — and emits a one-time
+deprecation notice when they differ. Re-setting changes the output, so the txid changes and any
+signature already made over it must be remade; building the script before setting it avoids the
+question.
+
+The notice has no false positives: nothing but a mutation can make an output's two byte strings
+differ, because parsing a script and re-encoding it is byte-faithful — measured in the JS library
+over every script of three bytes or fewer (16,843,009, exhaustive) plus 400,000 push-biased random
+ones, 0 divergences, and pinned here in `test/transaction/output_inplace_mutation.js`.
+
+Coverage is partial and stated as partial: `getSize()` is the only place the comparison is free, so
+a mutation followed by serialization with no size enquiry is still silent, and `Input` has the same
+drop with nowhere free to see it. The behaviour itself is unchanged; `2.0.0` decides between
+re-syncing on mutation, refusing to hand out a mutable parsed script, and an additive pre-broadcast
+check that covers inputs as well.
+
 ## [Unreleased]
 
 ### Checked — nothing other than an undecodable output script reaches the null-script path

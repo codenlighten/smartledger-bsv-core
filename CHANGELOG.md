@@ -7,6 +7,50 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.8.0] - 2026-10-15
+
+### Added — `Message#verify(address, sig, { lowS: true })`, which 1.7.0 accepted and ignored
+
+A `Message` signature has a second encoding that verifies identically for the same key and message:
+flip the recovery id in the header and replace `s` with `n − s`. So the bytes are **not a unique
+name for a statement**, and anything keyed on them has a forgeable twin. `bsv` added an opt-in
+refusal in 9.38.0; this package did not have it — and that was worse than it sounds, because
+JavaScript does not object to an extra argument:
+
+```js
+// @smartledger/bsv-core@1.7.0, measured
+Message.prototype.verify.length            // 2 — the option was not a parameter
+Message(m).verify(addr, twin, { lowS: true })  // true. No error, no warning, no protection.
+```
+
+The sibling package's `docs/RELIED-UPON-PROPERTIES.md` told integrators to make exactly that call,
+so a consumer following our own guidance on this package got a strictness option that did nothing
+while sitting in their code as evidence the hazard was handled. Now:
+
+```js
+bsv.Message(text).verify(address, sig, { lowS: true })   // false for the twin
+bsv.Message.verify(text, address, sig, { lowS: true })   // the static form forwards it
+```
+
+`message.error` then reads "The signature is not canonical: s is above half the curve order".
+Accepting a high-s signature emits a one-time deprecation notice (`since: '1.8.0'`,
+`removeIn: '2.0.0'`), fired only on the **accept** — a canonical signature raises nothing and a
+refusal raises nothing.
+
+**Two limits, stated because the option invites overreading it.** It refuses ONE twin: the same `r`
+with `s` replaced by `n − s`. It does **not** make a signature unique per `(key, message)` — the set
+of valid low-s signatures over a message is as large as the nonce space, and a test here asserts
+that four distinct low-s signatures all pass the option. And **probe for the behaviour rather than
+trusting a version range**: an arity check passes on a build that wires the parameter and ignores
+it, which is precisely what 1.7.0 did.
+
+Opt-in rather than default because the signatures it refuses are **valid ECDSA** and other
+implementations may legitimately emit them; `sign()` has only ever emitted low-s, since
+`ECDSA.toLowS` runs unconditionally in `_findSignature`. 2.0.0 flips the default.
+
+Seven tests in `test/message/low_s_option.js`. The half-order comparison is spelled with BN
+operands (`2s > n − 1`) rather than `muln`/`subn`, which this package's BN typing does not declare.
+
 ## [1.7.0] - 2026-10-15
 
 ### Added — a notice when a mutated output script is not the one that will serialize

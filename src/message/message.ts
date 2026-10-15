@@ -11,7 +11,10 @@ import Signature = require('../crypto/signature')
 const sha256sha256 = Hash.sha256sha256
 import JSUtil = require('../util/js')
 import $ = require('../util/preconditions')
-import type { Message, MessageConstructor } from './types'
+import BN = require('../crypto/bn')
+import Point = require('../crypto/point')
+import deprecate = require('../util/deprecate')
+import type { Message, MessageConstructor, MessageVerifyOptions } from './types'
 import type { Signature as SignatureType } from '../crypto/signature.types'
 
 /**
@@ -41,11 +44,24 @@ Message.sign = function (message: string | Buffer, privateKey: PrivateKey) {
   return new Message(message).sign(privateKey)
 }
 
-Message.verify = function (message: string | Buffer, address: Address | string, signature: string) {
-  return new Message(message).verify(address, signature)
+Message.verify = function (message: string | Buffer, address: Address | string, signature: string, opts?: MessageVerifyOptions) {
+  // The options object must be FORWARDED, not dropped: a static call with { lowS: true } that
+  // silently verified a high-s signature would be a strictness option that does nothing, which is
+  // worse than no option — the caller's code now reads as evidence the hazard was handled.
+  return new Message(message).verify(address, signature, opts)
 }
 
 Message.MAGIC_BYTES = Buffer.from('Bitcoin Signed Message:\n')
+
+// Half the curve order. A signature is canonical ("low-s") when 2s <= n - 1; the twin with
+// s replaced by n - s is equally valid ECDSA and verifies for the same key and message.
+// bsv's copy writes this with `muln`/`subn`, which this package's BN typing does not declare, so
+// the same comparison is spelled with BN operands: 2s > n - 1.
+const HALF_ORDER_TEST = function (s: InstanceType<typeof BN>): boolean {
+  const two = new BN(2)
+  const one = new BN(1)
+  return s.mul(two).cmp(Point.getN().sub(one)) > 0
+}
 
 Message.prototype.magicHash = function magicHash (this: Message) {
   const prefix1 = BufferWriter.varintBufNum(Message.MAGIC_BYTES.length)
@@ -92,14 +108,41 @@ Message.prototype._verify = function _verify (this: Message, publicKey: PublicKe
  * @param {String} signatureString - A base64 encoded compact signature
  * @returns {Boolean}
  */
-Message.prototype.verify = function verify (this: Message, bitcoinAddress: Address | string, signatureString: string) {
+Message.prototype.verify = function verify (this: Message, bitcoinAddress: Address | string, signatureString: string, opts?: MessageVerifyOptions) {
   $.checkArgument(bitcoinAddress)
   $.checkArgument(signatureString && _.isString(signatureString))
+  const options = opts ?? {}
 
   if (_.isString(bitcoinAddress)) {
     bitcoinAddress = Address.fromString(bitcoinAddress)
   }
   const signature = Signature.fromCompact(Buffer.from(signatureString, 'base64'))
+
+  // Low-s. For any signature this library produces there is a second, different base64 string
+  // that verifies for the same key and message: flip the recovery id in the header and replace s
+  // with n - s. So a Message signature is not a unique name for a statement, and anything keyed on
+  // the bytes has a forgeable twin. Ported from bsv 9.38.0, where the option was added, because
+  // 1.7.0 accepted `{ lowS: true }` and IGNORED it — the twin verified true, with no error and no
+  // warning, while the sibling package's own documentation told integrators to make that call.
+  //
+  // sign() has only ever emitted low-s (ECDSA.toLowS runs unconditionally in _findSignature), so
+  // refusing high-s rejects nothing this library makes. Other implementations may legitimately
+  // emit it, so refusing by DEFAULT is a compatibility change rather than a bug fix: this marks it
+  // and 2.0.0 flips the default. The notice fires only when a high-s signature is actually
+  // accepted.
+  const isHighS = HALF_ORDER_TEST(BN.fromBuffer(signature.s.toBuffer({ size: 32 })))
+  if (isHighS) {
+    if (options.lowS === true) {
+      this.error = 'The signature is not canonical: s is above half the curve order'
+      return false
+    }
+    deprecate({
+      what: 'Message#verify() accepting a non-canonical (high-s) signature',
+      since: '1.8.0',
+      removeIn: '2.0.0',
+      use: 'verify(address, sig, { lowS: true }), which refuses the malleable twin'
+    })
+  }
 
   // recover the public key
   const ecdsa = new ECDSA()

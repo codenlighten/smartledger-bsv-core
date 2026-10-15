@@ -122,6 +122,15 @@ Output.fromObject = function (data: Record<string, unknown>): Output {
 }
 
 Output.prototype.setScriptFromBuffer = function (this: Output, buffer: Buffer): void {
+  // Checked BEFORE the assignment, and that order is the point. This used to assign first, so a
+  // caller reaching this from JavaScript, or through an `as any`, with a string or `undefined`
+  // left the output holding a non-Buffer `_scriptBuffer`: the throw came from inside the parser,
+  // and every LATER read of `.script` threw too, naming neither this method nor the argument.
+  // The null-script guards elsewhere read `_scriptBuffer.length` and
+  // `_scriptBuffer.toString('hex')`, so they assume what this now enforces: every
+  // `_scriptBuffer` in a live object is a Buffer. The declared parameter type does not reach a
+  // JavaScript caller.
+  $.checkArgument(Buffer.isBuffer(buffer), 'Output script buffer must be a Buffer')
   this._scriptBuffer = buffer
   try {
     this._script = scriptCtor().fromBuffer(this._scriptBuffer)

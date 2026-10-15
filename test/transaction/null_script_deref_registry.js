@@ -103,3 +103,122 @@ describe('every .script dereference in src/ is classified', function () {
     })
   })
 })
+
+// --- the other half of the question: which STATES can produce a null or unreadable script ----
+//
+// The registry above enumerates the dereference SITES. It says nothing about how many ways a
+// script can be unreadable in the first place, and the sibling package's `docs/NPM_RELEASES.md` carried that as a
+// stated-unchecked claim: "whether anything OTHER than an undecodable output script reaches the
+// same null dereference". This is the answer, by enumeration and measurement rather than by
+// reading.
+//
+// There are exactly two accessors that can yield a non-Script, and each has exactly one cause:
+//
+//   * `Output#script` -> null, only from the `Script.InvalidBuffer` catch in
+//     `setScriptFromBuffer`. Since the parser became total that catch is unreachable from bytes,
+//     which is asserted below over every state a caller can build from bytes.
+//   * `Input#script` -> null, only when `isNull()`: the coinbase input.
+//
+// Everything else that could make a script unreadable depends on `_scriptBuffer` not being a
+// Buffer, because the guards in the classified sites read `_scriptBuffer.length` and
+// `_scriptBuffer.toString('hex')`. All assignments to `_scriptBuffer` in src/ now put a
+// Buffer there: eight pass `.toBuffer()` or `Buffer.from(...)`, one is guarded by
+// `Buffer.isBuffer`, and the tenth — the public `setScriptFromBuffer` — checks its argument
+// before assigning. It did not always: it assigned first, so a bad call left the object holding
+// a non-Buffer and the error surfaced later, from a different method, naming neither.
+describe('the states that can make a script unreadable', function () {
+  const bsvlib = require('../..')
+  const Output = bsvlib.Transaction.Output
+  const Input = bsvlib.Transaction.Input
+  const ScriptC = bsvlib.Script
+
+  // Every shape that used to throw in the parser, plus the boundaries around them.
+  const FROM_BYTES = ['6a4c', '6a4d', '6a4d01', '6a4e', '6a4e01', '6a4e0100', '4c', '4d', '4e',
+    '6a4c050102', '6a050102', '01', '4c00', '', '6a', '4effffffff', '636a4c68', 'ab6a4c']
+
+  it('no output built from bytes has a null script, however malformed', function () {
+    FROM_BYTES.forEach(function (hex) {
+      const o = new Output({ satoshis: 1000, script: Buffer.from(hex, 'hex') })
+      ;(o.script === null).should.equal(false, hex + ' produced a null script')
+      o.script.toHex().should.equal(hex, hex + ' did not round-trip through the output')
+      // and the consumers that used to crash on a null script
+      o.getSize().should.be.above(0)
+      o.toBufferWriter().toBuffer().length.should.be.above(0)
+      JSON.parse(JSON.stringify(o.toObject())).script.should.equal(hex)
+      o.inspect().should.be.a('string')
+    })
+  })
+
+  it('keeps the null path working if the parser ever throws again', function () {
+    // The catch is unreachable today and is kept deliberately. A test that only asserted
+    // unreachability would delete the evidence that the guards still work, so the state is
+    // built directly instead — which is what a future parse failure would produce.
+    const o = new Output({ satoshis: 1000, script: Buffer.from('6a4c', 'hex') })
+    o._script = null
+    o.getSize().should.equal(11)
+    o.toBufferWriter().toBuffer().length.should.be.above(0)
+    o.inspect().should.be.a('string')
+    // the getter re-parses, because the bytes are still there and the parser is total
+    o.script.toHex().should.equal('6a4c')
+  })
+
+  it('refuses a non-Buffer script buffer AT THE CALL, leaving the object intact', function () {
+    const o = new Output({ satoshis: 1000, script: Buffer.from('6a', 'hex') })
+    ;['a string', undefined, null, 123, {}, []].forEach(function (bad) {
+      ;(function () { o.setScriptFromBuffer(bad) }).should.throw(/must be a Buffer/)
+    })
+    // intact: the earlier behaviour poisoned _scriptBuffer and every later read threw
+    Buffer.isBuffer(o._scriptBuffer).should.equal(true)
+    o.script.toHex().should.equal('6a')
+  })
+
+  it('leaves an input readable after a failed setScript', function () {
+    // Input#setScript sets _script = null BEFORE validating, so a bad call leaves it null —
+    // benign, because _scriptBuffer is untouched and the getter re-parses it. Asserted so that
+    // it stays benign.
+    const i = new Input({ prevTxId: Buffer.from('66'.repeat(32), 'hex'), outputIndex: 0, script: ScriptC.fromHex('51') })
+    ;(function () { i.setScript(12345) }).should.throw(/Invalid argument type/)
+    ;(i._script === null).should.equal(true)
+    i.script.toHex().should.equal('51')
+  })
+
+  it('has a null input script only for the coinbase', function () {
+    const coinbase = new Input({ prevTxId: Buffer.alloc(32), outputIndex: 0xffffffff, script: ScriptC.empty() })
+    coinbase.isNull().should.equal(true)
+    ;(coinbase.script === null).should.equal(true)
+    const ordinary = new Input({ prevTxId: Buffer.from('66'.repeat(32), 'hex'), outputIndex: 0, script: ScriptC.fromHex('51') })
+    ordinary.isNull().should.equal(false)
+    ;(ordinary.script === null).should.equal(false)
+  })
+
+  it('assigns only Buffers to _scriptBuffer, everywhere in src/', function () {
+    // The invariant the guards rest on, held by reading the source rather than by trusting the
+    // four paths this file happens to exercise.
+    const root = path.join(__dirname, '..', '..')
+    const hits = []
+    ;['src/transaction/output.ts', 'src/transaction/input/input.ts'].forEach(function (rel) {
+      fs.readFileSync(path.join(root, rel), 'utf8').split('\n').forEach(function (line, n) {
+        const m = /_scriptBuffer\s*=\s*(.+)$/.exec(stripComments(line))
+        if (m) hits.push({ rel, line: n + 1, rhs: m[1].trim() })
+      })
+    })
+    hits.length.should.be.above(8, 'the assignments moved; re-read them before trusting this')
+    // Every recognised Buffer-producing right-hand side, listed rather than pattern-matched
+    // loosely, so a new one has to be read and added deliberately. `buffer` is
+    // setScriptFromBuffer's argument, which is now checked with Buffer.isBuffer before this
+    // line runs; `args.script` is inside an `if (Buffer.isBuffer(args.script))`.
+    const BUFFER_SOURCES = [
+      /\.toBuffer\(\)$/, // a Script's own serialization
+      /^buffer\.Buffer\.from\(/, // an explicit Buffer.from
+      /^Buffer\.from\(/,
+      /^br\.readVarLengthBuffer\(\)$/, // BufferReader, deserializing a transaction
+      /^buffer$/, // setScriptFromBuffer's checked argument
+      /^args\.script$/ // guarded by Buffer.isBuffer(args.script)
+    ]
+    hits.forEach(function (h) {
+      const ok = BUFFER_SOURCES.some(function (re) { return re.test(h.rhs) })
+      ok.should.equal(true, h.rel + ':' + h.line + ' assigns something unrecognised: ' + h.rhs +
+        ' — read it, and add it to BUFFER_SOURCES only if it is provably a Buffer')
+    })
+  })
+})

@@ -7,6 +7,50 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [Unreleased]
+
+### Checked — nothing other than an undecodable output script reaches the null-script path
+
+The sibling package’s `docs/NPM_RELEASES.md` has carried this as a **stated-unchecked claim** since the deprecation
+round: the nine deprecation messages say "some chain transactions" rather than naming a cause,
+because nobody had established whether anything *else* could leave a script unreadable. It is
+checked now, and the answer is no.
+
+Two accessors in this library can yield a non-Script, and each has exactly one cause:
+`Output#script` is null only from the `Script.InvalidBuffer` catch in `setScriptFromBuffer`,
+which the total parser made unreachable from bytes, and `Input#script` is null only for the
+coinbase. Measured rather than read: **12 states a caller can build from bytes** — every shape
+that used to throw, the empty script, a `PUSHDATA4` declaring 4,294,967,295 bytes, a separator
+before a cut-off push — against **11 consumers**: `Output#script`, `getSize`, `toObject`,
+`inspect`, `toBufferWriter`, `isDataOut`, `classify`, and at the transaction level `serialize`,
+`getSerializationError` (the dust path), `_estimateSize` and `sign`. No state reachable from
+bytes produced a null script or an untyped throw.
+
+### Fixed — `Output#setScriptFromBuffer` assigned before validating, poisoning the output
+
+The audit above found one thing worth fixing. The method assigned `_scriptBuffer` and *then*
+parsed, so a caller passing a string or `undefined` left the output holding a non-Buffer: the
+throw came from inside the parser, and **every later read of `.script` threw too**, with a
+message — `Invalid hex string`, or a property of `undefined` — naming neither the method nor the
+argument. It now checks the argument first, so a bad call fails at the call and the output is
+left exactly as it was.
+
+That also makes an invariant the rest of the library depends on true by construction. The
+null-script guards read `_scriptBuffer.length` and `_scriptBuffer.toString('hex')`, so they
+assume every `_scriptBuffer` is a Buffer. Of the ten assignments in `src/`, eight pass
+`.toBuffer()`, `Buffer.from(...)` or a `BufferReader` read, one is inside
+`if (Buffer.isBuffer(args.script))`, and this public method was the tenth.
+
+Both halves are self-enforcing in `test/transaction/null_script_deref_registry.js`, which already
+ratcheted the dereference **sites** and now also pins the **states** and the `_scriptBuffer`
+invariant — the last of those by reading every assignment in the source, so a new one has to be
+classified deliberately rather than trusted. It caught an omission in its own allow-list while
+being written, which is the behaviour wanted from it.
+
+This is API-misuse hardening and a closed open question, not a reachable defect: no version
+behaves differently on any input a caller can supply as bytes. It is therefore **not a release on
+its own** and will ride with the next one.
+
 ## [1.6.0] - 2026-10-15
 
 Ported from `@smartledger/bsv` 9.35.0, with the text-reader fix released there as 9.37.0 folded

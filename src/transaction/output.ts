@@ -127,6 +127,14 @@ Output.prototype.setScriptFromBuffer = function (this: Output, buffer: Buffer): 
     this._script = scriptCtor().fromBuffer(this._scriptBuffer)
     ;(this._script as import('../script/script.types').Script)._isOutput = true
   } catch (e) {
+    // `Script.fromBuffer` is now total: every byte string parses, because the parser keeps a
+    // cut-off length prefix instead of throwing and a decode failure surfaces at USE, as it
+    // does in the node. So this branch is unreachable from real bytes today.
+    //
+    // It stays. A guard deleted because nothing currently reaches it is how the next parse
+    // failure becomes an uncaught throw at transaction construction, and the whole point of
+    // this one is that a transaction carrying an output we cannot read must still be
+    // constructible, stored and relayed.
     if (e instanceof ((errors.Script as Record<string, unknown>).InvalidBuffer as new () => Error)) {
       this._script = null
     } else {

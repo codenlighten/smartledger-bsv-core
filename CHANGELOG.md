@@ -7,6 +7,97 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.6.0] - 2026-10-15
+
+Ported from `@smartledger/bsv` 9.35.0. `Script.fromBuffer` is now **total**: every byte string
+parses, as the node's `CScript` does, and a decode failure surfaces at USE.
+
+That is an argument over the code rather than a fuzzing result. `fromBuffer` had exactly four
+reads that can fail, and all four are now guarded: the opcode read, by `while (!br.finished())`,
+and the three length-field reads, by `pushLenPrefix`. `BufferReader.read(len)` cannot fail at
+all — it slices, so a declared length longer than the remaining bytes yields a short buffer
+rather than a `RangeError`, which is the case that was already handled. `readUInt8`,
+`readUInt16LE` and `readUInt32LE` were the only throw sources, and nothing calls them
+unguarded. Measured alongside: a `PUSHDATA4` declaring 4,294,967,295 bytes with none present
+parses and round-trips exactly, as do all 196,608 three-byte scripts opening with a pushdata
+opcode, in this package and in `@smartledger/bsv` alike, with zero throws.
+
+### Fixed — three output scripts the node accepts and mines could not be parsed at all
+
+A locking script ending in `6a4c`, `6a4d01` or `6a4e0100` — `OP_RETURN` followed by a push whose
+LENGTH FIELD is cut off — is valid post-Genesis, because an executed top-level `OP_RETURN`
+terminates evaluation as successful before the remainder is read. One is on livenet, in
+`ebc9fa1196a59e192352d76c0f6e73167046b9d37b8302b6bb6968dfd279b767`. **1.5.2 fixed the three
+crashes those bytes caused; this release removes the cause.** The parser threw
+`Script.InvalidBuffer` on them in both eras, so there was no `Script` to evaluate and no verdict
+to give — a false REJECT, for an output the network accepts.
+
+The node's `GetOp2` tests the length field before reading it:
+
+    else if (opcode == OP_PUSHDATA1) { if (end()-pc < 1) return false; nSize = *pc++; }
+
+so it fails the parse exactly as it does for a push whose DATA runs out — a case this package
+already handled and already agreed on. The asymmetry was ours.
+
+The parser now keeps the bytes it did read in a chunk's `lenPrefix`, with no `len` and no `buf`
+because there is no declared length to record, and `toBuffer` writes them back unchanged. The
+shared `isUndecodablePush` predicate answers true for that shape, so both of the node's `GetOp`
+callers give the answers they already gave for truncated data: not-push-only from `IsPushOnly`,
+`BAD_OPCODE` from the instruction read.
+
+**The interpreter is untouched.** Confining leniency to a top-level `OP_RETURN` needed no new
+logic: it falls out of those scripts parsing and the interpreter deciding, which is also why an
+unconditionally permissive parser grants no leniency where the node gives none. The three shapes
+inside an `IF` are still `BAD_OPCODE`, and all three are still `OP_RETURN` pre-Genesis.
+
+### Why this is a minor
+
+Stability's own rule decides it: a consensus bug "is fixed in a **patch** when it only refuses
+what the network refuses, and in a **minor** when it changes what is accepted." This changes what
+is accepted. `ScriptChunk` also gains an optional `lenPrefix` member, and additions are minors.
+
+No well-formed script changes verdict. The 455-case conformance corpus is unchanged, and the
+node's own 1,483 `script_tests.json` vectors still pass 1,483/1,483 with zero false accepts and
+zero false rejects.
+
+### Evidence
+
+`test/script/optrue_return_truncated_tail.js`, ported with the fix — 46 tests:
+
+* **all 22 rows judged on a compiled bitcoin-sv v1.2.3** by the op-codes lab, in both eras;
+* `fromBuffer` total and byte-exact over every 1- and 2-byte script;
+* the **sighash** path, which is where a parser change of this kind can become a consensus
+  defect no accept/reject test would see: a malformed tail can be UNEXECUTED and still be part
+  of the bytes a signature covers. The preimage carries the full locking script with the varint
+  declaring its true length; a signature over it verifies end to end; a tail inside an `IF`
+  **after** the `OP_RETURN` is signed but never read, and only the full-lock signature verifies
+  (`NULLFAIL` otherwise), with a no-tail control proving the signal comes from the tail;
+* `removeCodeseparators` and `findAndDelete` both keep the chunk, and an undecodable push is
+  always the **final** chunk — measured over 22,635 parsed byte strings, 17,141 of which
+  contained one — which is what keeps `findAndDelete` from diverging from the node's
+  stop-at-first-`GetOp`-failure loop;
+* `isScriptHashIn` used the parse THROW to answer false, so its answer now comes from
+  `classify()`; none of the newly parseable shapes classifies as a known type.
+
+**Cross-checked against `@smartledger/bsv` 9.36.0 directly**: 22 interpreter verdicts, 65,792
+byte strings through parse and round-trip, and 13 shapes through every text form, predicate,
+`classify()` and chunk shape — **zero differences**.
+
+What that evidence is and is not: strong tested agreement with the node on the rows a compiled
+node judged, and strong tested agreement with the sibling package, over exhaustive short
+scripts and sampled longer ones. It is not an exhaustive equivalence proof over every script
+length or every downstream caller. The totality argument above is the one claim here that is
+structural rather than sampled.
+
+The text forms write a cut-off prefix as raw bytes, so `6a4d` and `6a4d01` stay distinct rather
+than both printing as `OP_RETURN OP_PUSHDATA2`. Reading that text back throws rather than
+producing different bytes.
+
+`Output#setScriptFromBuffer`'s null path is now unreachable from bytes. Its guards are **kept** —
+a guard deleted because nothing currently reaches it is how the next parse failure becomes a
+crash — and the tests that cover them construct that state directly instead of through a parse
+failure.
+
 ## [1.5.2] - 2026-10-13
 
 Crash fixes only, ported from `@smartledger/bsv` 9.33.2. No verdict changes.

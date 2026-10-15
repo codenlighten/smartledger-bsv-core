@@ -148,20 +148,23 @@ describe('Output', function () {
     obj.outputs[6].script.should.equal('4e')
   })
 
-  it('#toObject roundtrip will handle an invalid (null) script', function () {
-    const invalidOutputScript = Buffer.from('0100000000000000014c', 'hex')
-    const br = new bsv.encoding.BufferReader(invalidOutputScript)
+  it('#toObject roundtrip handles a lone pushdata opcode as a script', function () {
+    // `4c` used to be unparseable, so this pinned `output.script === null`. The parser now
+    // keeps a cut-off length prefix instead of throwing — the node builds a script from those
+    // bytes too — so the script is a Script and the raw bytes are unchanged.
+    const outputScript = Buffer.from('0100000000000000014c', 'hex')
+    const br = new bsv.encoding.BufferReader(outputScript)
     const output = Output.fromBufferReader(br)
     const output2 = new Output(output.toObject())
-    should.equal(output2.script, null)
+    should.equal(output2.script.toHex(), '4c')
     should.equal(output2._scriptBuffer.toString('hex'), '4c')
   })
 
-  it('inspect will work with an invalid (null) script', function () {
-    const invalidOutputScript = Buffer.from('0100000000000000014c', 'hex')
-    const br = new bsv.encoding.BufferReader(invalidOutputScript)
+  it('inspect will work with a lone pushdata opcode', function () {
+    const outputScript = Buffer.from('0100000000000000014c', 'hex')
+    const br = new bsv.encoding.BufferReader(outputScript)
     const output = Output.fromBufferReader(br)
-    output.inspect().should.equal('<Output (1 sats) 4c>')
+    output.inspect().should.equal('<Output (1 sats) <Script: 0x4c>>')
   })
 
   it('roundtrips to/from JSON', function () {
@@ -175,11 +178,27 @@ describe('Output', function () {
     out.setScript.bind(out, 45).should.throw('Invalid argument type: script')
   })
 
-  it('sets script to null if it is an InvalidBuffer', function () {
+  it('parses a lone pushdata opcode rather than setting script to null', function () {
+    // This asserted `script === null` for these bytes. `Script.fromBuffer` is now total — a
+    // cut-off length prefix is kept instead of throwing — so the InvalidBuffer path is no
+    // longer reachable from any byte string.
     const output = new Output({
       satoshis: 1000,
       script: Buffer.from('4c', 'hex')
     })
-    should.equal(output.script, null)
+    should.equal(output.script.toHex(), '4c')
+    should.equal(output._scriptBuffer.toString('hex'), '4c')
+  })
+
+  it('still answers rather than throwing when the script IS null', function () {
+    // The guards that depend on a null script are kept (see Output#setScriptFromBuffer), so
+    // the state they guard is constructed directly here. Reaching it through a parse failure
+    // is what is no longer possible; the guards themselves must not rot.
+    const output = new Output({ satoshis: 1000, script: Buffer.from('6a', 'hex') })
+    output._script = null
+    ;(function () { output.inspect() }).should.not.throw()
+    ;(function () { output.toObject() }).should.not.throw()
+    ;(function () { output.getSize() }).should.not.throw()
+    output.getSize().should.be.above(0)
   })
 })

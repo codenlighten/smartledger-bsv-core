@@ -42,6 +42,10 @@ export interface ScriptChunk {
   opcodenum: number
   buf?: Buffer
   len?: number
+  /** A push whose LENGTH FIELD was cut off by the end of the script: the 0 to 3 bytes that
+   *  were present where the field should be. Carried instead of `buf` and `len`, because
+   *  there is no declared length to record. See `pushLenPrefix` in ./script.ts. */
+  lenPrefix?: Buffer
 }
 
 /** What the address helpers return, or false when no address is derivable. */

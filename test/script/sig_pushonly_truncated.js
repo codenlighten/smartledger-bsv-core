@@ -143,27 +143,72 @@ describe('a truncated push in a scriptSig', function () {
     })
   })
 
-  describe('a push with a truncated LENGTH FIELD is a separate, open divergence', function () {
-    // `4c`, `4d01`, `4e0100`: GetOp2 fails at the LENGTH read rather than the data read, so
-    // the node builds a script object and refuses it at evaluation. This library parses
-    // eagerly and has nothing to put in `len`, so Script.fromBuffer throws and there is no
-    // Script object to evaluate — no verdict at all. Both sides still reject and the throw is
-    // fail-closed, so nothing is accepted that should not be. Not fixed here: giving the
-    // parser a representation for an instruction it could not decode changes what
-    // fromBuffer may return, which is a design decision with its own false-accept risk.
-    // Recorded in the bsv repo's docs/NODE_DIVERGENCES.md.
+  describe('a push with a truncated LENGTH FIELD is the same divergence, and is now closed', function () {
+    // `4c` with no length byte, `4d01`, `4e0100`: the node's GetOp2 fails on these too, at the
+    // length read rather than the data read —
     //
-    // What is pinned is CONTAINMENT: a typed, catchable error at the boundary.
+    //   else if (opcode == OP_PUSHDATA1) { if (end()-pc < 1) return false; nSize = *pc++; }
+    //
+    // — so the node builds a script object and refuses it at evaluation, exactly as it does for
+    // a push whose DATA runs out. The node is not asymmetric between the two; this library was.
+    //
+    // Until this fix the block here recorded the asymmetry as an OPEN divergence: the eager
+    // parser had nowhere to put a push whose declared length it never read, so
+    // `Script.fromBuffer` THREW and there was no Script to evaluate. Both sides still rejected
+    // and a throw is fail-closed, so it was never a false accept — but it also meant three byte
+    // sequences the node accepts as OUTPUT scripts could not be represented at all, which is a
+    // false REJECT in the other direction.
+    //
+    // The parser now keeps the bytes it did read in `lenPrefix` and `isUndecodablePush` answers
+    // true for that shape, so both of the node's GetOp callers get the same answer they get for
+    // truncated data: not-push-only from IsPushOnly, BAD_OPCODE from the instruction read.
+    //
+    // Ported from @smartledger/bsv 9.35.0, where the three shapes were judged on a compiled
+    // bitcoin-sv v1.2.3: accepted post-Genesis, SCRIPT_ERR_OP_RETURN pre-Genesis.
     const NO_LENGTH_FIELD = ['4c', '4d01', '4e0100']
 
-    it('throws a typed Script.InvalidBuffer, not an internal error', function () {
+    it('parses, and round-trips byte for byte', function () {
       NO_LENGTH_FIELD.forEach(function (hex) {
-        let caught = null
-        try { Script.fromHex(hex) } catch (e) { caught = e }
-        ;(caught === null).should.equal(false, hex + ' parsed when it should have thrown')
-        caught.should.be.instanceof(bsv.errors.Script.InvalidBuffer)
-        caught.message.should.match(/Invalid script buffer/)
+        Script.fromHex(hex).toHex().should.equal(hex)
       })
+    })
+
+    it('is not push-only, as IsPushOnly answers once GetOp has failed', function () {
+      NO_LENGTH_FIELD.forEach(function (hex) {
+        Script.fromHex(hex).isPushOnly().should.equal(false, hex)
+      })
+    })
+
+    it('reports SIG_PUSHONLY in a scriptSig, the same as truncated data does', function () {
+      NO_LENGTH_FIELD.forEach(function (hex) {
+        const r = run(hex, Interpreter.mainnetFlags())
+        r.ok.should.equal(false, hex)
+        r.errstr.should.equal('SCRIPT_ERR_SIG_PUSHONLY', hex)
+      })
+    })
+
+    it('reports BAD_OPCODE from the instruction read when the gate is not in the flags', function () {
+      const noGate = Interpreter.mainnetFlags() & ~Interpreter.SCRIPT_VERIFY_SIGPUSHONLY
+      NO_LENGTH_FIELD.forEach(function (hex) {
+        const r = run(hex, noGate)
+        r.ok.should.equal(false, hex)
+        r.errstr.should.equal('SCRIPT_ERR_BAD_OPCODE', hex)
+      })
+    })
+
+    it('leaves the transaction parseable and byte-exact, and input.script no longer throws', function () {
+      const txHex = [
+        '01000000', '01', 'ab'.repeat(32), '00000000',
+        '01', '4c',
+        'ffffffff', '00', '00000000'
+      ].join('')
+      const tx = new bsv.Transaction(txHex)
+      tx.toString().should.equal(txHex)
+      tx.inputs[0]._scriptBuffer.toString('hex').should.equal('4c')
+      // This threw a typed Script.InvalidBuffer before the fix, and the throw was what this
+      // block pinned. The containment it was protecting is no longer needed here, because
+      // there is nothing left to contain.
+      tx.inputs[0].script.toHex().should.equal('4c')
     })
   })
 

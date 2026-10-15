@@ -12,9 +12,9 @@
 // funded each lock, broadcast the spend and MINED it, so such an output can legitimately
 // exist on chain and be read back by a wallet using this library.
 //
-// Our Script parser is eager and throws on those bytes, and `Output#setScriptFromBuffer`
-// turns that throw into `this._script = null`, keeping the raw bytes in `_scriptBuffer`.
-// `output.script` is therefore NULL for an output read from a perfectly valid transaction.
+// Our Script parser was eager and THREW on those bytes, and `Output#setScriptFromBuffer`
+// turned that throw into `this._script = null`, keeping the raw bytes in `_scriptBuffer`.
+// `output.script` was therefore NULL for an output read from a perfectly valid transaction.
 //
 // Two call sites dereferenced it without asking and threw a raw TypeError — untyped, so a
 // consumer's `catch (e) { if (e instanceof bsv.errors...) }` could not classify it:
@@ -22,7 +22,15 @@
 //   * Transaction#_hasDustOutputs, reached from getSerializationError() and serialize()
 //   * Output#getSize, reached from Transaction#_estimateSize() (fee estimation)
 //
-// Both are fixed. The verdicts are unchanged; only the crash is gone.
+// Both were fixed, and the crash tests below still earn their place.
+//
+// THE PREMISE IS NOW GONE, with the port of @smartledger/bsv 9.35.0: the parser keeps a
+// cut-off length prefix rather than throwing, so these scripts parse and `output.script` is a
+// Script. The null path is no longer reachable from bytes at all — `Script.fromBuffer` is
+// total — so what these tests now pin is that the dust and size paths give the same verdicts
+// they gave through the null path. The guards in those two call sites stay, because an Output
+// can still be handed a null script directly, and because a guard removed on the grounds that
+// nothing reaches it is how the next parse failure becomes a crash.
 
 var bsv = require('../..')
 var errors = bsv.errors
@@ -44,10 +52,11 @@ var BELOW_DUST = '0100000000000000' // 1 satoshi
 var ABOVE_DUST = '00e1f50500000000'
 
 describe('an output script the node accepts but we cannot parse', function () {
-  it('leaves output.script null rather than failing to construct the transaction', function () {
+  it('parses the script now, keeping the raw bytes unchanged', function () {
     ACCEPTED_BY_NODE.forEach(function (lock) {
       var tx = new bsv.Transaction(txWithOutputScript(lock, BELOW_DUST))
-      expect(tx.outputs[0].script).to.equal(null, lock)
+      expect(tx.outputs[0].script).to.not.equal(null, lock)
+      tx.outputs[0].script.toHex().should.equal(lock, lock)
       tx.outputs[0]._scriptBuffer.toString('hex').should.equal(lock)
     })
   })
@@ -59,10 +68,10 @@ describe('an output script the node accepts but we cannot parse', function () {
     })
   })
 
-  it('reports the raw script in toObject() and inspect()', function () {
+  it('reports the raw script in toObject(), and a Script in inspect()', function () {
     var tx = new bsv.Transaction(txWithOutputScript('6a4c', BELOW_DUST))
     tx.outputs[0].toObject().script.should.equal('6a4c')
-    tx.outputs[0].inspect().should.match(/6a4c/)
+    tx.outputs[0].inspect().should.match(/OP_RETURN 0x4c/)
   })
 
   describe('the dust check answers instead of throwing a raw TypeError', function () {

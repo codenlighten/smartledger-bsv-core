@@ -70,6 +70,47 @@ Script.prototype.set = function (this: Script, obj: { chunks: ScriptChunk[] }) {
   return this
 }
 
+// A push whose LENGTH FIELD itself is cut off by the end of the script.
+//
+// The node's `GetOp2` tests the length field before reading it —
+//
+//     if (opcode == OP_PUSHDATA1) { if (end() - pc < 1) return false; ... }
+//
+// so an incomplete prefix fails the parse exactly as a push running past the end does, and
+// the node answers the same way in both places: SCRIPT_ERR_BAD_OPCODE from the instruction
+// read, and not-push-only from `IsPushOnly`. This parser used to THROW on the prefix case
+// while tolerating the data case, so `6a4c`, `6a4d01` and `6a4e0100` — valid outputs, since
+// a top-level OP_RETURN after Genesis ends evaluation successfully before those bytes are
+// reached — could not be constructed at all. One is on livenet in
+// ebc9fa1196a59e192352d76c0f6e73167046b9d37b8302b6bb6968dfd279b767.
+//
+// The bytes are kept in `lenPrefix` — the 0 to 3 bytes that were present where the length
+// field should be — with no `buf` and no `len`, because there is no declared length to
+// record. `toBuffer` writes the opcode and those bytes back unchanged, so the script
+// round-trips byte for byte and a transaction carrying it keeps its txid.
+//
+// Note what is NOT done: the chunk is not decomposed into bare opcode chunks, which would
+// also round-trip. A bare `{ opcodenum: 0x01 }` is a one-byte push carrying no byte, which
+// `isUndecodablePush` cannot recognise and the interpreter would push as false — so the
+// bytes would survive and the VERDICT would change. Round-tripping is necessary and not
+// sufficient.
+//
+// Ported from @smartledger/bsv 9.35.0, where this was measured against a compiled
+// bitcoin-sv v1.2.3: the node accepts all three post-Genesis and fails them
+// SCRIPT_ERR_OP_RETURN pre-Genesis, where both libraries threw in both eras.
+//
+// Returns true if it consumed the rest of the script as such a chunk.
+function pushLenPrefix (script: Script, br: BufferReader, opcodenum: number, lenFieldSize: number): boolean {
+  // BufferReader has no `remaining`, and adding one for this would widen a module every
+  // serializer in the library goes through.
+  if (br.buf.length - br.pos >= lenFieldSize) return false
+  script.chunks.push({
+    opcodenum,
+    lenPrefix: br.readAll()
+  })
+  return true
+}
+
 Script.fromBuffer = function (buffer: Buffer) {
   const script = new Script()
   script.chunks = []
@@ -88,29 +129,35 @@ Script.fromBuffer = function (buffer: Buffer) {
           opcodenum
         })
       } else if (opcodenum === Opcode.OP_PUSHDATA1) {
-        len = br.readUInt8()
-        buf = br.read(len)
-        script.chunks.push({
-          buf,
-          len,
-          opcodenum
-        })
+        if (!pushLenPrefix(script, br, opcodenum, 1)) {
+          len = br.readUInt8()
+          buf = br.read(len)
+          script.chunks.push({
+            buf,
+            len,
+            opcodenum
+          })
+        }
       } else if (opcodenum === Opcode.OP_PUSHDATA2) {
-        len = br.readUInt16LE()
-        buf = br.read(len)
-        script.chunks.push({
-          buf,
-          len,
-          opcodenum
-        })
+        if (!pushLenPrefix(script, br, opcodenum, 2)) {
+          len = br.readUInt16LE()
+          buf = br.read(len)
+          script.chunks.push({
+            buf,
+            len,
+            opcodenum
+          })
+        }
       } else if (opcodenum === Opcode.OP_PUSHDATA4) {
-        len = br.readUInt32LE()
-        buf = br.read(len)
-        script.chunks.push({
-          buf,
-          len,
-          opcodenum
-        })
+        if (!pushLenPrefix(script, br, opcodenum, 4)) {
+          len = br.readUInt32LE()
+          buf = br.read(len)
+          script.chunks.push({
+            buf,
+            len,
+            opcodenum
+          })
+        }
       } else {
         script.chunks.push({
           opcodenum
@@ -134,7 +181,11 @@ Script.prototype.toBuffer = function (this: Script) {
     const chunk = this.chunks[i] as ScriptChunk
     const opcodenum = chunk.opcodenum
     bw.writeUInt8(chunk.opcodenum)
-    if (chunk.buf) {
+    if (chunk.lenPrefix) {
+      // A cut-off length prefix: the bytes that were present where the length field should
+      // be, written back unchanged. Checked before `buf`, which such a chunk does not have.
+      bw.write(chunk.lenPrefix)
+    } else if (chunk.buf) {
       if (opcodenum < Opcode.OP_PUSHDATA1) {
         bw.write(chunk.buf)
       } else if (opcodenum === Opcode.OP_PUSHDATA1) {
@@ -325,6 +376,23 @@ Script.prototype._chunkToString = function (this: Script, chunk: ScriptChunk, ty
   const opcodenum = chunk.opcodenum
   const asm = (type === 'asm')
   let str = ''
+  if (chunk.lenPrefix !== undefined) {
+    // Checked BEFORE the no-data branch. A cut-off length prefix has no data, so that branch
+    // would catch it and write the opcode's NAME — and `6a4d` and `6a4d01` would both come out
+    // as `OP_RETURN OP_PUSHDATA2`, two different scripts sharing one text. This file already
+    // fixed that exact shape once, for unnamed opcodes written as bare hex.
+    //
+    // Both grammars write the raw bytes instead, the way an unnamed opcode is written, so
+    // nothing throws, nothing reads back as an empty push, and the two scripts stay distinct.
+    //
+    // Reading that text back gives bare opcode chunks rather than this one. The BYTES are
+    // identical, and re-parsing those bytes gives this chunk again — but the intermediate
+    // chunk list differs, and on it `isPushOnly` answers the opposite. That is the limit
+    // ./push-decode.ts already states for any hand-assembled chunk list: the node's answer is
+    // a function of the serialization, so round-trip through
+    // Script.fromBuffer(script.toBuffer()) before asking a predicate of it.
+    return ' 0x' + Buffer.concat([Buffer.from([opcodenum]), chunk.lenPrefix]).toString('hex')
+  }
   if (!chunk.buf) {
     // no data chunk
     if (typeof Opcode.reverseMap[opcodenum] !== 'undefined') {

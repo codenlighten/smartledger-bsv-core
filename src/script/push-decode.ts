@@ -54,10 +54,25 @@ import type { ScriptChunk } from './script.types'
  * caller who builds chunks directly and wants node semantics should round-trip them through
  * `Script.fromBuffer(script.toBuffer())` first.
  *
+ * THERE ARE TWO WAYS `GetOp` FAILS, and both land here. Above is the data case: the length
+ * decoded and the bytes ran out. The other is the LENGTH FIELD itself running out, which
+ * `GetOp2` tests first:
+ *
+ *     if (opcode == OP_PUSHDATA1) { if (end() - pc < 1) return false; nSize = *pc++; }
+ *
+ * The node returns false from the same function, so the same two callers give the same two
+ * answers — BAD_OPCODE at the instruction read, not-push-only from `IsPushOnly`. The parser
+ * represents that case as a chunk carrying `lenPrefix` and no `len` or `buf`, because there
+ * is no declared length to record. It used to throw instead, which is why `6a4c` could not
+ * be parsed at all.
+ *
  * @param {object} chunk a parsed script chunk
- * @returns {boolean} true if the chunk is a push declaring more bytes than it carries
+ * @returns {boolean} true if `GetOp` would fail on this chunk
  */
 function isUndecodablePush (chunk: ScriptChunk): boolean {
+  // The length field itself was cut off. No `len` to compare against, so this has to be
+  // asked separately rather than folded into the comparison below.
+  if (chunk.lenPrefix !== undefined) return true
   // A zero-length buffer is not nullish, so `01` — a one-byte push with no byte after it —
   // is caught here rather than slipping through as "no buffer at all".
   return chunk.buf != null && chunk.len !== undefined && chunk.buf.length < chunk.len

@@ -128,7 +128,10 @@ Input.prototype.toBufferWriter = function (this: Input, writer?: BufferWriter): 
   writer.writeReverse(this.prevTxId)
   writer.writeUInt32LE(this.outputIndex)
   const script = this._scriptBuffer as Buffer
-  writer.writeVarintNum(script.length)
+  // `_scriptCodeLength`, when set, is the length this field DECLARES while the bytes written are
+  // the ones present. The only thing that sets it is the original-algorithm signature digest in
+  // ../sighash.ts; see the comment on the field in ../types.ts.
+  writer.writeVarintNum(this._scriptCodeLength === undefined ? script.length : this._scriptCodeLength)
   writer.write(script)
   writer.writeUInt32LE(this.sequenceNumber)
   return writer

@@ -155,11 +155,74 @@ describe('a cut-off push length after OP_RETURN', function () {
       Script.fromHex('6a4c').toASM().should.equal('OP_RETURN 0x4c')
     })
 
-    it('throws rather than mis-reading that text back, which is the safe direction', function () {
-      // The grammar has no token for a pushdata opcode with no length, so the text form is
-      // informational. It fails loudly instead of reading back as a different script —
-      // `toBuffer` is the authoritative round trip.
-      ;(function () { Script.fromString('OP_RETURN 0x4c') }).should.throw()
+    // The shapes above whose ONLY undecodable chunk is a cut-off length prefix. The other two
+    // carry a complete prefix and short data, which the ASM grammar cannot write at all (see
+    // the test after this one).
+    const PREFIX_SHAPES = ['6a4c', '6a4d', '6a4d01', '6a4e', '6a4e01', '6a4e0100', '4c', '4d', '4e']
+
+    it('reads that text back as the same script, through both text forms', function () {
+      // This used to throw, and a comment here used to claim it read back as bare opcode
+      // chunks. Neither was good enough: `toString` was emitting a token its own `fromString`
+      // refused, so the text forms were write-only for a script that is on livenet. The
+      // grammar had no way to say "a pushdata opcode with FEWER prefix bytes than its length
+      // field takes", because `rawOpcodeToken` deliberately refuses a push byte. So
+      // `_chunkToString` writes the raw bytes and `lenPrefixToken` reads them back — the same
+      // escape this grammar already used for an opcode with no name.
+      //
+      // Measured over every 1- and 2-byte script plus every 3-byte script opening with a
+      // pushdata opcode (590,080 parsed, 382,540 of them carrying an undecodable push):
+      // fromString(toString()) returns the identical bytes for every one — 0 throws, 0 drift,
+      // 0 isPushOnly changes. Before this, 69,448 of them threw.
+      PREFIX_SHAPES.forEach(function (hex) {
+        const s = Script.fromHex(hex)
+        Script.fromString(s.toString()).toHex().should.equal(hex)
+        Script.fromASM(s.toASM()).toHex().should.equal(hex)
+        // and the same chunk, not merely the same bytes
+        Script.fromString(s.toString()).chunks.should.deep.equal(s.chunks)
+        Script.fromString(s.toString()).isPushOnly().should.equal(s.isPushOnly())
+      })
+    })
+
+    it('accepts only tokens the grammar had no meaning for before', function () {
+      // A new token rule is safe only if every token it accepts was previously REFUSED, and the
+      // sweep above cannot see that, because it only ever feeds back text this library wrote.
+      // The legacy spelling writes a push's LENGTH as a raw byte token — `0x47 0x3044…`, which
+      // several tests in test/script/script.js use — so a rule that swallowed `0x47` would break
+      // it. A general "these bytes, as one chunk" rule did exactly that, in 13 existing tests.
+      //
+      // This rule accepts a token only when its first byte is PUSHDATA1/2/4 AND fewer length
+      // bytes follow than that opcode takes. Its six tokens are never a legacy length token
+      // (0x01–0x4b) and never an unnamed opcode (above 0x4e), which is why nothing that parsed
+      // before parses differently.
+      const ACCEPTED = ['0x4c', '0x4d', '0x4d01', '0x4e', '0x4e01', '0x4e0100']
+      ACCEPTED.forEach(function (t) {
+        parseInt(t.slice(2, 4), 16).should.be.within(0x4c, 0x4e)
+        Script.fromString(t).toHex().should.equal(t.slice(2))
+        Script.fromASM(t).toHex().should.equal(t.slice(2))
+      })
+      // the legacy two-token data spelling is untouched
+      Script.fromString('0x47 0x' + '11'.repeat(71)).toHex().should.equal('47' + '11'.repeat(71))
+      // a COMPLETE length prefix is not this rule's business and still falls through
+      ;(function () { Script.fromString('0x4c05') }).should.throw()
+    })
+
+    it('still cannot write a SHORT-DATA push in ASM, which is older than this and not ours', function () {
+      // A push whose length prefix is complete and whose data is short has no ASM form: ASM
+      // writes a push as its bare hex, and that hex is then read back as a push of exactly
+      // that many bytes. So `4c05` + 2 bytes comes back as a 2-byte push. Nothing was broken
+      // here by the cut-off-prefix work, and nothing is claimed to be fixed: in the sweep
+      // above, 313,095 scripts come back from ASM with different bytes and 256,693 change
+      // their `isPushOnly` answer, and @smartledger/bsv 9.36.0 gives the same two numbers
+      // (313,092 and 256,693 — the three are empty PUSHDATA1 pushes, `4c004c`, whose
+      // non-minimal encoding ASM also cannot write, and which only moved out of the throwing
+      // column into this one).
+      //
+      // The pair that IS exact for all of them is toString/fromString, asserted above.
+      const short = Script.fromHex('6a4c50' + 'cd'.repeat(10))
+      Script.fromString(short.toString()).toHex().should.equal('6a4c50' + 'cd'.repeat(10))
+      Script.fromASM(short.toASM()).toHex().should.not.equal('6a4c50' + 'cd'.repeat(10))
+      // ASM reads those ten bytes back as a complete ten-byte push
+      Script.fromASM(short.toASM()).toHex().should.equal('6a0a' + 'cd'.repeat(10))
     })
   })
 
@@ -182,6 +245,13 @@ describe('a cut-off push length after OP_RETURN', function () {
       return t
     }
 
+    // Read the next test with its hash type in view: 0x41 is FORKID, so this is the BIP-143
+    // digest, which serializes the scriptCode through the plain CScript writer and does carry
+    // every byte. The ORIGINAL algorithm does NOT: it writes only the bytes up to where the
+    // script walk fails, while declaring the full length, and this library did not until
+    // 2026-10-15. See test/transaction/sighash_scriptcode_tail.js, which measures all 55 rows of
+    // a compiled node's reference corpus. `6a4c` below would be unaffected either way — its
+    // partial prefix is empty — so nothing here was wrong, only narrower than it reads.
     it('signs the cut-off push, because the scriptCode is the whole locking script', function () {
       const lock = Script.fromHex(LOCK)
       const pre = Sighash.sighashPreimage(spendingTx(), SIGHASH, 0, lock, new BN(SATS)).toString('hex')

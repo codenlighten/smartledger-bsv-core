@@ -9,6 +9,7 @@ import Hash = require('../crypto/hash')
 import ECDSA = require('../crypto/ecdsa')
 import $ = require('../util/preconditions')
 import _ = require('../util/_')
+import { isUndecodablePush } from '../script/push-decode'
 import type { Script } from '../script/script.types'
 import type { PrivateKey } from '../privatekey.types'
 import type { PublicKey } from '../publickey.types'
@@ -193,6 +194,38 @@ const sighashPreimageForForkId = function (transaction: TransactionLike, sighash
  * @param {satoshisBN} input's amount (for  ForkId signatures)
  *
  */
+/**
+ * How many trailing bytes of a scriptCode the node's original-algorithm serializer does NOT
+ * write, while still declaring them in the length prefix.
+ *
+ * `CTransactionSignatureSerializer::SerializeScriptCode` writes
+ * `WriteCompactSize(scriptCode.size() - nCodeSeparators)` and then the bytes up to the iterator
+ * left by the LAST, FAILED `GetOp` — and `GetOp2` advances `pc` past the opcode, and past a
+ * complete length field, BEFORE it tests whether the rest is there:
+ *
+ *     unsigned int opcode = *pc++;
+ *     ...
+ *     } else if (opcode == OP_PUSHDATA2) { if (end() - pc < 2) return false; nSize = ReadLE16(&pc[0]); pc += 2; }
+ *     if (end() - pc < 0 || (unsigned int)(end() - pc) < nSize) return false;
+ *
+ * So the opcode and whatever length field it managed to read ARE written, and the partial
+ * operand after them is not. An undecodable push is always the final chunk, so only the last one
+ * can be affected, and the two shapes drop exactly what they hold past that point: the partial
+ * length prefix, or the short data.
+ *
+ * Measured against a compiled bitcoin-sv v1.2.3 on 2026-10-15: with this correction all 55 rows
+ * of the reference corpus in test/data/sighash-scriptcode-tail.json agree on the preimage AND the
+ * digest, where before 10 differed. `6a4c` is not among them — its partial prefix is empty, so
+ * there is nothing to drop.
+ */
+function unserializedScriptCodeTail (subscript: Script): number {
+  const chunks = subscript.chunks
+  if (chunks.length === 0) return 0
+  const last = chunks[chunks.length - 1]!
+  if (!isUndecodablePush(last)) return 0
+  return last.lenPrefix !== undefined ? last.lenPrefix.length : (last.buf as Buffer).length
+}
+
 const sighashPreimage = function sighashPreimage (transaction: TransactionLike, sighashType: number, inputNumber: number, subscript: Script, satoshisBN?: BN, flags?: number): Buffer {
   // Reassigned below (a defensive copy), so it is a local rather than the param.
   // eslint-disable-next-line
@@ -267,7 +300,17 @@ const sighashPreimage = function sighashPreimage (transaction: TransactionLike, 
     txcopy.inputs[i] = new Input(txcopy.inputs[i]).setScript(scriptClass().empty())
   }
 
-  txcopy.inputs[inputNumber] = new Input(txcopy.inputs[inputNumber]).setScript(subscript)
+  const signedInput = new Input(txcopy.inputs[inputNumber]).setScript(subscript)
+
+  // The node declares the full length and writes fewer bytes; see unserializedScriptCodeTail.
+  const dropped = unserializedScriptCodeTail(subscript)
+  if (dropped > 0) {
+    const full = subscript.toBuffer()
+    signedInput.setScript(full.slice(0, full.length - dropped))
+    signedInput._scriptCodeLength = full.length
+  }
+
+  txcopy.inputs[inputNumber] = signedInput
 
   if ((sighashType & 31) === Signature.SIGHASH_NONE ||
     (sighashType & 31) === Signature.SIGHASH_SINGLE) {

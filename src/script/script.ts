@@ -70,6 +70,14 @@ Script.prototype.set = function (this: Script, obj: { chunks: ScriptChunk[] }) {
   return this
 }
 
+// How many bytes of length field each pushdata opcode takes. One table, so the byte parser and
+// the text reader cannot come to disagree about where a prefix is incomplete.
+const PUSH_LEN_FIELD_SIZE: Record<number, number> = {
+  [Opcode.OP_PUSHDATA1]: 1,
+  [Opcode.OP_PUSHDATA2]: 2,
+  [Opcode.OP_PUSHDATA4]: 4
+}
+
 // A push whose LENGTH FIELD itself is cut off by the end of the script.
 //
 // The node's `GetOp2` tests the length field before reading it —
@@ -100,7 +108,8 @@ Script.prototype.set = function (this: Script, obj: { chunks: ScriptChunk[] }) {
 // SCRIPT_ERR_OP_RETURN pre-Genesis, where both libraries threw in both eras.
 //
 // Returns true if it consumed the rest of the script as such a chunk.
-function pushLenPrefix (script: Script, br: BufferReader, opcodenum: number, lenFieldSize: number): boolean {
+function pushLenPrefix (script: Script, br: BufferReader, opcodenum: number): boolean {
+  const lenFieldSize = PUSH_LEN_FIELD_SIZE[opcodenum]!
   // BufferReader has no `remaining`, and adding one for this would widen a module every
   // serializer in the library goes through.
   if (br.buf.length - br.pos >= lenFieldSize) return false
@@ -129,7 +138,7 @@ Script.fromBuffer = function (buffer: Buffer) {
           opcodenum
         })
       } else if (opcodenum === Opcode.OP_PUSHDATA1) {
-        if (!pushLenPrefix(script, br, opcodenum, 1)) {
+        if (!pushLenPrefix(script, br, opcodenum)) {
           len = br.readUInt8()
           buf = br.read(len)
           script.chunks.push({
@@ -139,7 +148,7 @@ Script.fromBuffer = function (buffer: Buffer) {
           })
         }
       } else if (opcodenum === Opcode.OP_PUSHDATA2) {
-        if (!pushLenPrefix(script, br, opcodenum, 2)) {
+        if (!pushLenPrefix(script, br, opcodenum)) {
           len = br.readUInt16LE()
           buf = br.read(len)
           script.chunks.push({
@@ -149,7 +158,7 @@ Script.fromBuffer = function (buffer: Buffer) {
           })
         }
       } else if (opcodenum === Opcode.OP_PUSHDATA4) {
-        if (!pushLenPrefix(script, br, opcodenum, 4)) {
+        if (!pushLenPrefix(script, br, opcodenum)) {
           len = br.readUInt32LE()
           buf = br.read(len)
           script.chunks.push({
@@ -215,6 +224,25 @@ function rawOpcodeToken (token: string): number | undefined {
   return num > Opcode.OP_PUSHDATA4 ? num : undefined
 }
 
+/**
+ * An incomplete push written as raw bytes, `0x4d01`: how `_chunkToString` writes a chunk whose
+ * length prefix was cut off. The opcode byte, then FEWER prefix bytes than its length field
+ * takes — fewer is what makes the token unambiguous, because a push whose prefix IS complete is
+ * written as a push instead, and `rawOpcodeToken` above deliberately refuses a push byte.
+ *
+ * Without this the text forms were write-only for these scripts: `toString` emitted a token its
+ * own `fromString` then refused.
+ */
+function lenPrefixToken (token: string): ScriptChunk | undefined {
+  if (!/^0x(?:[0-9a-fA-F]{2})+$/.test(token)) return undefined
+  const bytes = Buffer.from(token.slice(2), 'hex')
+  const lenFieldSize = PUSH_LEN_FIELD_SIZE[bytes[0]!]
+  if (lenFieldSize === undefined) return undefined
+  const lenPrefix = bytes.slice(1)
+  if (lenPrefix.length >= lenFieldSize) return undefined
+  return { opcodenum: bytes[0]!, lenPrefix }
+}
+
 Script.fromASM = function (str: string) {
   const script = new Script()
   script.chunks = []
@@ -232,6 +260,7 @@ Script.fromASM = function (str: string) {
     const opcode = Opcode(token!)
     let opcodenum = opcode.toNumber()
     const raw = rawOpcodeToken(token!)
+    const incompletePush = lenPrefixToken(token!)
 
     // we start with two special cases, 0 and -1, which are handled specially in
     // toASM. see _chunkToString.
@@ -239,6 +268,10 @@ Script.fromASM = function (str: string) {
       script.chunks.push({
         opcodenum: raw
       })
+      i = i + 1
+    } else if (incompletePush !== undefined) {
+      // A push whose length prefix was cut off, as _chunkToString writes it.
+      script.chunks.push(incompletePush)
       i = i + 1
     } else if (token === '0') {
       opcodenum = 0
@@ -331,12 +364,17 @@ Script.fromString = function (str: string) {
     const opcode = Opcode(token!)
     let opcodenum = opcode.toNumber()
     const raw = rawOpcodeToken(token!)
+    const incompletePush = lenPrefixToken(token!)
 
     if (raw !== undefined) {
       // An opcode with no name, as toString writes it.
       script.chunks.push({
         opcodenum: raw
       })
+      i = i + 1
+    } else if (incompletePush !== undefined) {
+      // A push whose length prefix was cut off, as toString writes it.
+      script.chunks.push(incompletePush)
       i = i + 1
     } else if (_.isUndefined(opcodenum)) {
       opcodenum = parseInt(token!)
@@ -385,12 +423,12 @@ Script.prototype._chunkToString = function (this: Script, chunk: ScriptChunk, ty
     // Both grammars write the raw bytes instead, the way an unnamed opcode is written, so
     // nothing throws, nothing reads back as an empty push, and the two scripts stay distinct.
     //
-    // Reading that text back gives bare opcode chunks rather than this one. The BYTES are
-    // identical, and re-parsing those bytes gives this chunk again — but the intermediate
-    // chunk list differs, and on it `isPushOnly` answers the opposite. That is the limit
-    // ./push-decode.ts already states for any hand-assembled chunk list: the node's answer is
-    // a function of the serialization, so round-trip through
-    // Script.fromBuffer(script.toBuffer()) before asking a predicate of it.
+    // `lenPrefixToken` reads this token back, so both text forms round-trip to the same bytes
+    // and the same chunk. It had to be taught to: a bare push byte is an incomplete push, which
+    // `rawOpcodeToken` refuses, so until then `toString` wrote a token `fromString` threw on.
+    // The general limit in ./push-decode.ts still holds for a HAND-ASSEMBLED chunk list, where
+    // no serialization ever existed: the node's answer is a function of the bytes, so
+    // round-trip through Script.fromBuffer(script.toBuffer()) before asking a predicate of it.
     return ' 0x' + Buffer.concat([Buffer.from([opcodenum]), chunk.lenPrefix]).toString('hex')
   }
   if (!chunk.buf) {

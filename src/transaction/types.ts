@@ -179,6 +179,12 @@ export interface Input {
   sequenceNumber: number
   _script?: import('../script/script.types').Script | null
   _scriptBuffer?: Buffer
+  /** The length this input's script field DECLARES, when that differs from the bytes present.
+   *  Set only by the original-algorithm signature digest in ../sighash.ts, on its own throwaway
+   *  copy of the transaction, where the node declares a scriptCode's full length and writes
+   *  fewer bytes. Nothing else may set it: a real transaction serialized this way would not
+   *  parse. */
+  _scriptCodeLength?: number
   output?: Output | undefined
 
   readonly script: import('../script/script.types').Script | null

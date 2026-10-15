@@ -9,7 +9,8 @@ waiting for a major. See **Stability** in the README.
 
 ## [1.6.0] - 2026-10-15
 
-Ported from `@smartledger/bsv` 9.35.0. `Script.fromBuffer` is now **total**: every byte string
+Ported from `@smartledger/bsv` 9.35.0, with the text-reader fix released there as 9.37.0 folded
+in rather than left for a second port. `Script.fromBuffer` is now **total**: every byte string
 parses, as the node's `CScript` does, and a decode failure surfaces at USE.
 
 That is an argument over the code rather than a fuzzing result. `fromBuffer` had exactly four
@@ -21,6 +22,66 @@ rather than a `RangeError`, which is the case that was already handled. `readUIn
 unguarded. Measured alongside: a `PUSHDATA4` declaring 4,294,967,295 bytes with none present
 parses and round-trips exactly, as do all 196,608 three-byte scripts opening with a pushdata
 opcode, in this package and in `@smartledger/bsv` alike, with zero throws.
+
+### Fixed — the original-algorithm signature digest signed bytes the node does not sign
+
+**A consensus divergence, and the one the 9.35.0 parser change opened the door to.** When a
+scriptCode ends in a push the node cannot decode, the node does **not** serialize all of it into
+the original-algorithm digest. `CTransactionSignatureSerializer::SerializeScriptCode` writes
+
+    ::WriteCompactSize(s, scriptCode.size() - nCodeSeparators);
+
+and then the bytes up to the iterator left by the **last, failed** `GetOp` — and `GetOp2`
+advances `pc` past the opcode, and past a complete length field, *before* testing whether the
+rest is present:
+
+    unsigned int opcode = *pc++;
+    ...
+    } else if (opcode == OP_PUSHDATA2) { if (end() - pc < 2) return false; nSize = ReadLE16(&pc[0]); pc += 2; }
+    if (end() - pc < 0 || (unsigned int)(end() - pc) < nSize) return false;
+
+So the opcode and whatever length field it read are written, the partial operand after them is
+dropped, **and the length prefix still counts it**. The node hashes a field that declares more
+bytes than it contains. This library wrote the scriptCode in full, and so computed a different
+digest: a signature valid on the network did not verify here, and one made here would not verify
+there.
+
+Measured against a compiled **bitcoin-sv v1.2.3**, over a 55-row reference corpus now vendored
+as `test/data/sighash-scriptcode-tail.json`: **45 of 55 rows agreed before this release, and all
+55 agree after it** — preimage and digest both. The ten that differed are
+`6a4d01`, `6a4e0100`, `6a4c050102`, `6a4d030001ff` and `6a050102`, each at both
+original-algorithm hash types.
+
+**`6a4c` is not one of them**, and that row is why this is a model rather than a guess: its
+cut-off prefix is **empty**, so the node writes the whole script and nothing is dropped. A fix
+that dropped "the undecodable chunk" instead of "the bytes past where the walk stopped" would
+pass the five scripts above and break this one. The rule is exactly:
+
+    dropped = chunk.lenPrefix !== undefined ? chunk.lenPrefix.length : chunk.buf.length
+
+on the final chunk, when that chunk is an undecodable push — and an undecodable push is always
+the final chunk.
+
+**Reachable today.** `SignatureHash` takes the original algorithm whenever
+`enabledSighashForkid && sigHashType.hasForkId() && !sigHashType.hasChronicle()` is false — so
+for any non-FORKID hash type, and for **`0x61`, FORKID|CHRONICLE**, which is post-Chronicle and
+current. **BIP-143 is untouched**: its scriptCode goes through the plain `CScript` serializer
+with no walk, and all 33 BIP-143 rows of the corpus matched before and after. The 1,000-row
+sighash vector report still passes 1000/1000, the script vectors 1483/1483 with zero false
+accepts and zero false rejects, the tx vectors 161/161 and the conformance corpus 455/455.
+
+`Input` gained a private `_scriptCodeLength`, the length its script field *declares* when that
+differs from the bytes present. Only this digest sets it, on its own throwaway copy of the
+transaction. A real transaction serialized that way would not parse, which is why the field is
+documented as off limits everywhere else.
+
+**What this corrects on our side as well.** A claim carried in the sibling package's notes since 9.35.0 — that
+the library's signed bytes had been confirmed byte-exact against the reference on a 55-row
+corpus — rested on a comparison that turned out to be vacuous, and the session that produced it
+withdrew it. The honest version is the one above: 45 of 55 before, 55 of 55 after. The lesson is
+the one this changelog has recorded before in other words: **a confirmation is only as good as
+the column it was compared against, and "it matched" is worth nothing until something is known
+to be capable of failing.**
 
 ### Fixed — three output scripts the node accepts and mines could not be parsed at all
 
@@ -56,6 +117,11 @@ Stability's own rule decides it: a consensus bug "is fixed in a **patch** when i
 what the network refuses, and in a **minor** when it changes what is accepted." This changes what
 is accepted. `ScriptChunk` also gains an optional `lenPrefix` member, and additions are minors.
 
+The digest correction above lands in the same release under the same clause, and it is the
+stronger case for a minor: it changes which signatures verify in both directions, accepting ones
+this package refused and refusing ones it accepted, for the scripts it covers. It affects no
+signature over a scriptCode whose pushes all decode, which is every well-formed script.
+
 No well-formed script changes verdict. The 455-case conformance corpus is unchanged, and the
 node's own 1,483 `script_tests.json` vectors still pass 1,483/1,483 with zero false accepts and
 zero false rejects.
@@ -79,9 +145,12 @@ zero false rejects.
 * `isScriptHashIn` used the parse THROW to answer false, so its answer now comes from
   `classify()`; none of the newly parseable shapes classifies as a known type.
 
-**Cross-checked against `@smartledger/bsv` 9.36.0 directly**: 22 interpreter verdicts, 65,792
-byte strings through parse and round-trip, and 13 shapes through every text form, predicate,
-`classify()` and chunk shape — **zero differences**.
+**Cross-checked against `@smartledger/bsv` directly**: 22 interpreter verdicts, 65,792 byte
+strings through parse and round-trip, and 13 shapes through every text form, predicate,
+`classify()` and chunk shape — **zero differences** against published 9.36.0. Repeated against
+9.37.0, which carries the text-reader fix below, over 655,616 byte strings and eight observables
+each — chunks, `toBuffer`, `toASM`, `toString`, `fromASM(toASM())`, `fromString(toString())`,
+`isPushOnly` and `classify()` — **zero differences**.
 
 What that evidence is and is not: strong tested agreement with the node on the rows a compiled
 node judged, and strong tested agreement with the sibling package, over exhaustive short
@@ -89,9 +158,41 @@ scripts and sampled longer ones. It is not an exhaustive equivalence proof over 
 length or every downstream caller. The totality argument above is the one claim here that is
 structural rather than sampled.
 
+### The text forms read back too, which took a second pass
+
 The text forms write a cut-off prefix as raw bytes, so `6a4d` and `6a4d01` stay distinct rather
-than both printing as `OP_RETURN OP_PUSHDATA2`. Reading that text back throws rather than
-producing different bytes.
+than both printing as `OP_RETURN OP_PUSHDATA2`. **Nothing could read that text back.**
+`rawOpcodeToken` deliberately refuses a push byte, so `Script.fromString(script.toString())`
+threw `Invalid script` on a script `toString` had just written, as did
+`Script.fromASM(script.toASM())` — a public pair of functions where one emits what the other
+refuses. `lenPrefixToken` now reads the token, and the chunk it returns is the chunk
+`fromBuffer` gives for the same bytes. `PUSH_LEN_FIELD_SIZE` holds the 1/2/4 length-field sizes
+in one table that both the byte parser and the text reader read, so the two cannot come to
+disagree about where a prefix is incomplete.
+
+Measured over every 1- and 2-byte script plus every 3-byte script opening with a pushdata opcode
+— 590,080 parsed, of which **382,540 carry an undecodable push** — `fromString(toString())` went
+from **69,448 throws** to **0 throws, 0 byte differences and 0 `isPushOnly` changes**, and
+`fromASM(toASM())` is exact for every cut-off-prefix script.
+
+What is still not fixed, stated because the same sweep measures it: a push whose length prefix is
+*complete* and whose *data* is short has no ASM form at all, because ASM writes a push as its
+bare hex and that hex reads back as a push of exactly that many bytes. 313,095 scripts come back
+from `fromASM` with different bytes and 256,693 change `isPushOnly` from `false` to `true`.
+Published `@smartledger/bsv` 9.36.0 gives the same two figures, so this is older than the
+cut-off-prefix work and independent of it. For a malformed script, `toBuffer`/`fromBuffer` is
+the authoritative round trip and `toString`/`fromString` is now exact; ASM is a display format
+and cannot carry one.
+
+That last point is a decision, not a limit of the mechanism, and it was taken with the
+alternative built and measured. Writing such a chunk as raw bytes in ASM too — the same escape —
+makes `fromASM(toASM())` exact for **all 721,152** scripts in the sweep, with **zero** change to
+the ASM text of any script whose ASM already round-tripped. It also rewrites the ASM of 378,633
+scripts whose text was lossy, and **13 existing tests assert that old text**, including three
+that pin `4c00` printing as the minimal `0` and one that documents ASM as deliberately minimal.
+So it overturns a documented position about what ASM is for, on a published package, and that is
+not a port's decision to make. The patch is small and the numbers above are what it costs and
+buys.
 
 `Output#setScriptFromBuffer`'s null path is now unreachable from bytes. Its guards are **kept** —
 a guard deleted because nothing currently reaches it is how the next parse failure becomes a

@@ -150,19 +150,28 @@ describe('the scriptCode tail the node does not sign', function () {
   })
 
   it('gives one digest for two different scripts, when the dropped bytes are all that differ', function () {
-    // The sharpest consequence of the rule, and now node-measured on both sides of it:
-    // 4c05aabb51 and 4c05aabbab are
-    // different byte strings, but the node writes 4c05 for both and declares 5 for both, so the
-    // digests must be EQUAL. If the rule were "drop the chunk" or "write what we parsed", they
-    // would differ. It also puts a separator byte (0xab) inside the DROPPED region, where it
-    // must not be counted — the walk never reads it as an opcode.
-    const a = Sighash.sighash(fixtureTx(), 0x01, 0, Script.fromHex('4c05aabb51'), sats, FORKID).toString('hex')
-    const b = Sighash.sighash(fixtureTx(), 0x01, 0, Script.fromHex('4c05aabbab'), sats, FORKID).toString('hex')
-    a.should.equal(b)
-    // and the BIP-143 digests, which carry every byte, must DIFFER for the same pair
-    const a143 = Sighash.sighash(fixtureTx(), 0x41, 0, Script.fromHex('4c05aabb51'), sats, FORKID).toString('hex')
-    const b143 = Sighash.sighash(fixtureTx(), 0x41, 0, Script.fromHex('4c05aabbab'), sats, FORKID).toString('hex')
-    a143.should.not.equal(b143)
+    // The sharpest consequence of the rule, and the REFERENCE's own digests show it: 4c05aabb51
+    // and 4c05aabbab are different byte strings, but the node writes 4c05 for both and declares
+    // 5 for both, so its original-algorithm digests are EQUAL — while its BIP-143 digests, which
+    // carry every byte, differ. If the rule were "drop the chunk" or "write what we parsed" the
+    // first pair would differ too. 4c05aabbab also puts a separator byte (0xab) inside the
+    // DROPPED region, where it must not be counted; the walk never reads it as an opcode.
+    //
+    // Asserted against the vendored rows first, so the property is the node's and not ours, and
+    // then against this library.
+    const pick = function (script, ht) {
+      const r = CORPUS.handAssembledRows.filter(function (x) { return x.scriptCode === script && x.sighashType === ht })[0]
+      ;(r === undefined).should.equal(false, script + ' ' + ht + ' missing from the corpus')
+      return r.digest
+    }
+    pick('4c05aabb51', '0x01').should.equal(pick('4c05aabbab', '0x01'))
+    pick('4c05aabb51', '0x41').should.not.equal(pick('4c05aabbab', '0x41'))
+
+    const ours = function (script, ht) {
+      return Buffer.from(Sighash.sighash(fixtureTx(), parseInt(ht, 16), 0, Script.fromHex(script), sats, FORKID)).reverse().toString('hex')
+    }
+    ours('4c05aabb51', '0x01').should.equal(ours('4c05aabbab', '0x01'))
+    ours('4c05aabb51', '0x41').should.not.equal(ours('4c05aabbab', '0x41'))
   })
 
   it('does not touch the caller\'s transaction or the other inputs', function () {

@@ -398,5 +398,113 @@
    "preimage": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000066a0401020304ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
    "digest": "68ddcaf97e954ac7b72202a11267fbe275c10b58e1364a9d9623e5cffb9b2fe6"
   }
+ ],
+ "handAssembledSource": "The same fixture, for three scripts a PARSE never produces — a chunk list can hold them but Script.fromBuffer cannot return them. Emitted twice independently and byte-identically: by a compiled bitcoin-sv v1.2.3 (reference column md5 99a6bf7d3eeba4785d49300e9ba5793c) and by an independent Rust node implementation, 2026-10-15. These are the rows that distinguish the node rule (write the bytes the walk reached) from the shortcut it is easy to write instead (drop the last chunk).",
+ "handAssembledRows": [
+  {
+   "id": "middle-push-then-op1:nocs:ht41",
+   "sighashType": "0x41",
+   "scriptCode": "4c05aabb51",
+   "preimage": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05aabb51a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+   "digest": "9d641ee0bfe4d457f9ea123965c59b6afeb28298c68c27578290484b15225d66"
+  },
+  {
+   "id": "middle-push-then-op1:nocs:htc1",
+   "sighashType": "0xc1",
+   "scriptCode": "4c05aabb51",
+   "preimage": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05aabb51a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+   "digest": "adaa952f56718e953e866f6344c1052cde4e8816907a2a955d88bdd68eac7df4"
+  },
+  {
+   "id": "middle-push-then-op1:nocs:ht43",
+   "sighashType": "0x43",
+   "scriptCode": "4c05aabb51",
+   "preimage": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c0000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05aabb51a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000043000000",
+   "digest": "857b0ccc5240bb9f771a914725d40e4bb7cf494f6c38568ceb0e384df0d66f19"
+  },
+  {
+   "id": "middle-push-then-op1:nocs:ht61",
+   "sighashType": "0x61",
+   "scriptCode": "4c05aabb51",
+   "preimage": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+   "digest": "7f43d68f628a95fee0b88ec8ab660ceff1e45f2f054a9167a8b8514b74b50e9d"
+  },
+  {
+   "id": "middle-push-then-op1:nocs:ht1",
+   "sighashType": "0x01",
+   "scriptCode": "4c05aabb51",
+   "preimage": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+   "digest": "4ad509e634849da199f40afd0091479db6e14f4ee01a22f76e65db5f4057d928"
+  },
+  {
+   "id": "separator-then-cut-after:nocs:ht41",
+   "sighashType": "0x41",
+   "scriptCode": "ab6a4c050102",
+   "preimage": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000006ab6a4c050102a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+   "digest": "63de1efe75315af201f070615008fbfa9e0db8b6808ea9db528e8e2c80a37f71"
+  },
+  {
+   "id": "separator-then-cut-after:nocs:htc1",
+   "sighashType": "0xc1",
+   "scriptCode": "ab6a4c050102",
+   "preimage": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000006ab6a4c050102a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+   "digest": "a2bd211f33f4e29931141c58bfec0c0dbbb574de66eb2aded6e64290d04d9cd8"
+  },
+  {
+   "id": "separator-then-cut-after:nocs:ht43",
+   "sighashType": "0x43",
+   "scriptCode": "ab6a4c050102",
+   "preimage": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c0000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000006ab6a4c050102a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000043000000",
+   "digest": "340cd558cb395498ca1bf7ead4924aa991699783001871376e4c36be06cdde49"
+  },
+  {
+   "id": "separator-then-cut-after:nocs:ht61",
+   "sighashType": "0x61",
+   "scriptCode": "ab6a4c050102",
+   "preimage": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000056a4c05ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+   "digest": "c8dee4bae96faa4787fa6502ec58251f0dfd1fed92f285ca4b6d06493007f307"
+  },
+  {
+   "id": "separator-then-cut-after:nocs:ht1",
+   "sighashType": "0x01",
+   "scriptCode": "ab6a4c050102",
+   "preimage": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000056a4c05ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+   "digest": "e6f0ad3559afadab0ebc0395e8da9aeb381cbce99dda9efcb675a2c9bd5b6559"
+  },
+  {
+   "id": "cut-operand-ends-in-separator:nocs:ht41",
+   "sighashType": "0x41",
+   "scriptCode": "4c05aabbab",
+   "preimage": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05aabbaba086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+   "digest": "d4bc785e08da501b11de5e7aa8ce132cee756b2a4236b82a05b0dc7103b7dc6c"
+  },
+  {
+   "id": "cut-operand-ends-in-separator:nocs:htc1",
+   "sighashType": "0xc1",
+   "scriptCode": "4c05aabbab",
+   "preimage": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05aabbaba086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+   "digest": "8709c3fe42e85a05ea6b717049ada205ab33ee160b23d29b8e3369d6d129620d"
+  },
+  {
+   "id": "cut-operand-ends-in-separator:nocs:ht43",
+   "sighashType": "0x43",
+   "scriptCode": "4c05aabbab",
+   "preimage": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c0000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05aabbaba086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000043000000",
+   "digest": "7af56846bec4bae8fc103442c56478cd7bc56ba1cac0e4fcc860cfa3e3a7b667"
+  },
+  {
+   "id": "cut-operand-ends-in-separator:nocs:ht61",
+   "sighashType": "0x61",
+   "scriptCode": "4c05aabbab",
+   "preimage": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+   "digest": "7f43d68f628a95fee0b88ec8ab660ceff1e45f2f054a9167a8b8514b74b50e9d"
+  },
+  {
+   "id": "cut-operand-ends-in-separator:nocs:ht1",
+   "sighashType": "0x01",
+   "scriptCode": "4c05aabbab",
+   "preimage": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000054c05ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+   "digest": "4ad509e634849da199f40afd0091479db6e14f4ee01a22f76e65db5f4057d928"
+  }
  ]
 }

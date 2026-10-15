@@ -57,6 +57,17 @@ cut-off prefix is **empty**, so the node writes the whole script and nothing is 
 that dropped "the undecodable chunk" instead of "the bytes past where the walk stopped" would
 pass the five scripts above and break this one.
 
+**Confirmed after release, on the rows that could have caught the shortcut.** The three shapes a
+parse cannot produce — `4c05aabb51` (an undecodable push with an `OP_1` after it), `ab6a4c050102`
+(a separator before one) and `4c05aabbab` (a separator byte *inside* the dropped operand) — were
+emitted for all five hash types by a compiled bitcoin-sv v1.2.3 and, independently and
+byte-identically, by a Rust node implementation. The published artifacts of this release, read
+from the registry, match both columns on all 15 rows, which are now vendored beside the other 55
+as `handAssembledRows`. Three consequences of the rule are pinned from outside rather than
+argued: the trailing `OP_1` is dropped with the operand; the declared length subtracts only the
+separators the walk **reached**; and a `0xab` inside the dropped operand is operand bytes, not a
+separator. The earlier chunk-list shortcut would have failed the first of those three.
+
 The implementation is the node's walk itself, over the **bytes**, counting the separators it
 passes and recording where it stops — not a reading of this library's chunk list. A first
 version did read the chunk list, on the ground that a parse always leaves an undecodable push

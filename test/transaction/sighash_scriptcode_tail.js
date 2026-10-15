@@ -94,10 +94,29 @@ describe('the scriptCode tail the node does not sign', function () {
       })
   })
 
-  // The three tests below are MODEL-DERIVED, not node-measured: the expected bytes come from the
-  // rule in SerializeScriptCode, applied by hand to a case the 55-row corpus does not contain.
-  // The rule itself is what the corpus measured, so this extends a validated model rather than
-  // asserting a new fact about the node. Labelled, because the difference matters.
+  // These were MODEL-DERIVED when written — their expected bytes came from the rule in
+  // SerializeScriptCode, applied by hand to cases the 55-row corpus does not contain. They are
+  // now NODE-MEASURED: the three shapes were emitted for all five hash types by a compiled
+  // bitcoin-sv v1.2.3 and, independently and byte-identically, by a Rust node, and those 15 rows
+  // are vendored beside the other 55 as `handAssembledRows`. The test below asserts them
+  // directly; the ones after it keep their hand-written assertions as a readable statement of
+  // what the rule says, which is worth having even once the bytes are pinned.
+  //
+  // They are the rows that distinguish the node's rule from the shortcut it is easy to write
+  // instead, so they are the ones worth having from outside.
+
+  it('agrees with two independent node implementations on the hand-assembled rows too', function () {
+    // A parse cannot produce these scripts' chunk lists, so nothing in the 55 rows covers them.
+    CORPUS.handAssembledRows.length.should.equal(15)
+    CORPUS.handAssembledRows.forEach(function (row) {
+      const ht = parseInt(row.sighashType, 16)
+      const sub = Script.fromHex(row.scriptCode)
+      Sighash.sighashPreimage(fixtureTx(), ht, 0, sub, sats, FORKID).toString('hex')
+        .should.equal(row.preimage, row.id + ' preimage')
+      Buffer.from(Sighash.sighash(fixtureTx(), ht, 0, sub, sats, FORKID)).reverse().toString('hex')
+        .should.equal(row.digest, row.id + ' digest')
+    })
+  })
 
   it('asks the BYTES, so a hand-assembled chunk list cannot mislead it', function () {
     // The case that broke the first version of this fix. A chunk list built by hand can put an
@@ -113,12 +132,37 @@ describe('the scriptCode tail the node does not sign', function () {
     pre.should.not.contain('aabb')
   })
 
-  it('counts only the separators the walk reaches, as the node does', function () {
+  it('counts only the separators the walk reaches, which the corpus already pins', function () {
     // ab6a4c050102: OP_CODESEPARATOR, OP_RETURN, then PUSHDATA1 declaring 5 with 2 present.
-    // The node counts the one separator it passes, so the field declares 6 - 1 = 5, and writes
-    // the three bytes it reached with the separator excised: 6a4c05.
-    const pre = Sighash.sighashPreimage(fixtureTx(), 0x01, 0, Script.fromHex('ab6a4c050102'), sats, FORKID).toString('hex')
-    pre.should.contain('056a4c05ffffffff')
+    // The node counts the one separator it passes, so the field declares 6 - 1 = 5 and carries
+    // the three bytes the walk reached with the separator excised: 6a4c05.
+    //
+    // Which makes this script's field IDENTICAL to plain 6a4c050102's — and that one the
+    // compiled node judged. So this is not a model-derived case: the expected digest below is
+    // read out of the node-measured corpus, and if our separator accounting were off by that
+    // one byte the two would not agree.
+    const withSep = Sighash.sighashPreimage(fixtureTx(), 0x01, 0, Script.fromHex('ab6a4c050102'), sats, FORKID).toString('hex')
+    withSep.should.contain('056a4c05ffffffff')
+    const row = CORPUS.rows.filter(function (r) { return r.scriptCode === '6a4c050102' && r.sighashType === '0x01' })[0]
+    ;(row === undefined).should.equal(false)
+    const digest = Buffer.from(Sighash.sighash(fixtureTx(), 0x01, 0, Script.fromHex('ab6a4c050102'), sats, FORKID)).reverse().toString('hex')
+    digest.should.equal(row.digest)
+  })
+
+  it('gives one digest for two different scripts, when the dropped bytes are all that differ', function () {
+    // The sharpest consequence of the rule, and now node-measured on both sides of it:
+    // 4c05aabb51 and 4c05aabbab are
+    // different byte strings, but the node writes 4c05 for both and declares 5 for both, so the
+    // digests must be EQUAL. If the rule were "drop the chunk" or "write what we parsed", they
+    // would differ. It also puts a separator byte (0xab) inside the DROPPED region, where it
+    // must not be counted — the walk never reads it as an opcode.
+    const a = Sighash.sighash(fixtureTx(), 0x01, 0, Script.fromHex('4c05aabb51'), sats, FORKID).toString('hex')
+    const b = Sighash.sighash(fixtureTx(), 0x01, 0, Script.fromHex('4c05aabbab'), sats, FORKID).toString('hex')
+    a.should.equal(b)
+    // and the BIP-143 digests, which carry every byte, must DIFFER for the same pair
+    const a143 = Sighash.sighash(fixtureTx(), 0x41, 0, Script.fromHex('4c05aabb51'), sats, FORKID).toString('hex')
+    const b143 = Sighash.sighash(fixtureTx(), 0x41, 0, Script.fromHex('4c05aabbab'), sats, FORKID).toString('hex')
+    a143.should.not.equal(b143)
   })
 
   it('does not touch the caller\'s transaction or the other inputs', function () {

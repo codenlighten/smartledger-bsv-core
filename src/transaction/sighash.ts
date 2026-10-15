@@ -9,7 +9,7 @@ import Hash = require('../crypto/hash')
 import ECDSA = require('../crypto/ecdsa')
 import $ = require('../util/preconditions')
 import _ = require('../util/_')
-import { isUndecodablePush } from '../script/push-decode'
+import Opcode = require('../opcode')
 import type { Script } from '../script/script.types'
 import type { PrivateKey } from '../privatekey.types'
 import type { PublicKey } from '../publickey.types'
@@ -194,36 +194,64 @@ const sighashPreimageForForkId = function (transaction: TransactionLike, sighash
  * @param {satoshisBN} input's amount (for  ForkId signatures)
  *
  */
-/**
- * How many trailing bytes of a scriptCode the node's original-algorithm serializer does NOT
- * write, while still declaring them in the length prefix.
- *
- * `CTransactionSignatureSerializer::SerializeScriptCode` writes
- * `WriteCompactSize(scriptCode.size() - nCodeSeparators)` and then the bytes up to the iterator
- * left by the LAST, FAILED `GetOp` — and `GetOp2` advances `pc` past the opcode, and past a
- * complete length field, BEFORE it tests whether the rest is there:
- *
- *     unsigned int opcode = *pc++;
- *     ...
- *     } else if (opcode == OP_PUSHDATA2) { if (end() - pc < 2) return false; nSize = ReadLE16(&pc[0]); pc += 2; }
- *     if (end() - pc < 0 || (unsigned int)(end() - pc) < nSize) return false;
- *
- * So the opcode and whatever length field it managed to read ARE written, and the partial
- * operand after them is not. An undecodable push is always the final chunk, so only the last one
- * can be affected, and the two shapes drop exactly what they hold past that point: the partial
- * length prefix, or the short data.
- *
- * Measured against a compiled bitcoin-sv v1.2.3 on 2026-10-15: with this correction all 55 rows
- * of the reference corpus in test/data/sighash-scriptcode-tail.json agree on the preimage AND the
- * digest, where before 10 differed. `6a4c` is not among them — its partial prefix is empty, so
- * there is nothing to drop.
- */
-function unserializedScriptCodeTail (subscript: Script): number {
-  const chunks = subscript.chunks
-  if (chunks.length === 0) return 0
-  const last = chunks[chunks.length - 1]!
-  if (!isUndecodablePush(last)) return 0
-  return last.lenPrefix !== undefined ? last.lenPrefix.length : (last.buf as Buffer).length
+// The node's own scriptCode walk, over the BYTES, because that is what the node parses.
+//
+// `CTransactionSignatureSerializer::SerializeScriptCode` writes
+// `WriteCompactSize(scriptCode.size() - nCodeSeparators)` and then the bytes up to the iterator
+// left by the LAST, FAILED `GetOp`, with each separator excised — and `GetOp2` advances `pc`
+// past the opcode, and past a complete length field, BEFORE it tests whether the rest is there:
+//
+//     unsigned int opcode = *pc++;
+//     ...
+//     } else if (opcode == OP_PUSHDATA2) { if (end() - pc < 2) return false; nSize = ReadLE16(&pc[0]); pc += 2; }
+//     if (end() - pc < 0 || (unsigned int)(end() - pc) < nSize) return false;
+//
+// So the opcode and whatever length field it managed to read ARE written, the partial operand
+// after them is not, and the length prefix still counts it. The node hashes a field that
+// declares more bytes than it contains.
+//
+// This walks the serialized bytes rather than reading our chunk list, which matters for a
+// HAND-ASSEMBLED script: in a parsed script an undecodable push is always the final chunk, but
+// a chunk list built by hand can put one in the middle, and then the node stops there and drops
+// everything after it. Asking the bytes is the only way to get that right, and it is also
+// exactly what the node does.
+//
+// Measured against a compiled bitcoin-sv v1.2.3 on 2026-10-15: with this correction all 55 rows
+// of the reference corpus in test/data/sighash-scriptcode-tail.json agree on the preimage AND
+// the digest, where before 10 differed. `6a4c` is not among them — its partial prefix is empty,
+// so the walk reaches the end and nothing is dropped.
+//
+// Returns where the walk stopped and how many separators it passed on the way.
+function nodeScriptCodeWalk (buf: Buffer): { stop: number, separators: number } {
+  let pos = 0
+  let separators = 0
+  while (pos < buf.length) {
+    const start = pos
+    const opcode = buf[pos++]!
+    if (opcode <= Opcode.OP_PUSHDATA4) {
+      let size = 0
+      if (opcode < Opcode.OP_PUSHDATA1) {
+        size = opcode
+      } else if (opcode === Opcode.OP_PUSHDATA1) {
+        if (buf.length - pos < 1) { pos = start + 1; break }
+        size = buf[pos++]!
+      } else if (opcode === Opcode.OP_PUSHDATA2) {
+        if (buf.length - pos < 2) { pos = start + 1; break }
+        size = buf.readUInt16LE(pos)
+        pos += 2
+      } else {
+        if (buf.length - pos < 4) { pos = start + 1; break }
+        size = buf.readUInt32LE(pos)
+        pos += 4
+      }
+      // `pos` is already past the length field, which is why it is the stop position
+      if (buf.length - pos < size) break
+      pos += size
+    } else if (opcode === Opcode.OP_CODESEPARATOR) {
+      separators++
+    }
+  }
+  return { stop: pos, separators }
 }
 
 const sighashPreimage = function sighashPreimage (transaction: TransactionLike, sighashType: number, inputNumber: number, subscript: Script, satoshisBN?: BN, flags?: number): Buffer {
@@ -289,7 +317,9 @@ const sighashPreimage = function sighashPreimage (transaction: TransactionLike, 
 
   // For no ForkId sighash, separators need to be removed — from a copy. Mutating the
   // caller's script here edited a Script it still holds, and on a covenant path that is
-  // the script a later signature covers.
+  // the script a later signature covers. The bytes BEFORE removal are what the node's walk
+  // is defined over.
+  const codeBytes = subscript.toBuffer()
   subscript = new (scriptClass())(subscript) as unknown as Script
   ;(subscript as unknown as { removeCodeseparators: () => void }).removeCodeseparators()
 
@@ -302,12 +332,15 @@ const sighashPreimage = function sighashPreimage (transaction: TransactionLike, 
 
   const signedInput = new Input(txcopy.inputs[inputNumber]).setScript(subscript)
 
-  // The node declares the full length and writes fewer bytes; see unserializedScriptCodeTail.
-  const dropped = unserializedScriptCodeTail(subscript)
-  if (dropped > 0) {
-    const full = subscript.toBuffer()
-    signedInput.setScript(full.slice(0, full.length - dropped))
-    signedInput._scriptCodeLength = full.length
+  // Where the node's walk stops, the field it writes declares more bytes than it carries; see
+  // nodeScriptCodeWalk. `codeBytes` is taken BEFORE separator removal, because the node counts
+  // only the separators its own walk reaches.
+  const walk = nodeScriptCodeWalk(codeBytes)
+  if (walk.stop < codeBytes.length) {
+    const reached = new (scriptClass())(codeBytes.slice(0, walk.stop))
+    reached.removeCodeseparators()
+    signedInput.setScript(reached.toBuffer())
+    signedInput._scriptCodeLength = codeBytes.length - walk.separators
   }
 
   txcopy.inputs[inputNumber] = signedInput

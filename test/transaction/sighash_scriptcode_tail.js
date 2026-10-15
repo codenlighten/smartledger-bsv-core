@@ -94,6 +94,43 @@ describe('the scriptCode tail the node does not sign', function () {
       })
   })
 
+  // The three tests below are MODEL-DERIVED, not node-measured: the expected bytes come from the
+  // rule in SerializeScriptCode, applied by hand to a case the 55-row corpus does not contain.
+  // The rule itself is what the corpus measured, so this extends a validated model rather than
+  // asserting a new fact about the node. Labelled, because the difference matters.
+
+  it('asks the BYTES, so a hand-assembled chunk list cannot mislead it', function () {
+    // The case that broke the first version of this fix. A chunk list built by hand can put an
+    // undecodable push in the MIDDLE, which a parse never does — and the node, which only ever
+    // sees bytes, stops there and drops everything after it. A rule that looked at the last
+    // chunk saw a perfectly good OP_1 and dropped nothing.
+    const chunks = [{ opcodenum: 0x4c, len: 5, buf: Buffer.from('aabb', 'hex') }, { opcodenum: 0x51 }]
+    const hand = new Script().set({ chunks })
+    hand.toHex().should.equal('4c05aabb51')
+    const pre = Sighash.sighashPreimage(fixtureTx(), 0x01, 0, hand, sats, FORKID).toString('hex')
+    // declares 5, carries 2: the walk stops after the length field
+    pre.should.contain('054c05ffffffff')
+    pre.should.not.contain('aabb')
+  })
+
+  it('counts only the separators the walk reaches, as the node does', function () {
+    // ab6a4c050102: OP_CODESEPARATOR, OP_RETURN, then PUSHDATA1 declaring 5 with 2 present.
+    // The node counts the one separator it passes, so the field declares 6 - 1 = 5, and writes
+    // the three bytes it reached with the separator excised: 6a4c05.
+    const pre = Sighash.sighashPreimage(fixtureTx(), 0x01, 0, Script.fromHex('ab6a4c050102'), sats, FORKID).toString('hex')
+    pre.should.contain('056a4c05ffffffff')
+  })
+
+  it('does not touch the caller\'s transaction or the other inputs', function () {
+    // _scriptCodeLength lives on a throwaway copy. If it reached a real input, that input would
+    // serialize a transaction that does not parse.
+    const tx = fixtureTx()
+    const before = tx.uncheckedSerialize()
+    Sighash.sighashPreimage(tx, 0x61, 0, Script.fromHex('6a4c050102'), sats, FORKID)
+    tx.uncheckedSerialize().should.equal(before)
+    ;(tx.inputs[0]._scriptCodeLength === undefined).should.equal(true)
+  })
+
   it('round-trips a signature over the corrected digest', function () {
     // The digest is only useful if signing and verifying both use it.
     const key = bsv.PrivateKey.fromBuffer(Buffer.from('22'.repeat(32), 'hex'))
@@ -101,6 +138,33 @@ describe('the scriptCode tail the node does not sign', function () {
     const tx = fixtureTx()
     const sig = Sighash.sign(tx, key, 0x61, 0, sub, sats, FORKID)
     Sighash.verify(tx, sig, key.toPublicKey(), 0, sub, sats, FORKID).should.equal(true)
+  })
+
+  it('carries a spend whose signature IS checked, which is where the digest bites', function () {
+    // A digest mismatch only matters where a signature is actually verified over it. In a lock
+    // that is only `OP_RETURN` and junk, post-Genesis evaluation ends before the junk and no
+    // signature is reached — so the sharp case is a lock that CHECKSIGs first and carries the
+    // undecodable push after the OP_RETURN, where the tail is signed and never read.
+    //
+    // At hash type 0x61 this takes the original algorithm, so the dropped bytes are live. The
+    // spend verifies here, through the interpreter, with the corrected digest. What is NOT
+    // claimed: that a reference node accepts this transaction — that needs the node, and only
+    // the 55 preimage rows above are node-measured.
+    const key = bsv.PrivateKey.fromBuffer(Buffer.from('33'.repeat(32), 'hex'))
+    const lock = Script.fromHex('21' + key.toPublicKey().toHex() + 'ac' + '6a4c050102')
+    const ht = 0x61
+    const tx = fixtureTx()
+    const sig = Sighash.sign(tx, key, ht, 0, lock, sats, FORKID)
+    tx.inputs[0].setScript(Script.fromASM(sig.toTxFormat().toString('hex')))
+    const i = new Script.Interpreter()
+    i.verify(tx.inputs[0].script, lock, tx, 0, Script.Interpreter.mainnetFlags(), sats)
+      .should.equal(true, i.errstr)
+    // and the signed field itself: 40 bytes declared, 38 written, the last two dropped
+    const pre = Sighash.sighashPreimage(tx, ht, 0, lock, sats, FORKID).toString('hex')
+    const lockHex = lock.toHex()
+    lockHex.length.should.equal(80)
+    pre.should.contain('28' + lockHex.slice(0, 76) + 'ffffffff')
+    pre.should.not.contain(lockHex)
   })
 
   it('leaves the separator rule where it was', function () {

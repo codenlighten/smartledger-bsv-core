@@ -55,12 +55,16 @@ original-algorithm hash types.
 **`6a4c` is not one of them**, and that row is why this is a model rather than a guess: its
 cut-off prefix is **empty**, so the node writes the whole script and nothing is dropped. A fix
 that dropped "the undecodable chunk" instead of "the bytes past where the walk stopped" would
-pass the five scripts above and break this one. The rule is exactly:
+pass the five scripts above and break this one.
 
-    dropped = chunk.lenPrefix !== undefined ? chunk.lenPrefix.length : chunk.buf.length
-
-on the final chunk, when that chunk is an undecodable push — and an undecodable push is always
-the final chunk.
+The implementation is the node's walk itself, over the **bytes**, counting the separators it
+passes and recording where it stops — not a reading of this library's chunk list. A first
+version did read the chunk list, on the ground that a parse always leaves an undecodable push
+last. That is true of a parse and **not** of the public chunk representation: a list assembled
+by hand can put one in the middle, and then the node stops there and drops everything after it,
+while a last-chunk rule sees a well-formed opcode and drops nothing. `4c05aabb51` is the case —
+`PUSHDATA1` declaring five bytes, two present, then `OP_1`. Asking the bytes is both correct for
+that and literally what the node does, so it replaced the shortcut.
 
 **Reachable today.** `SignatureHash` takes the original algorithm whenever
 `enabledSighashForkid && sigHashType.hasForkId() && !sigHashType.hasChronicle()` is false — so

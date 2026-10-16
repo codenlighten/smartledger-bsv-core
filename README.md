@@ -123,6 +123,11 @@ enumerated cannot be promised to hold still.
 Not covered, and changeable in a patch: anything prefixed `_`, anything reached by deep-importing
 past `dist/index.js`, and the exact wording of error *messages* — the error **codes** are covered.
 
+**Breaking changes already promised** are listed in
+[`docs/RELEASE-2.0.0.md`](docs/RELEASE-2.0.0.md), with the version whose logs first carried each
+notice. No date is set for a major; that file records what one would contain and is checked
+against the code in both directions, so the list cannot drift from what is registered.
+
 ### Consensus tracking overrides the above
 
 This package tracks BSV mainnet. A library that stayed API-compatible with a rule the network no

@@ -15,6 +15,13 @@ export interface DeprecationOptions {
   use?: string
   /** one clause; why it is wrong, not what to do */
   why?: string
+  /**
+   * Stable id pairing this commitment to its row in `docs/RELEASE-2.0.0.md`.
+   * Never printed and never part of the dedup key: it exists so the plan and the code can be
+   * checked against each other by something other than prose. Required on any registration
+   * carrying `removeIn: '2.0.0'`, which `test/properties/release_2_plan.js` enforces.
+   */
+  plan?: string
 }
 
 /** One notice as it was emitted, kept whether or not output was enabled. */

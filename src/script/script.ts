@@ -343,6 +343,7 @@ Script.fromHex = function (str: string) {
       what: 'Script.fromHex() with a string that is not whole hex',
       since: '1.1.0',
       removeIn: '2.0.0',
+      plan: 'script-fromhex-not-whole-hex',
       why: 'Buffer.from() stops at the first character it cannot decode, so the script is silently truncated',
       use: 'a round-trip check, Script.fromHex(h).toHex() === h.toLowerCase()'
     })

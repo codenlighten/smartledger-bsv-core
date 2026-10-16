@@ -229,6 +229,7 @@ Output.prototype.getSize = function (this: Output): number {
       what: 'mutating a parsed output script in place and expecting it to serialize',
       since: '1.7.0',
       removeIn: '2.0.0',
+      plan: 'output-script-mutated-in-place',
       why: 'the serializer writes the bytes the output was set from, so the mutation is ' +
         'dropped from the transaction and this size describes an output that will not be ' +
         'broadcast; where the mutation changed the length, the fee is wrong as well',

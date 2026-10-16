@@ -140,6 +140,7 @@ Message.prototype.verify = function verify (this: Message, bitcoinAddress: Addre
       what: 'Message#verify() accepting a non-canonical (high-s) signature',
       since: '1.8.0',
       removeIn: '2.0.0',
+      plan: 'message-verify-high-s-accept',
       use: 'verify(address, sig, { lowS: true }), which refuses the malleable twin'
     })
   }

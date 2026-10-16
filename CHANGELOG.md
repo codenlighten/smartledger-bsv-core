@@ -18,12 +18,17 @@ differences** over 96 comparisons. Vendored at `test/data/sighash-codesep-undeco
 the caveat that the two emitters' output files are byte-identical, so the two-witness claim rests
 on their distinct binary hashes rather than the column bytes.
 
-Also carried over: six bodies where a naive count of `0xab` bytes diverges from the walk's
-separator count (`6a4dab`, `ab6a4dab`, `4dab`, `ab4dab`, `6a4eab0000`, `ab6a4eababab`). A
-sabotage substituting the naive count left all 48 judged rows green — the declared length only
-consults that count when the walk stops early, and no judged body has a `0xab` in a length field
-*and* an early stop. These six do, and fail under it. They are this package's own values, not
-node-judged, and are labelled so.
+Also carried over, and now judged too: twenty-four rows over six bodies where a naive count of
+`0xab` bytes diverges from the walk's separator count (`6a4dab`, `ab6a4dab`, `4dab`, `ab4dab`,
+`6a4eab0000`, `ab6a4eababab`), at `test/data/sighash-codesep-count-path.json`, joined at 48
+comparisons with 0 differences. `ab6a4eababab` declares 5, not the 2 a byte scan would give.
+
+They exist because a sabotage substituting the naive count left all 48 of the other fixture's rows
+green. The declared length has two derivations — set explicitly as `len(suffix) - separators` when
+the walk stops early, taken from the stripped script's own length when it reaches the end — and no
+body in that fixture has a `0xab` in a length field *and* an early stop, so all of its rows take
+the stripped-length route for that question. The cross-sabotage matrix is in the test: a naive
+byte count fails 12 of 12 here and 0 of 48 there; a byte-level excision fails 4 there and 0 here.
 
 ### Added — tests for what a signature commits to when `OP_CODESEPARATOR` is in the script
 

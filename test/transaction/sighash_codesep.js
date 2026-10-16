@@ -16,6 +16,37 @@ const PrivateKey = bsv.PrivateKey
 const CORPUS = require('../data/sighash-codesep-executed.json')
 const FORKID = Interpreter.SCRIPT_ENABLE_SIGHASH_FORKID
 
+// The node's own walk, only as far as counting the separators it reaches - used to assert that
+// the judged declared lengths follow the rule rather than just matching a stored number.
+function walkSeparators (buf) {
+  let pos = 0
+  let separators = 0
+  while (pos < buf.length) {
+    const start = pos
+    const opcode = buf[pos++]
+    if (opcode <= 0x4e) {
+      let size = 0
+      if (opcode < 0x4c) {
+        size = opcode
+      } else if (opcode === 0x4c) {
+        if (buf.length - pos < 1) { pos = start + 1; break }
+        size = buf[pos++]
+      } else if (opcode === 0x4d) {
+        if (buf.length - pos < 2) { pos = start + 1; break }
+        size = buf.readUInt16LE(pos); pos += 2
+      } else {
+        if (buf.length - pos < 4) { pos = start + 1; break }
+        size = buf.readUInt32LE(pos); pos += 4
+      }
+      if (buf.length - pos < size) break
+      pos += size
+    } else if (opcode === 0xab) {
+      separators++
+    }
+  }
+  return separators
+}
+
 function d256 (b) {
   return crypto.createHash('sha256').update(crypto.createHash('sha256').update(b).digest()).digest()
 }
@@ -406,43 +437,76 @@ describe('Sighash with an executed OP_CODESEPARATOR', function () {
     })
   })
 
-  describe('the separator COUNT, where a naive byte count would differ', function () {
-    // NOT NODE-JUDGED. These are this library's own values, and they exist because sabotaging
-    // the walk to count every 0xab byte left the node-judged corpus above entirely green: the
-    // declared length only consults the separator count when the walk stops early, and in those
-    // rows a 0xab inside a length field never coincides with an early stop. Each body here has
-    // both, so the two counts diverge and the row discriminates. Sent for node judgement; until
-    // it comes back these guard against regression, not against the node.
-    const sats = new BN(100000)
-    function tx () { return new Transaction(CORPUS.rows[0].txHex) }
+  describe('the separator COUNT, which the judged corpus above cannot see', function () {
+    // The declared length in this library has TWO derivations, and they always agree:
+    //   walk stops early  -> set explicitly as len(suffix) - walk.separators
+    //   walk reaches end  -> taken from the stripped script's own length, via the chunk-level
+    //                        removeCodeseparators, which equals the same number
+    // A sabotage of one is invisible to rows served by the other, which is why replacing the
+    // walk's count with a naive count of every 0xab byte leaves all 48 rows of
+    // sighash-codesep-undecodable.json green: no body there has a 0xab in a length field AND an
+    // early stop, so for that question every one of them takes the stripped-length route.
+    //
+    // Measured both ways:
+    //   naive byte count for the walk     -> 12 of 12 original rows HERE fail, 0 of 48 there
+    //   byte-level excision instead of    -> 4 of 48 there fail (4d01ab, ab4dab00 at both
+    //   chunk-level                          original hash types), 0 here
+    // The two fixtures guard the two routes and neither covers the other's.
+    //
+    // These rows are node-judged: same two emitters as the sibling fixture, joined against a
+    // fresh run of this library at 48 comparisons with 0 differences.
+    const CP = require('../data/sighash-codesep-count-path.json')
 
-    // body -> [declared by the walk's count, carried bytes, declared by a naive 0xab count]
-    const BODIES = {
-      '6a4dab': [3, '6a4d', 2],
-      ab6a4dab: [3, '6a4d', 2],
-      '4dab': [2, '4d', 1],
-      ab4dab: [2, '4d', 1],
-      '6a4eab0000': [5, '6a4e', 4],
-      ab6a4eababab: [5, '6a4e', 2]
-    }
+    it('is internally consistent before it is used as evidence', function () {
+      CP.rows.length.should.equal(24)
+      CP.rows.forEach(function (r) {
+        d256(Buffer.from(r.expect.preimageHex, 'hex')).toString('hex')
+          .should.equal(r.expect.digestHex, r.id + ': digest is not sha256d of its own preimage')
+      })
+    })
 
-    Object.keys(BODIES).forEach(function (body) {
-      it('declares ' + BODIES[body][0] + ' and carries ' + (BODIES[body][1] || 'nothing') + ' for ' + body, function () {
-        const want = BODIES[body]
-        const pre = Sighash.sighashPreimage(tx(), 0x01, 0, Script.fromHex(body), sats, FORKID)
-        pre[41].should.equal(want[0], body + ': declared length')
-        const rest = pre.slice(42)
-        rest.slice(0, rest.indexOf(Buffer.from('ffffffff', 'hex'))).toString('hex')
-          .should.equal(want[1], body + ': carried bytes')
-        // and the whole point: a naive count would have declared something else
-        want[0].should.not.equal(want[2])
+    CP.rows.forEach(function (r) {
+      it('reproduces ' + r.id, function () {
+        const suffix = Buffer.from(r.prevScriptHex, 'hex').slice(r.codeSepEnd)
+        suffix.toString('hex').should.equal(r.expect.scriptCodeSlicedHex)
+        const tx = new Transaction(r.txHex)
+        const pre = Sighash.sighashPreimage(tx, r.hashType, r.nIn, Script.fromBuffer(suffix), new BN(r.amount), FORKID)
+        pre.toString('hex').should.equal(r.expect.preimageHex)
+        d256(pre).toString('hex').should.equal(r.expect.digestHex)
+      })
+    })
+
+    it('declares what the walk counted, not what a byte scan would count', function () {
+      let seen = 0
+      CP.rows.forEach(function (r) {
+        if (r.hashType !== 1) return // the original algorithm, no forkid bit
+        const body = r.expect.scriptCodeSlicedHex
+        const declared = Buffer.from(r.expect.preimageHex, 'hex')[41]
+        // the node-judged declared length, and the value a naive 0xab count would have produced
+        declared.should.equal((body.length / 2) - walkSeparators(Buffer.from(body, 'hex')), body)
+        declared.should.not.equal(r.declaredByNaiveByteCount, body + ': naive count would have matched')
+        seen++
+      })
+      seen.should.equal(6)
+    })
+
+    it('gives a separator-bearing body the same signed field as its separator-free twin', function () {
+      // ab6a4dab declares 4 - 1 = 3 and carries 6a4d; 6a4dab declares 3 - 0 = 3 and carries 6a4d.
+      // Identical fields, so identical digests - which holds only if the count is subtracted.
+      const pairs = [['6a4dab', 'ab6a4dab'], ['4dab', 'ab4dab'], ['6a4eab0000', 'ab6a4eababab']]
+      pairs.forEach(function (pair) {
+        const a = CP.rows.filter(function (r) { return r.expect.scriptCodeSlicedHex === pair[0] && r.hashType === 1 })[0]
+        const b = CP.rows.filter(function (r) { return r.expect.scriptCodeSlicedHex === pair[1] && r.hashType === 1 })[0]
+        ;(a === undefined || b === undefined).should.equal(false, pair.join('/'))
+        a.expect.digestHex.should.equal(b.expect.digestHex, pair.join(' vs '))
       })
     })
 
     it('keeps BIP-143 writing the suffix verbatim for all of them', function () {
-      Object.keys(BODIES).forEach(function (body) {
-        const pre = Sighash.sighashPreimage(tx(), 0x41, 0, Script.fromHex(body), sats, FORKID).toString('hex')
-        pre.should.contain(Buffer.from([body.length / 2]).toString('hex') + body, body)
+      CP.rows.forEach(function (r) {
+        if (r.algorithm !== 'bip143') return
+        const sc = r.expect.scriptCodeSlicedHex
+        r.expect.preimageHex.should.contain(Buffer.from([sc.length / 2]).toString('hex') + sc, r.id)
       })
     })
   })

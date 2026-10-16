@@ -9,6 +9,70 @@ waiting for a major. See **Stability** in the README.
 
 ## [Unreleased]
 
+### Checked — a chunk index is the node's byte pointer
+
+No behaviour change. This package slices the scriptCode by CHUNK INDEX at
+`src/script/interpreter.ts:2631` and `:2730` where the node uses a byte pointer into the raw
+script. The two agree only while the chunks before the slice point re-serialize to exactly the
+bytes they were parsed from. Measured over 17 bodies with separators, truncated pushes and `0xab`
+in operand and length positions, 60 slices in all: every slice equals the raw byte suffix, and
+every body re-serializes to its own bytes. Pinned in
+`test/script/chunk_index_is_byte_pointer.js`, the twin of bsv's, with a guard that the body list
+still contains truncated pushes — the only shape where an eager parser can diverge from the node's
+`GetOp` walk.
+
+
+### Changed — `OP_NUM2BIN` compares its size as a BN before narrowing, matching @smartledger/bsv
+
+No behaviour change: measured identical on all 91 operand-edge cases before and after. This package
+tested the `INT32_MAX` bound on the value **after** `toNumber()`, where bsv tests it on the BN
+first. Our `BN.toNumber()` does not throw above 2^53 the way `bn.js`'s does — it returns a lossy
+float, 2^151 coming back as `2.85e+45` — so a bound tested on the narrowed value is a bound on an
+approximation. It gives the right verdict here only because the bound is `INT32_MAX`, far below
+2^53 where doubles are exact; that is a property of this bound, not of the pattern. The node
+compares the script number itself, so this now does too.
+
+Prompted by an upstream library that panicked on a large `OP_SPLIT` index (a slice-bounds crash from
+exactly that narrow-then-compare shape). Neither package has that defect:
+`test/script/oversized_scriptnum_operands.js` — the twin of bsv's, with the same generated table —
+covers 7 opcodes × 13 operands including the buffer-length boundary, and asserts that **no operand
+makes an exception escape to the caller and none is answered with a flattened
+`SCRIPT_ERR_UNKNOWN_ERROR`**. The two packages agree on all 91; keeping a copy in each is what makes
+a future divergence fail a test instead of going unnoticed.
+
+The boundary operands matter: a sabotage turning `position > buf1.length` into `>=` left an earlier
+70-case table entirely green because no operand equalled the buffer length. The opcodes also
+disagree there — `OP_LEFT` accepts `n == len` while `OP_SUBSTR` refuses `beg == len` — so it is
+pinned per opcode.
+
+
+### Added — `docs/RELEASE-2.0.0.md`, the list of breaking changes this package has promised
+
+No behaviour change. Three `deprecate()` calls in `src/` carry `removeIn: '2.0.0'`, and until now
+that promise was recorded nowhere but in those three files and in consumers' logs: there was no
+list of it to plan a major from, and no stability document here mentions 2.0.0 at all. The sibling
+package published six majors in 82 days before writing its commitments down, which is the outcome
+this file exists to avoid.
+
+Each registration gains a `plan:` id — a new optional field on `DeprecationOptions`, never printed
+and not part of the dedup key — and `test/properties/release_2_plan.js` pairs the plan and the code
+by that id in **both** directions: a registration with no row fails, and a row with no live
+registration fails. `since` and the registering file are checked as fields of the matched row, so
+a commitment whose version or location moved without the plan being updated is caught, and every
+`since` must name a version with a `CHANGELOG` entry.
+
+The id is not keyed on `since` or on the file for reasons the sibling package measured: matching on
+the version alone silently accepted any new commitment whose version an existing row already
+mentioned, including the ordinary case of a deprecation added in the version being shipped, and
+keying on the file would reject two deprecations landing in one file in one release while reading a
+file move as a different commitment. Seven sabotages were run against the new test and all seven
+fail; the legitimate two-in-one-file case passes.
+
+The three ids are the same strings `@smartledger/bsv` uses for the same commitments, so the two
+plans can be compared directly — all three are ports, and a commitment honoured in one package and
+forgotten in the other is how the two drift.
+
+
 ### Added — the first separator-bearing scriptCode a node has judged for this package
 
 No behaviour change; ported from `@smartledger/bsv`. Forty-eight rows authored in the sibling

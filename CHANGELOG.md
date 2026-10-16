@@ -7,6 +7,26 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [Unreleased]
+
+### Added — tests for what a signature commits to when `OP_CODESEPARATOR` is in the script
+
+No behaviour change; ported from `@smartledger/bsv`. Twenty rows computed outside this package
+(their own reference implementation and a Rust node, reported byte-identical) are vendored at
+`test/data/sighash-codesep-executed.json`; `1.8.0` reproduces all 20 preimages and all 20
+digests and routes each row to the algorithm it labels. Two things that had no coverage here
+either: the **BIP-143** rule that the separators remaining in the signed suffix are kept rather
+than excised, and **where** the separator is as opposed to what is done with the suffix — the
+node tracks it as a byte pointer, this package as a chunk index, and eighteen cases now compare
+the scriptCode handed to signature verification against the byte suffix a node would take,
+across every push encoding and nested conditionals.
+
+Behaviour confirmed identical to `@smartledger/bsv` on the two sharp cases: a `0xab` inside a
+push operand or serving as a `PUSHDATA` length byte is data, not a separator; and a hand-built
+`chunks` list whose `len` disagrees with its `buf` fails closed with `SCRIPT_ERR_BAD_OPCODE`
+rather than executing past the bad push, while its serialised bytes verify as the single push a
+parser reads them to be.
+
 ## [1.8.0] - 2026-10-15
 
 ### Added — `Message#verify(address, sig, { lowS: true })`, which 1.7.0 accepted and ignored
@@ -82,8 +102,6 @@ a mutation followed by serialization with no size enquiry is still silent, and `
 drop with nowhere free to see it. The behaviour itself is unchanged; `2.0.0` decides between
 re-syncing on mutation, refusing to hand out a mutable parsed script, and an additive pre-broadcast
 check that covers inputs as well.
-
-## [Unreleased]
 
 ### Checked — nothing other than an undecodable output script reaches the null-script path
 

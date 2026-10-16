@@ -1,0 +1,795 @@
+{
+  "description": "An executed OP_CODESEPARATOR together with a trailing UNDECODABLE PUSH: where the separator rule meets the node's SerializeScriptCode, which declares size() - nCodeSeparators and writes only the bytes up to the failed GetOp.",
+  "whyThisExists": "test/data/sighash-scriptcode-tail.json, our other node-measured sighash corpus, contains ZERO rows whose script holds a 0xab byte. Before these rows no separator-bearing scriptCode had ever been judged by a node for this library; coverage rested on an equivalence argument plus our own model.",
+  "provenance": {
+    "rowsAuthoredBy": "this project - the transaction, scripts and hash types were chosen here to exercise the interaction, with no expected values",
+    "rowsMd5": "b2dc044a7b18fd7e59bc995febd9b154",
+    "expectedValuesFrom": "the nts frontier session, 2026-10-16T12:28:13Z, git commit 29cefc69cedff3fd3e49e93fe24374f843414b31",
+    "emitters": [
+      {
+        "witness": "compiled bitcoin-sv v1.2.3 reference, its own CTransactionSignatureSerializer",
+        "binarySha256": "4813b1dd53fb3eb2d18e110feadc52311aa235f2eb3ec3e52bbc617404614093"
+      },
+      {
+        "witness": "newsatoshi SmartSats node, an independent Rust implementation",
+        "binarySha256": "5dc792db4db969641b839676a911eb587e94b98f0eef537dfde03abf80448e44"
+      }
+    ],
+    "eachEmitterDriftChecked": "every row carried xcheck='match', meaning that emitter's copy of the serializer reproduced its OWN parent implementation's authoritative digest function (SignatureHash / script::sighash::signature_hash). All 48 rows matched in both.",
+    "witnessCaveat": "The two emitters' output files are byte-identical to each other. For a deterministic function emitted in one format that is what agreement looks like, so it is not evidence of copying - but it does mean the two-witness claim rests on the provenance sidecars and the distinct binary hashes above, not on the column bytes. The peer's own wording: 'two binaries whose outputs coincide, both run by the same peer.' Same operator, same machine, same timestamp.",
+    "independentlyJoined": "Joined here against a FRESH run of this library over the same rows, not against a stored column: 96 comparisons (48 rows x 2 emitters), 0 preimage differences, 0 digest differences, and every row's digest confirmed to be sha256d of its own preimage.",
+    "rechecked": "the test reading this file re-derives each digest as sha256d of the preimage beside it, so a corrupted row fails rather than passing silently"
+  },
+  "rule": "scriptCode is the byte suffix at codeSepEnd. The original algorithm then declares len(suffix) - separators_reached_by_the_walk and writes the walked bytes with separators excised, stopping where GetOp first failed - so the field can declare more bytes than it carries. BIP-143 writes the suffix verbatim.",
+  "digestOrder": "forward, i.e. sha256d(preimage) unreversed",
+  "rows": [
+    {
+      "id": "sep0-pd1-empty:cs2:ht41",
+      "prevScriptHex": "51ab6a4c",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "no separator; PUSHDATA1 with no length byte",
+      "expect": {
+        "scriptCodeSlicedHex": "6a4c",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000026a4ca086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "c177ca3c6e9311c86a0abc6cf1b3c44804967769f6870b0309f4c523c0ca4629"
+      }
+    },
+    {
+      "id": "sep0-pd1-empty:cs2:htc1",
+      "prevScriptHex": "51ab6a4c",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "no separator; PUSHDATA1 with no length byte",
+      "expect": {
+        "scriptCodeSlicedHex": "6a4c",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000026a4ca086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "faedeaddde07268bd389e5b5223242484122da559af580f4a26f322ce78d5a42"
+      }
+    },
+    {
+      "id": "sep0-pd1-empty:cs2:ht61",
+      "prevScriptHex": "51ab6a4c",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "no separator; PUSHDATA1 with no length byte",
+      "expect": {
+        "scriptCodeSlicedHex": "6a4c",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000026a4cffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "f096da8a610458b0b0d85358766ad94c4bdb9e5cf09811e654ec908ade10094f"
+      }
+    },
+    {
+      "id": "sep0-pd1-empty:cs2:ht1",
+      "prevScriptHex": "51ab6a4c",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "no separator; PUSHDATA1 with no length byte",
+      "expect": {
+        "scriptCodeSlicedHex": "6a4c",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000026a4cffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "ee3d6908271294797ff85ee2b3a3e547ca1c9c24367ed5ef72a636cc2c7b4970"
+      }
+    },
+    {
+      "id": "sep1-pd1-empty:cs2:ht41",
+      "prevScriptHex": "51abab6a4c",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA1 with no length byte",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4c",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000003ab6a4ca086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "9d036893ddb39d534b73299e09749af76142e8579aed1e3f3c0e4d67dc23b6a5"
+      }
+    },
+    {
+      "id": "sep1-pd1-empty:cs2:htc1",
+      "prevScriptHex": "51abab6a4c",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA1 with no length byte",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4c",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000003ab6a4ca086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "120c97161d4bb2369ed06b9b18bc928ce7568574d76cf1abdaea005f6405cbea"
+      }
+    },
+    {
+      "id": "sep1-pd1-empty:cs2:ht61",
+      "prevScriptHex": "51abab6a4c",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA1 with no length byte",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4c",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000026a4cffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "f096da8a610458b0b0d85358766ad94c4bdb9e5cf09811e654ec908ade10094f"
+      }
+    },
+    {
+      "id": "sep1-pd1-empty:cs2:ht1",
+      "prevScriptHex": "51abab6a4c",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA1 with no length byte",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4c",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000026a4cffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "ee3d6908271294797ff85ee2b3a3e547ca1c9c24367ed5ef72a636cc2c7b4970"
+      }
+    },
+    {
+      "id": "sep0-pd2-short:cs2:ht41",
+      "prevScriptHex": "51ab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "no separator; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "6a4d01",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4d01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "d2851c9c3101409acbc4652f7e4bb932283875156461b03f4ddd20e5b81a7941"
+      }
+    },
+    {
+      "id": "sep0-pd2-short:cs2:htc1",
+      "prevScriptHex": "51ab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "no separator; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "6a4d01",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4d01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "afa9c0fd7399bc572ef299338889dcfe19e45f31b027591ac35a7b9bbcea0ed6"
+      }
+    },
+    {
+      "id": "sep0-pd2-short:cs2:ht61",
+      "prevScriptHex": "51ab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "no separator; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "6a4d01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4dffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "1498563a292a4327349b9253052c5d7bd10c7b3603ab8ba747118add1239faaa"
+      }
+    },
+    {
+      "id": "sep0-pd2-short:cs2:ht1",
+      "prevScriptHex": "51ab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "no separator; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "6a4d01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4dffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "91552be6fd92e9c906b894d311faec555fe2ccb1ce9d1db1e122f4ba6caef2a3"
+      }
+    },
+    {
+      "id": "sep1-pd2-short:cs2:ht41",
+      "prevScriptHex": "51abab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4d01",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000004ab6a4d01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "702364f6dbbd4f88484023b54680d52754476ba347f6714499c001c7526c8c9c"
+      }
+    },
+    {
+      "id": "sep1-pd2-short:cs2:htc1",
+      "prevScriptHex": "51abab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4d01",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000004ab6a4d01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "9af11eb1bd46ff97cd601c960e13a4ad06d982622a665ed38a0dc66443bad3fb"
+      }
+    },
+    {
+      "id": "sep1-pd2-short:cs2:ht61",
+      "prevScriptHex": "51abab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4d01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4dffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "1498563a292a4327349b9253052c5d7bd10c7b3603ab8ba747118add1239faaa"
+      }
+    },
+    {
+      "id": "sep1-pd2-short:cs2:ht1",
+      "prevScriptHex": "51abab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4d01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4dffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "91552be6fd92e9c906b894d311faec555fe2ccb1ce9d1db1e122f4ba6caef2a3"
+      }
+    },
+    {
+      "id": "sep2-pd2-short:cs2:ht41",
+      "prevScriptHex": "51ababab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "two separators; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "abab6a4d01",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000005abab6a4d01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "163e9c6ab573feba039ec4774151e0196b9281e8bdd715ddab891b7361e8f036"
+      }
+    },
+    {
+      "id": "sep2-pd2-short:cs2:htc1",
+      "prevScriptHex": "51ababab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "two separators; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "abab6a4d01",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000005abab6a4d01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "151bb1e0e358cd11f418aceb750c83fec653635f06b22b9ef9df613152d541bd"
+      }
+    },
+    {
+      "id": "sep2-pd2-short:cs2:ht61",
+      "prevScriptHex": "51ababab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "two separators; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "abab6a4d01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4dffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "1498563a292a4327349b9253052c5d7bd10c7b3603ab8ba747118add1239faaa"
+      }
+    },
+    {
+      "id": "sep2-pd2-short:cs2:ht1",
+      "prevScriptHex": "51ababab6a4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "two separators; PUSHDATA2 with 1 of 2 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "abab6a4d01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4dffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "91552be6fd92e9c906b894d311faec555fe2ccb1ce9d1db1e122f4ba6caef2a3"
+      }
+    },
+    {
+      "id": "sep1-pd4-short:cs2:ht41",
+      "prevScriptHex": "51abab6a4e010000",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA4 with 3 of 4 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4e010000",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000006ab6a4e010000a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "5b125f7987bf7f9178856a29a7f92d3eb6e44126dc1cd72a905de793c9d48403"
+      }
+    },
+    {
+      "id": "sep1-pd4-short:cs2:htc1",
+      "prevScriptHex": "51abab6a4e010000",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA4 with 3 of 4 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4e010000",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000006ab6a4e010000a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "ce7ff43f0b3ae02cc1318f77fe4871600f7b598f273286c4f7d008b3fc8d9017"
+      }
+    },
+    {
+      "id": "sep1-pd4-short:cs2:ht61",
+      "prevScriptHex": "51abab6a4e010000",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA4 with 3 of 4 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4e010000",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000056a4effffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "87dfe0ebc16b026d76b373633044f9a21509f4a1f5157e4c33bd22569d168b22"
+      }
+    },
+    {
+      "id": "sep1-pd4-short:cs2:ht1",
+      "prevScriptHex": "51abab6a4e010000",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA4 with 3 of 4 length bytes",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6a4e010000",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000056a4effffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "eec86c82f7247aae162e94fc6a442f495465d436af392dfd0439b0b67c0666a8"
+      }
+    },
+    {
+      "id": "sep1-pd1-declares-1:cs2:ht41",
+      "prevScriptHex": "51abab4c01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA1 declares 1 byte, carries none",
+      "expect": {
+        "scriptCodeSlicedHex": "ab4c01",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000003ab4c01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "71f822c8f74a3d02ee5af7831d453d77696ea768bf0b7a12de9a39728b52006c"
+      }
+    },
+    {
+      "id": "sep1-pd1-declares-1:cs2:htc1",
+      "prevScriptHex": "51abab4c01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA1 declares 1 byte, carries none",
+      "expect": {
+        "scriptCodeSlicedHex": "ab4c01",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000003ab4c01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "51d2c249630a6de22d9850e8813bd56501f38add2415bb73dd7e258114d657e0"
+      }
+    },
+    {
+      "id": "sep1-pd1-declares-1:cs2:ht61",
+      "prevScriptHex": "51abab4c01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA1 declares 1 byte, carries none",
+      "expect": {
+        "scriptCodeSlicedHex": "ab4c01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000024c01ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "7679e650594fce182583b1e54dd453e738fd492ff923cbd237c04612bb5a5b7c"
+      }
+    },
+    {
+      "id": "sep1-pd1-declares-1:cs2:ht1",
+      "prevScriptHex": "51abab4c01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "one separator; PUSHDATA1 declares 1 byte, carries none",
+      "expect": {
+        "scriptCodeSlicedHex": "ab4c01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000024c01ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "7882f571c631c246436f9c4c9c27b0d5bfe3d2cfa96513db5a7f5744a95c38c2"
+      }
+    },
+    {
+      "id": "sep2-pd2-declares:cs2:ht41",
+      "prevScriptHex": "51ababab4d0100",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "two separators; PUSHDATA2 declares 1, carries none",
+      "expect": {
+        "scriptCodeSlicedHex": "abab4d0100",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000005abab4d0100a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "d40902eebe763334aa24914286f67958db9cf99c07c1a6b07ce77f87007bd345"
+      }
+    },
+    {
+      "id": "sep2-pd2-declares:cs2:htc1",
+      "prevScriptHex": "51ababab4d0100",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "two separators; PUSHDATA2 declares 1, carries none",
+      "expect": {
+        "scriptCodeSlicedHex": "abab4d0100",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000005abab4d0100a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "6230758adbd115aa2b02619541eb55ed17fef758a88bcf8da3b651c5f506c744"
+      }
+    },
+    {
+      "id": "sep2-pd2-declares:cs2:ht61",
+      "prevScriptHex": "51ababab4d0100",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "two separators; PUSHDATA2 declares 1, carries none",
+      "expect": {
+        "scriptCodeSlicedHex": "abab4d0100",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000034d0100ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "74183e94e8129ec21d48ce00ae86c06b506d2b770ff715e7bf1e718b3e2a2a7f"
+      }
+    },
+    {
+      "id": "sep2-pd2-declares:cs2:ht1",
+      "prevScriptHex": "51ababab4d0100",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "two separators; PUSHDATA2 declares 1, carries none",
+      "expect": {
+        "scriptCodeSlicedHex": "abab4d0100",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000034d0100ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "7404b27773e9f7986915dbd5243f0cdc233a022d0dfb944114c3c8626b6a7605"
+      }
+    },
+    {
+      "id": "sep-after-opreturn:cs2:ht41",
+      "prevScriptHex": "51abab6aab4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "separators either side of OP_RETURN, then a short push",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6aab4d01",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000005ab6aab4d01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "a970f3f5ed3d2c4fe8c601d4401d3e359fb35a1d3c061a4d4e93b18bde301d88"
+      }
+    },
+    {
+      "id": "sep-after-opreturn:cs2:htc1",
+      "prevScriptHex": "51abab6aab4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "separators either side of OP_RETURN, then a short push",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6aab4d01",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000005ab6aab4d01a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "a7ee24b3d1d4c53db4e0e4c734f91713f1eaac41960a821711708f1427570c7c"
+      }
+    },
+    {
+      "id": "sep-after-opreturn:cs2:ht61",
+      "prevScriptHex": "51abab6aab4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "separators either side of OP_RETURN, then a short push",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6aab4d01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4dffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "1498563a292a4327349b9253052c5d7bd10c7b3603ab8ba747118add1239faaa"
+      }
+    },
+    {
+      "id": "sep-after-opreturn:cs2:ht1",
+      "prevScriptHex": "51abab6aab4d01",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "separators either side of OP_RETURN, then a short push",
+      "expect": {
+        "scriptCodeSlicedHex": "ab6aab4d01",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000036a4dffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "91552be6fd92e9c906b894d311faec555fe2ccb1ce9d1db1e122f4ba6caef2a3"
+      }
+    },
+    {
+      "id": "sep-byte-is-lenfield:cs2:ht41",
+      "prevScriptHex": "51ab4d01ab",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "the 0xab is the HIGH length byte, not a separator",
+      "expect": {
+        "scriptCodeSlicedHex": "4d01ab",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000034d01aba086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "b62a7fc4c9b7f227ad55a52ad8868e5cc06a60b01d110e821185dc5ea1ee58d9"
+      }
+    },
+    {
+      "id": "sep-byte-is-lenfield:cs2:htc1",
+      "prevScriptHex": "51ab4d01ab",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "the 0xab is the HIGH length byte, not a separator",
+      "expect": {
+        "scriptCodeSlicedHex": "4d01ab",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000034d01aba086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "60dd0a089687742163db8b8b24225c37c7d2b85f2b4722249de3d9688d43d754"
+      }
+    },
+    {
+      "id": "sep-byte-is-lenfield:cs2:ht61",
+      "prevScriptHex": "51ab4d01ab",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "the 0xab is the HIGH length byte, not a separator",
+      "expect": {
+        "scriptCodeSlicedHex": "4d01ab",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000034d01abffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "4cc2d9563cbd01facf4b7bd03a4c41ed4e42988aaab4ef7b05d466a528bece20"
+      }
+    },
+    {
+      "id": "sep-byte-is-lenfield:cs2:ht1",
+      "prevScriptHex": "51ab4d01ab",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "the 0xab is the HIGH length byte, not a separator",
+      "expect": {
+        "scriptCodeSlicedHex": "4d01ab",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000034d01abffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "a5a95c556b6a88486808d5c52ab41dda5145b158d5b5c040fc1dd3b5ac873a5a"
+      }
+    },
+    {
+      "id": "sep-then-lenfield-ab:cs2:ht41",
+      "prevScriptHex": "51abab4dab00",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "separator, then 0xab inside the length field",
+      "expect": {
+        "scriptCodeSlicedHex": "ab4dab00",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000004ab4dab00a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "caf7c830b97c95464a5fa1b475c209c762e5f1a66c17ea294af5e9e633f07c06"
+      }
+    },
+    {
+      "id": "sep-then-lenfield-ab:cs2:htc1",
+      "prevScriptHex": "51abab4dab00",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "separator, then 0xab inside the length field",
+      "expect": {
+        "scriptCodeSlicedHex": "ab4dab00",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000004ab4dab00a086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "b95b302072b6d493b09a4057f0d12f31261ceda9a1e3d60b6e6d414ff7528bdd"
+      }
+    },
+    {
+      "id": "sep-then-lenfield-ab:cs2:ht61",
+      "prevScriptHex": "51abab4dab00",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "separator, then 0xab inside the length field",
+      "expect": {
+        "scriptCodeSlicedHex": "ab4dab00",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000034dab00ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "13996eeadb84c869c82976eb1b2889b2de97c2e392636f85e75e59f2a92e0f80"
+      }
+    },
+    {
+      "id": "sep-then-lenfield-ab:cs2:ht1",
+      "prevScriptHex": "51abab4dab00",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "separator, then 0xab inside the length field",
+      "expect": {
+        "scriptCodeSlicedHex": "ab4dab00",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00000000034dab00ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "70c4db6fd2b2af05d626e7897ceae1a736e876b8be2417f5daf65655a50eb992"
+      }
+    },
+    {
+      "id": "sep-only:cs2:ht41",
+      "prevScriptHex": "51abab",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 65,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "separator alone: scriptCode is one separator byte",
+      "expect": {
+        "scriptCodeSlicedHex": "ab",
+        "preimageHex": "010000006324e33631b1cb491f73dac8baa476a642eaeccfc7e00c2708764468c82a4e6c3bb13029ce7b1f559ef5e747fcac439f1455a2ec7c5f09b72290795e70665044aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000001aba086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a8950000000041000000",
+        "digestHex": "94322de2e6750872981f1e9252daabc7a6a8af7acfeba4eb4235a73a349e6028"
+      }
+    },
+    {
+      "id": "sep-only:cs2:htc1",
+      "prevScriptHex": "51abab",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 193,
+      "algorithm": "bip143",
+      "codeSepEnd": 2,
+      "note": "separator alone: scriptCode is one separator byte",
+      "expect": {
+        "scriptCodeSlicedHex": "ab",
+        "preimageHex": "0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000001aba086010000000000fffffffff1174b65917d2c3eaf5336d2f90725a8a614e745742207cb89ac6a31b296a89500000000c1000000",
+        "digestHex": "e9add7ae359761ef2180f624f975a21b63711b08a7bc13025168af9b9f21efde"
+      }
+    },
+    {
+      "id": "sep-only:cs2:ht61",
+      "prevScriptHex": "51abab",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 97,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "separator alone: scriptCode is one separator byte",
+      "expect": {
+        "scriptCodeSlicedHex": "ab",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000061000000",
+        "digestHex": "579f1c0c4e0400a1f91a53a60c40d5f9f97dd10475efe60553aa625791c6fa8e"
+      }
+    },
+    {
+      "id": "sep-only:cs2:ht1",
+      "prevScriptHex": "51abab",
+      "txHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac00000000",
+      "nIn": 0,
+      "amount": 100000,
+      "hashType": 1,
+      "algorithm": "original",
+      "codeSepEnd": 2,
+      "note": "separator alone: scriptCode is one separator byte",
+      "expect": {
+        "scriptCodeSlicedHex": "ab",
+        "preimageHex": "0100000001aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0000000000ffffffff01905f0100000000001976a914111111111111111111111111111111111111111188ac0000000001000000",
+        "digestHex": "e783e2307cc70e17db9cf0e32a6b5af5e64eb372fe6bcf61655898529677e231"
+      }
+    }
+  ]
+}

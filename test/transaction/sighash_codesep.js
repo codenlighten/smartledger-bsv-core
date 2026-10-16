@@ -309,6 +309,144 @@ describe('Sighash with an executed OP_CODESEPARATOR', function () {
     })
   })
 
+  describe('a separator together with an undecodable trailing push', function () {
+    // Where the separator rule meets the node's SerializeScriptCode. The declared length drops
+    // by the separators the walk reached, while the carried bytes stop where GetOp first failed,
+    // so the field can declare more than it holds AND be short by the separator count at once.
+    //
+    // These rows were authored here with no expected values and judged elsewhere - a compiled
+    // bitcoin-sv v1.2.3 and an independent Rust node, both run by one peer. They are the first
+    // separator-bearing scriptCode any node has judged for this library:
+    // test/data/sighash-scriptcode-tail.json, the other node-measured corpus, has none.
+    const UC = require('../data/sighash-codesep-undecodable.json')
+
+    it('is internally consistent before it is used as evidence', function () {
+      UC.rows.length.should.equal(48)
+      UC.provenance.emitters.length.should.equal(2)
+      UC.rows.forEach(function (r) {
+        d256(Buffer.from(r.expect.preimageHex, 'hex')).toString('hex')
+          .should.equal(r.expect.digestHex, r.id + ': digest is not sha256d of its own preimage')
+      })
+    })
+
+    UC.rows.forEach(function (r) {
+      it('reproduces ' + r.id, function () {
+        const prev = Buffer.from(r.prevScriptHex, 'hex')
+        const suffix = prev.slice(r.codeSepEnd)
+        suffix.toString('hex').should.equal(r.expect.scriptCodeSlicedHex)
+        const tx = new Transaction(r.txHex)
+        const pre = Sighash.sighashPreimage(tx, r.hashType, r.nIn, Script.fromBuffer(suffix), new BN(r.amount), FORKID)
+        pre.toString('hex').should.equal(r.expect.preimageHex)
+        d256(pre).toString('hex').should.equal(r.expect.digestHex)
+      })
+    })
+
+    it('declares len(suffix) minus the separators the walk reached', function () {
+      // read the declared length and the carried bytes straight out of each original-algorithm
+      // preimage: version(4) + input count(1) + prevout(36) puts the varint at offset 41
+      const expected = {
+        '6a4c': [2, '6a4c'],
+        ab6a4c: [2, '6a4c'],
+        '6a4d01': [3, '6a4d'],
+        ab6a4d01: [3, '6a4d'],
+        abab6a4d01: [3, '6a4d'],
+        ab6a4e010000: [5, '6a4e'],
+        ab4c01: [2, '4c01'],
+        abab4d0100: [3, '4d0100'],
+        ab6aab4d01: [3, '6a4d'],
+        '4d01ab': [3, '4d01ab'],
+        ab4dab00: [3, '4dab00'],
+        ab: [0, '']
+      }
+      let seen = 0
+      UC.rows.forEach(function (r) {
+        if (r.hashType !== 1) return // the original algorithm, no forkid bit
+        const pre = Buffer.from(r.expect.preimageHex, 'hex')
+        const declared = pre[41]
+        const rest = pre.slice(42)
+        const carried = rest.slice(0, rest.indexOf(Buffer.from('ffffffff', 'hex')))
+        const want = expected[r.expect.scriptCodeSlicedHex]
+        ;(want === undefined).should.equal(false, 'no expectation for ' + r.expect.scriptCodeSlicedHex)
+        declared.should.equal(want[0], r.id + ': declared length')
+        carried.toString('hex').should.equal(want[1], r.id + ': carried bytes')
+        seen++
+      })
+      seen.should.equal(12)
+    })
+
+    it('does not EXCISE a 0xab that the parse reads as a length byte', function () {
+      // 4d01ab is a PUSHDATA2 whose length bytes are 01 ab: no separator at all, nothing
+      // excised, three bytes declared and three carried. Node-judged, not modelled.
+      //
+      // This pins the EXCISION half only. In all twelve judged bodies a naive count of 0xab
+      // bytes gives the same DECLARED length as the walk's count, because the declared length
+      // only consults that count when the walk stops early, and no judged body has a 0xab in a
+      // length field AND an early stop. The count half is pinned separately below.
+      const row = UC.rows.filter(function (r) {
+        return r.expect.scriptCodeSlicedHex === '4d01ab' && r.hashType === 1
+      })[0]
+      ;(row === undefined).should.equal(false)
+      Buffer.from(row.expect.preimageHex, 'hex').slice(41, 45).toString('hex').should.equal('034d01ab')
+      // and ab4dab00: the FIRST 0xab is a separator, the second is inside the length field,
+      // so exactly one is counted - 4 - 1 = 3 declared, and 4dab00 carried
+      const two = UC.rows.filter(function (r) {
+        return r.expect.scriptCodeSlicedHex === 'ab4dab00' && r.hashType === 1
+      })[0]
+      Buffer.from(two.expect.preimageHex, 'hex').slice(41, 45).toString('hex').should.equal('034dab00')
+    })
+
+    it('leaves BIP-143 untouched by all of it', function () {
+      // BIP-143 writes the suffix verbatim: nothing excised, nothing dropped, length honest
+      UC.rows.forEach(function (r) {
+        if (r.algorithm !== 'bip143') return
+        const sc = r.expect.scriptCodeSlicedHex
+        const varint = Buffer.from([sc.length / 2]).toString('hex')
+        r.expect.preimageHex.should.contain(varint + sc, r.id)
+      })
+    })
+  })
+
+  describe('the separator COUNT, where a naive byte count would differ', function () {
+    // NOT NODE-JUDGED. These are this library's own values, and they exist because sabotaging
+    // the walk to count every 0xab byte left the node-judged corpus above entirely green: the
+    // declared length only consults the separator count when the walk stops early, and in those
+    // rows a 0xab inside a length field never coincides with an early stop. Each body here has
+    // both, so the two counts diverge and the row discriminates. Sent for node judgement; until
+    // it comes back these guard against regression, not against the node.
+    const sats = new BN(100000)
+    function tx () { return new Transaction(CORPUS.rows[0].txHex) }
+
+    // body -> [declared by the walk's count, carried bytes, declared by a naive 0xab count]
+    const BODIES = {
+      '6a4dab': [3, '6a4d', 2],
+      ab6a4dab: [3, '6a4d', 2],
+      '4dab': [2, '4d', 1],
+      ab4dab: [2, '4d', 1],
+      '6a4eab0000': [5, '6a4e', 4],
+      ab6a4eababab: [5, '6a4e', 2]
+    }
+
+    Object.keys(BODIES).forEach(function (body) {
+      it('declares ' + BODIES[body][0] + ' and carries ' + (BODIES[body][1] || 'nothing') + ' for ' + body, function () {
+        const want = BODIES[body]
+        const pre = Sighash.sighashPreimage(tx(), 0x01, 0, Script.fromHex(body), sats, FORKID)
+        pre[41].should.equal(want[0], body + ': declared length')
+        const rest = pre.slice(42)
+        rest.slice(0, rest.indexOf(Buffer.from('ffffffff', 'hex'))).toString('hex')
+          .should.equal(want[1], body + ': carried bytes')
+        // and the whole point: a naive count would have declared something else
+        want[0].should.not.equal(want[2])
+      })
+    })
+
+    it('keeps BIP-143 writing the suffix verbatim for all of them', function () {
+      Object.keys(BODIES).forEach(function (body) {
+        const pre = Sighash.sighashPreimage(tx(), 0x41, 0, Script.fromHex(body), sats, FORKID).toString('hex')
+        pre.should.contain(Buffer.from([body.length / 2]).toString('hex') + body, body)
+      })
+    })
+  })
+
   describe('an out-of-range codeSepEnd', function () {
     it('is not a state our interpreter can reach, and slices to nothing if constructed', function () {
       // The corpus carries codeSepEnd 99 against a 10-byte script, which is synthetic: our

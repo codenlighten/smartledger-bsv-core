@@ -9,6 +9,22 @@ waiting for a major. See **Stability** in the README.
 
 ## [Unreleased]
 
+### Added — the first separator-bearing scriptCode a node has judged for this package
+
+No behaviour change; ported from `@smartledger/bsv`. Forty-eight rows authored in the sibling
+package with no expected values, judged by a compiled bitcoin-sv v1.2.3 and an independent Rust
+node, and joined against a fresh run of this package: **0 preimage differences, 0 digest
+differences** over 96 comparisons. Vendored at `test/data/sighash-codesep-undecodable.json` with
+the caveat that the two emitters' output files are byte-identical, so the two-witness claim rests
+on their distinct binary hashes rather than the column bytes.
+
+Also carried over: six bodies where a naive count of `0xab` bytes diverges from the walk's
+separator count (`6a4dab`, `ab6a4dab`, `4dab`, `ab4dab`, `6a4eab0000`, `ab6a4eababab`). A
+sabotage substituting the naive count left all 48 judged rows green — the declared length only
+consults that count when the walk stops early, and no judged body has a `0xab` in a length field
+*and* an early stop. These six do, and fail under it. They are this package's own values, not
+node-judged, and are labelled so.
+
 ### Added — tests for what a signature commits to when `OP_CODESEPARATOR` is in the script
 
 No behaviour change; ported from `@smartledger/bsv`. Twenty rows computed outside this package

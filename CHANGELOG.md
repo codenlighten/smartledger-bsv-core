@@ -9,6 +9,51 @@ waiting for a major. See **Stability** in the README.
 
 ## [Unreleased]
 
+### Added — the compact OP_PUSH_TX gate and a covenant with no era dependency
+
+Ports what `@smartledger/bsv` 9.42.0 added, with the cross-check done by DERIVATION rather than
+by comparison.
+
+- `Covenant.PushTx.pushTxCoreCompact` / `authenticatorCompact` — **89 bytes, 12 counted
+  opcodes**, against `pushTxCore`'s 377 and 202. Choosing `a = 2^248 * Gx^-1 mod n` makes
+  `Gx * a == 2^248`, so `s = e + 2^248`, which in a 32-byte BIG-ENDIAN string is incrementing
+  `byte[0]` — the one place the two endiannesses agree. Both 124-byte reversals and the 256-bit
+  modular addition disappear. `A_SCALAR` and `COMPACT_PUBKEY` are exported.
+- `Covenant.PushTx.sFromPreimageCompact` and `grind({ form: 'compact' })` — the condition is
+  `z[0] <= 0x7e` plus low-S; acceptance 49.61%, about two tries against `sFromPreimage`'s ~2%.
+- `Covenant.PushTx.extractHashOutputsPortable` — the same field read with **Monolith-only**
+  opcodes, since `OP_RIGHT`/`OP_LEFT` are Chronicle-restored and silent NO-OPS before it. Ten
+  bytes instead of six.
+- `Covenant.PushTx.valueCovenantPortable` — **135 bytes, 292-byte preimage**, verifying with
+  NEITHER Genesis NOR Chronicle active, where the classic 419-byte form needs both.
+
+**The cross-check is a derivation, not an agreement.** Two transliterations of one mistake agree
+perfectly, so `test/covenant/compact_gate.js` does not compare constants with the other package
+and stop there. It derives `A_SCALAR` by modular inversion (`2^248 * Gx^-1 mod n`) and compares it
+with the shipped constant; checks the defining identity `Gx * a == 2^248 (mod n)` directly;
+recomputes `COMPACT_PUBKEY` as `a*G`; and only then compares emitted bytes with
+`@smartledger/bsv`, which is meaningful because the first three establish the bytes are right. A
+typo in the constant fails the suite instead of shipping a gate nobody can spend. The pre-Genesis
+run carries its own 536-byte-push control, so the caps are demonstrably active rather than
+silently disabled.
+
+Measured out of band: both packages emit byte-identical bytes for every compact and portable
+primitive, including the unchanged classic gate and `valueCovenant`, and `sFromPreimageCompact`
+agrees on 400/400 shared preimages.
+
+**Security contract.** `a` is published and that is safe: the only `OP_CHECKSIG` consumes a
+signature the LOCKING script assembles, never a spender's. What a passing check establishes is
+narrower than it looks — equality of `HASH256(preimage)` with the interpreter's sighash is the
+intended and only readily attainable way to pass, but ECDSA accepts `s` and `n - s` and `r` is
+fixed, so it is a **~2^128 assumption, not an identity**. One CHECKSIG is necessary but NOT
+sufficient; the real guard is the emitted bytes. **Never use `COMPACT_PUBKEY` as an authorization
+key**, and keep field reads AFTER the gate.
+
+Nothing existing changed: the classic gate is still 377 bytes, `grind()` with no `form` still
+uses the classic predicate, and the legacy numeric `maxTries` argument still works.
+
+## [Unreleased]
+
 ### Added — the era ladder, measured to agree with the sibling on every rung
 
 No behaviour change. Which chain eras a covenant built here actually needs, measured rather than

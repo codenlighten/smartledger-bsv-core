@@ -52,6 +52,13 @@ export interface GrindOptions {
    */
   field?: 'nLockTime' | 'sequence' | undefined
   sighashType?: number | undefined
+  /**
+   * Which gate the ground signature must satisfy. 'classic' (the default) uses
+   * `sFromPreimage`: s = e + Gx mod n, acceptance ~2%. 'compact' uses
+   * `sFromPreimageCompact` for `pushTxCoreCompact`: s = e + 2^248, acceptance ~127/256.
+   * A covenant ground under the wrong form is unspendable, so this must match the gate.
+   */
+  form?: 'classic' | 'compact' | undefined
 }
 
 /** What `grind()` returns once it finds a satisfying nonce. */

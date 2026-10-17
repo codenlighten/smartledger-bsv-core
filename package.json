@@ -1,6 +1,6 @@
 {
   "name": "@smartledger/bsv-core",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "Bitcoin SV primitives: keys, addresses, script, transactions, encoding, SPV, ECIES, mnemonics, 1Sat Ordinals and OP_PUSH_TX covenants.",
   "author": "SmartLedger Technology <hello@smartledger.technology> (https://smartledger.technology)",
   "license": "MIT",
@@ -8,6 +8,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
     },
@@ -18,7 +19,7 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "build": "tsc && npm run build:types",
+    "build": "tsc && npm run build:types && node scripts/gen-esm-wrapper.js",
     "clean": "rm -rf dist",
     "typecheck": "tsc --noEmit",
     "pretest": "npm run build",
@@ -39,7 +40,9 @@
     "check:api": "node scripts/api-surface.mjs",
     "check:consumer-types": "bash scripts/check-consumer-types.sh",
     "precheck:api": "npm run build",
-    "preapi:snapshot": "npm run build"
+    "preapi:snapshot": "npm run build",
+    "prepublishOnly": "npm run build && npm run check",
+    "prepack": "npm run build"
   },
   "files": [
     "CARVE.md",

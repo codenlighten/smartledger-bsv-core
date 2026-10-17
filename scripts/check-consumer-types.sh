@@ -21,6 +21,15 @@
 # 1.1.0: the shipped declarations re-exported a type from the ESM-only `@noble/curves`, so a CJS
 # consumer on `node16`/`nodenext` got TS1479 while this gate stayed green. A gate that tests one
 # resolution mode will keep missing that whole class, so it now tests the modes consumers use.
+#
+# It also RUNS an ESM consumer, because compiling is not enough. Every compile row below uses a
+# DEFAULT import, which has always worked, and nothing executed — so a second defect stayed green
+# here through 1.8.0: dist/index.js assembles its API object at run time, Node's CJS named-export
+# detection is a static scan that found nothing, and `import { PrivateKey } from
+# '@smartledger/bsv-core'` threw "Named export 'PrivateKey' not found" for every ESM consumer
+# while tsc ACCEPTED it (28 of 28 root names, measured on published 1.8.0). No declaration can
+# report that — TypeScript permits named imports from CommonJS and does not model Node's lexer —
+# so a gate that only compiles cannot catch it, because the lie is precisely that it compiles.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -160,8 +169,75 @@ else
   failed=1
 fi
 
+# The NAMED import, which is the form no row above used. tsc accepts it, because `export =` over
+# an object type permits named imports, so this row records the promise...
+cat > esm-consumer/named.mts <<'EOF'
+import { PrivateKey, Transaction, Script, crypto } from '@smartledger/bsv-core'
+
+const key = new PrivateKey()
+const address: string = key.toAddress().toString()
+const tx = new Transaction()
+const script = Script.fromASM('OP_1')
+const bn = new crypto.BN(100)
+
+void [address, tx, script, bn]
+EOF
+cat > esm-consumer/tsconfig.named.json <<'EOF'
+{
+  "compilerOptions": {
+    "target": "es2020", "module": "nodenext", "moduleResolution": "nodenext",
+    "strict": true, "noEmit": true, "esModuleInterop": true, "skipLibCheck": false
+  },
+  "include": ["named.mts"]
+}
+EOF
+if (cd esm-consumer && ../node_modules/.bin/tsc --noEmit -p tsconfig.named.json); then
+  echo '  OK      named imports type-check for a "type": "module" consumer'
+else
+  echo '  FAILED  named imports do not type-check for a "type": "module" consumer' >&2
+  failed=1
+fi
+
+# ...and this row RUNS it, which is the only thing that can establish the names exist.
+cat > esm-consumer/named.run.mjs <<'EOF'
+import { PrivateKey, Transaction, Script, crypto, version } from '@smartledger/bsv-core'
+import assert from 'node:assert'
+import { createRequire } from 'node:module'
+
+const missing = Object.entries({ PrivateKey, Transaction, Script, crypto, version })
+  .filter(([, v]) => typeof v === 'undefined').map(([k]) => k)
+assert.deepStrictEqual(missing, [], 'undefined named exports: ' + missing.join(', '))
+
+// Exercise them, so a binding that exists but is not the real export cannot pass.
+const key = PrivateKey.fromWIF('L1uyy5qTuGrVXrmrsvHWHgVzW9kKdrp27wBC7Vs6nZDTF2BRUVwy')
+// Cross-checked against @smartledger/bsv, an independent implementation.
+assert.strictEqual(key.toAddress().toString(), '17XBj6iFEsf8kzDMGQk5ghZipxX49VXuaV')
+assert.strictEqual(Script.fromASM('OP_1').toASM(), 'OP_1')
+assert.strictEqual(new crypto.BN(100).toNumber(), 100)
+assert.strictEqual(typeof new Transaction().toString(), 'string')
+assert.strictEqual(typeof version, 'string')
+
+// The default export must still be the very object `require` returns, so an ESM consumer and a
+// CJS consumer hold the same classes.
+const mod = await import('@smartledger/bsv-core')
+const cjs = createRequire(import.meta.url)('@smartledger/bsv-core')
+assert.strictEqual(mod.default, cjs, 'ESM default is not the CJS module object')
+assert.strictEqual(PrivateKey, cjs.PrivateKey, 'named export is not the CJS member')
+console.log('  OK      named imports RUN for a "type": "module" consumer, sharing CJS identity')
+EOF
+if (cd esm-consumer && node named.run.mjs); then
+  :
+else
+  echo '  FAILED  named imports do not RUN for a "type": "module" consumer' >&2
+  echo '          dist/index.mjs is missing or incomplete. `npm run build` generates it via' >&2
+  echo '          scripts/gen-esm-wrapper.js, and package.json must point the `import`' >&2
+  echo '          condition at it.' >&2
+  failed=1
+fi
+
+
 if [ "$failed" -eq 0 ]; then
-  echo "consumer-types: OK — a strict consumer compiles against the tarball in every resolution mode, with no added @types"
+  echo "consumer-types: OK — a strict consumer compiles against the tarball in every resolution mode with no added @types, and an ESM consumer's named imports RUN"
 else
   echo "consumer-types: FAILED — see the errors above." >&2
   echo "A consumer installs only what \`dependencies\` ships. If a type comes from a" >&2

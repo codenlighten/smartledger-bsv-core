@@ -9,6 +9,31 @@ waiting for a major. See **Stability** in the README.
 
 ## [Unreleased]
 
+### Added — the era ladder, measured to agree with the sibling on every rung
+
+No behaviour change. Which chain eras a covenant built here actually needs, measured rather than
+reasoned, and pinned because the sibling `@smartledger/bsv` pins the same ladder:
+
+| era | gives | needed by |
+|---|---|---|
+| Monolith (2018) | `OP_SPLIT`, `OP_CAT`, `BIN2NUM`, `NUM2BIN`, … | everything — and it **cannot be disabled**, so neither implementation can answer about an earlier rule set |
+| **Genesis** (2020) | unbounded element size and script numbers | **the OP_PUSH_TX gate itself** |
+| Chronicle | `OP_SUBSTR`, `OP_LEFT`, `OP_RIGHT` restored | any covenant that reads the preimage by slicing |
+
+Measured here: `Covenant.PushTx.authenticator()` emits the same **377-byte** lock as the sibling,
+passes on mainnet, passes **pre-Chronicle** (it uses no restored splice opcode), and fails
+`SCRIPT_ERR_PUSH_SIZE` **pre-Genesis** — its preimage is 536 bytes against a 520-byte limit. Both
+Genesis dependencies were isolated: a 536-byte push gives `PUSH_SIZE`, and `OP_ADD` on two 32-byte
+numbers gives `SCRIPT_ERR_SCRIPTNUM_OVERFLOW`, the latter being the in-script
+`s = (e + Gx) mod n`. `OP_SUBSTR` is a **silent no-op** pre-Chronicle, leaving its operands on the
+stack rather than erroring, which is why a slicing covenant fails closed instead of running on the
+wrong stack. `OP_SPLIT` runs under every flag set including `SCRIPT_VERIFY_NONE`.
+
+Every one of those matches `@smartledger/bsv` exactly. The mistake that produced the file is worth
+keeping: a real pre-Genesis failure was twice attributed to **opcode availability** — `OP_SPLIT`
+being "unavailable" — when the gate was a **size limit**. Opcodes are the axis documentation
+lists, and here they were the wrong one. Check the limits too.
+
 ### Added — the sibling's OP_PUSH_TX vector, so a divergence fails a test
 
 No behaviour change. Both packages implement the same in-script signature construction

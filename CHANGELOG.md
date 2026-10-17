@@ -7,6 +7,25 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [Unreleased]
+
+### Changed — `ordLock` cancel: the `sighashType` override now carries its hazard in the docstring
+
+No behaviour change. `buildCancel`'s documented `params.sighashType` is the only place either
+package's shipped surface invites a caller to sign something other than `SIGHASH_ALL|FORKID`. The
+CANCEL branch is a plain P2PKH gate that constrains no output, so a cancel signed `SIGHASH_NONE`
+commits to nothing and anyone holding it before broadcast can redirect the ordinal. That is the
+generic `SIGHASH_NONE` hazard every P2PKH shares rather than a covenant defect — the PURCHASE
+branch pins its flag with `assertSighashType` — but the parameter is where a caller would reach
+for it, so the note belongs there.
+
+Ported from the sibling `@smartledger/bsv`, where a surface audit for exactly this went looking
+after its Token covenant was found to **accept** a `SIGHASH_NONE` authorization while its security
+argument depended on `SIGHASH_ALL` (fixed in 9.40.0 with an opt-in script-level pin). **This
+package has no Token-style covenant**, so that defect does not exist here — checked rather than
+assumed: `SmartContract`, `Token`, `Authorizers` and `PushTx` are all absent from the built
+surface, and `src/covenant` carries only `pushtx` and `helpers`.
+
 ## [1.8.1] - 2026-10-17
 
 ### Fixed — named ESM imports did not exist: `import { PrivateKey }` threw on every published version

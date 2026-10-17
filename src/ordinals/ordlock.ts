@@ -414,6 +414,13 @@ function purchase (params?: UnlockParams) {
  * @param {number}      [params.satoshis=1]  satoshis on the listing UTXO.
  * @param {number}      [params.inputIndex=0] the OrdLock input's index.
  * @param {number}      [params.sighashType] signature flag (default SIGHASH_ALL|FORKID).
+ *   Leave it alone unless you know exactly why. The CANCEL branch is a plain P2PKH gate and
+ *   constrains no output, so a cancel signed SIGHASH_NONE commits to nothing and anyone who
+ *   holds it before broadcast can redirect the ordinal -- the generic SIGHASH_NONE hazard, not
+ *   a covenant defect, but this parameter is the one place the shipped surface invites it. The
+ *   PURCHASE branch is unaffected: it pins its flag with `P.assertSighashType`. The sibling
+ *   `@smartledger/bsv` carries the same note; a Token-style covenant whose security argument
+ *   RELIES on the flag is a different and worse case, and this package has no such covenant.
  * @returns {Script} the unlocking script (also assigned onto the input).
  */
 function cancel (params?: UnlockParams) {

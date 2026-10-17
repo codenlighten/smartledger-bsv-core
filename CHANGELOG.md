@@ -9,6 +9,30 @@ waiting for a major. See **Stability** in the README.
 
 ## [Unreleased]
 
+### Added — the sibling's OP_PUSH_TX vector, so a divergence fails a test
+
+No behaviour change. Both packages implement the same in-script signature construction
+(`a = 1`, `k = 1`, so `r = Gx` and `P = 02||Gx`), and "both implement it" is worth nothing
+unless something fails when they drift. `test/data/pushtx-authenticator-vector.json` is an
+artifact built by `@smartledger/bsv` — locking script, spending transaction, the grind nonce
+that made the s-value canonical, and the preimage — and `test/covenant/pushtx_vector.js`
+recomputes each field with **this** package's code rather than comparing the file to itself.
+
+Measured on adding it: this package emits a **byte-identical 377-byte** locking script from
+`Covenant.PushTx.authenticator()`, reproduces the same preimage from the same transaction with
+its own `rawPreimage`, accepts the same s-value under `sFromPreimage`, and **verifies the
+sibling-built spend under its own interpreter**. A one-byte mutation of the preimage is refused,
+which is what makes it a vector rather than a snapshot.
+
+Kept as a copy in each repository rather than a shared fixture, deliberately: a copy in each is
+what makes a future divergence fail a test instead of going unnoticed.
+
+Worth recording for anyone looking for the covenant surface here: the OP_PUSH_TX primitives are
+exported as **`bsv.Covenant.PushTx`** (21 members, the same names the sibling exposes under
+`SmartContract.PushTx`) with the BIP-143 helpers under `bsv.Covenant.Helpers`. What this package
+does **not** have is the application layer above them — no `SmartContract` namespace, no `Token`,
+`Authorizers`, `Locks`, `DSL` or covenant templates.
+
 ### Changed — `ordLock` cancel: the `sighashType` override now carries its hazard in the docstring
 
 No behaviour change. `buildCancel`'s documented `params.sighashType` is the only place either

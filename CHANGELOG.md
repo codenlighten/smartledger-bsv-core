@@ -7,6 +7,42 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.10.0] - 2026-10-18
+
+### Deprecated — a named key-material parser handed nothing GENERATES a key the caller never supplied
+
+Ported from `@smartledger/bsv` 9.43.0, with the same plan ids, because a commitment honoured in
+one package and forgotten in the other is how the two drift.
+
+`Mnemonic.fromString(undefined)` returns a fresh phrase. No throw, no warning, and the caller
+holds a key nobody gave them. A sibling deployment lost 10,000 sat to exactly that on 2026-10-09
+when an unset environment variable reached it. The declared parameter type is `string`, which
+binds TypeScript callers and not JavaScript ones, and this package is consumed from both.
+
+Measured on this package's built surface, the same eight inputs as the sibling: `undefined`,
+`null`, `''`, `0`, `false`, `[]`, a wordlist array and a Buffer all generate.
+`HDPrivateKey.fromString('')` generates a fresh random key, while `fromString(undefined)` throws —
+that guard existed and was one condition short.
+
+Two inputs are worse than a lost key because the result is **derivable by anyone**: `[]` is read as
+a WORDLIST, so lookups into an empty array give twelve empty words on every call, and a Buffer is
+read as a SEED, so `Buffer.alloc(16)` gives the canonical BIP-39 `abandon … about` vector.
+Whitespace is not in that set — `'   '` is a non-empty string and already throws; a call site that
+trims first turns it into `''` and lands here, which is the shape that reaches production.
+
+Both entry points now warn and otherwise behave exactly as before, so no working call changes.
+Refusing is registered for 2.0.0 as `mnemonic-fromstring-generates` and
+`hdprivatekey-fromstring-empty`. The constructors are untouched: `new Mnemonic()` generating on no
+argument is documented and intended, and the major splits the overloaded forms into explicit named
+ones rather than guarding parsers one at a time.
+
+### Added — `deprecate.fired()` records carry the plan id
+
+`FiredNotice` gains `plan`. The id is the stable name of a planned break, which is why
+`docs/RELEASE-2.0.0.md` keys on it and deliberately uses the same strings as the sibling — but it
+was only ever parsed out of the source by the plan guard, so a consumer reading `fired()` to triage
+migrations could not see it. Still never printed and still not part of the dedup key.
+
 ## [1.9.0] - 2026-10-18
 
 ### Added — the compact OP_PUSH_TX gate and a covenant with no era dependency

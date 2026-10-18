@@ -20,6 +20,7 @@ import Random = require('./crypto/random')
 import errors = require('./errors')
 const hdErrors = errors.HDPrivateKey
 import JSUtil = require('./util/js')
+import deprecate = require('./util/deprecate')
 
 // The error tree is built dynamically; members arrive via an index signature.
 type ErrCtor = new (...args: unknown[]) => Error
@@ -359,6 +360,20 @@ HDPrivateKey._validateNetwork = function (data: Buffer, networkArg?: NetworkLike
 
 HDPrivateKey.fromString = function (arg: string) {
   $.checkArgument(_.isString(arg), 'No valid string was provided')
+  // The type check above passes an EMPTY string, and the constructor reads one as "no argument
+  // given" and GENERATES a fresh key. An unset variable is caught by the line above; one set to
+  // empty, trimmed to nothing, or read from `"xpriv": ""` in a config is not, and that is the
+  // value a deployment actually produces.
+  if (arg.length === 0) {
+    deprecate({
+      what: 'HDPrivateKey.fromString() with an empty string',
+      since: '1.10.0',
+      removeIn: '2.0.0',
+      plan: 'hdprivatekey-fromstring-empty',
+      why: 'the constructor reads an empty string as no argument and GENERATES a fresh key, so the caller holds a key nobody supplied',
+      use: 'a non-empty xprv you have checked, or HDPrivateKey.fromRandom() if a new key is what you wanted'
+    })
+  }
   return new HDPrivateKey(arg)
 }
 

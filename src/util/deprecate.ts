@@ -80,6 +80,11 @@ function deprecate (opts: DeprecationOptions): boolean {
     what: opts.what,
     since: opts.since ?? null,
     removeIn: opts.removeIn ?? null,
+    // The STABLE name of the planned break. `what` is prose and gets rewritten, `since` repeats
+    // across releases; the plan id does neither, and docs/RELEASE-2.0.0.md keys on it. It was
+    // parsed out of the source by the plan guard and not readable at runtime, so advice to key
+    // migration tracking on it named something a caller could not actually read.
+    plan: opts.plan ?? null,
     use: opts.use ?? null,
     message
   })

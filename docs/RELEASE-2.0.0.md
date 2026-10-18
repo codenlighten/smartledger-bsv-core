@@ -18,7 +18,7 @@ one file may legitimately be deprecated in the same release, and a file move is 
 promise. So `since` and the registering file are checked as **fields of the matched row** instead.
 
 The ids are deliberately **the same strings `@smartledger/bsv` uses** for the same commitments, so
-the two packages' plans can be compared directly. All three of these are ported changes, and the
+the two packages' plans can be compared directly. All five of these are ported changes, and the
 port is the point: a commitment honoured in one package and forgotten in the other is how the two
 drift.
 
@@ -27,6 +27,8 @@ drift.
 | `script-fromhex-not-whole-hex` | 1.1.0 | `Script.fromHex()` on a string that is **not whole hex** | round-trip first: `Script.fromHex(h).toHex() === h.toLowerCase()` | `src/script/script.ts` |
 | `output-script-mutated-in-place` | 1.7.0 | **mutating a parsed output script in place** and expecting it to serialize | `output.setScript(output.script)` after mutating, or build the script before setting it | `src/transaction/output.ts` |
 | `message-verify-high-s-accept` | 1.8.0 | `Message#verify()` **accepting a non-canonical (high-s) signature** | `verify(address, sig, { lowS: true })` | `src/message/message.ts` |
+| `mnemonic-fromstring-generates` | 1.10.0 | `Mnemonic.fromString()` with **anything but a non-empty string** — it generates a fresh phrase instead of refusing, and `[]` and a Buffer give keys anyone can derive | `Mnemonic.isValid(phrase)` before parsing, `Mnemonic.fromSeed(buffer)` for a seed, `Mnemonic.fromRandom()` for a new phrase | `src/mnemonic/mnemonic.ts` |
+| `hdprivatekey-fromstring-empty` | 1.10.0 | `HDPrivateKey.fromString('')` — the type check passes an empty string and the constructor reads one as no argument, so it generates | a non-empty xprv you have checked, or `HDPrivateKey.fromRandom()` | `src/hdprivatekey.ts` |
 
 `src/util/deprecate.ts` warns once per API per process and **never throws**, because a deprecation
 that throws is a breaking change wearing a warning's name. The `plan:` id is never printed: it is

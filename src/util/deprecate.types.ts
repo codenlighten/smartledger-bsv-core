@@ -29,6 +29,8 @@ export interface FiredNotice {
   what: string
   since: string | null
   removeIn: string | null
+  /** The stable id of the planned break, as docs/RELEASE-2.0.0.md lists it. */
+  plan: string | null
   use: string | null
   message: string
 }

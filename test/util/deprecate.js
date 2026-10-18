@@ -121,4 +121,22 @@ describe('util/deprecate', function () {
       deprecate.fired().length.should.equal(0)
     })
   })
+  describe('the plan id is carried into the record', function () {
+    it('fired() exposes the stable plan id, not only the prose', function () {
+      deprecate.reset()
+      deprecate({ what: 'X#y', since: '1.10.0', removeIn: '2.0.0', plan: 'x-y-planned', use: 'X#z' })
+      var rec = deprecate.fired()[0]
+      rec.plan.should.equal('x-y-planned')
+      rec.what.should.equal('X#y')
+      // docs/RELEASE-2.0.0.md keys on the id and shares it with the sibling package, so it has
+      // to be readable at runtime and not only parsed out of the source by the plan guard
+      rec.message.indexOf('x-y-planned').should.equal(-1, 'the id is never printed')
+    })
+
+    it('is null when a notice declares no plan, rather than absent', function () {
+      deprecate.reset()
+      deprecate({ what: 'A#b' })
+      ;(deprecate.fired()[0].plan === null).should.equal(true)
+    })
+  })
 })

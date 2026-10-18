@@ -15,6 +15,7 @@ import Hash = require('../crypto/hash')
 import Random = require('../crypto/random')
 
 import $ = require('../util/preconditions')
+import deprecate = require('../util/deprecate')
 import type { Mnemonic, MnemonicConstructor, Wordlist } from './types'
 import type { NetworkLike } from '../hdprivatekey.types'
 
@@ -147,6 +148,27 @@ Mnemonic.fromRandom = function (wordlist?: Wordlist | number, ent?: number | Wor
 // wordlist then fails as UnknownWordlist instead of InvalidMnemonic. Dropping
 // it changed which error callers see.
 Mnemonic.fromString = function (mnemonic: string, wordlist: Wordlist = Mnemonic.Words.ENGLISH!) {
+  // The declared type says string, and JavaScript callers are not bound by it. Anything but a
+  // NON-EMPTY string reaches the constructor's documented "no argument" path and GENERATES a
+  // fresh phrase, so the caller holds a key nobody gave them. An unset environment variable did
+  // exactly that in a sibling deployment on 2026-10-09 and 10,000 sat were lost. The constructor
+  // is correct and untouched; what is wrong is a named parser inheriting its default.
+  //
+  // Two inputs are worse than a lost key because the result is DERIVABLE BY ANYONE: `[]` is read
+  // as a WORDLIST, so lookups into an empty array give twelve empty words every time, and a
+  // Buffer is read as a SEED, so sixteen zero bytes give the canonical BIP-39 vector. Whitespace
+  // is NOT in this set — '   ' is a non-empty string and already throws; a call site that trims
+  // first turns it into '' and lands here, which is the shape that reaches production.
+  if (typeof mnemonic !== 'string' || (mnemonic as string).length === 0) {
+    deprecate({
+      what: 'Mnemonic.fromString() with anything but a non-empty string',
+      since: '1.10.0',
+      removeIn: '2.0.0',
+      plan: 'mnemonic-fromstring-generates',
+      why: "it reaches the constructor's no-argument path and GENERATES a fresh phrase, so the caller holds a key nobody supplied; `[]` and a Buffer give keys anyone can derive",
+      use: 'Mnemonic.isValid(phrase) before parsing, Mnemonic.fromSeed(buffer) for a seed, or Mnemonic.fromRandom() if a new phrase is what you wanted'
+    })
+  }
   return new Mnemonic(mnemonic, wordlist)
 }
 

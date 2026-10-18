@@ -7,7 +7,7 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
-## [Unreleased]
+## [1.9.0] - 2026-10-18
 
 ### Added — the compact OP_PUSH_TX gate and a covenant with no era dependency
 
@@ -51,8 +51,6 @@ key**, and keep field reads AFTER the gate.
 
 Nothing existing changed: the classic gate is still 377 bytes, `grind()` with no `form` still
 uses the classic predicate, and the legacy numeric `maxTries` argument still works.
-
-## [Unreleased]
 
 ### Added — the era ladder, measured to agree with the sibling on every rung
 

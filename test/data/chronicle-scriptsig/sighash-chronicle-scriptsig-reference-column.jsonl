@@ -1,0 +1,24 @@
+{"id": "sighash-chronicle-scriptsig/chronicle-off/lock-nop/checksig/signs-scriptsig-region", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-off/lock-nop/checksig/signs-region-plus-lock", "verdict": "reject", "error": "Signature must be zero for failed CHECK(MULTI)SIG operation"}
+{"id": "sighash-chronicle-scriptsig/chronicle-off/lock-nop/checkmultisig/signs-scriptsig-region", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-off/lock-nop/checkmultisig/signs-region-plus-lock", "verdict": "reject", "error": "Signature must be zero for failed CHECK(MULTI)SIG operation"}
+{"id": "sighash-chronicle-scriptsig/chronicle-off/lock-longer/checksig/signs-scriptsig-region", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-off/lock-longer/checksig/signs-region-plus-lock", "verdict": "reject", "error": "Signature must be zero for failed CHECK(MULTI)SIG operation"}
+{"id": "sighash-chronicle-scriptsig/chronicle-off/lock-longer/checkmultisig/signs-scriptsig-region", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-off/lock-longer/checkmultisig/signs-region-plus-lock", "verdict": "reject", "error": "Signature must be zero for failed CHECK(MULTI)SIG operation"}
+{"id": "sighash-chronicle-scriptsig/chronicle-on/lock-nop/checksig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/chronicle-on/lock-nop/checksig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-on/lock-nop/checkmultisig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/chronicle-on/lock-nop/checkmultisig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-on/lock-longer/checksig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/chronicle-on/lock-longer/checksig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-on/lock-longer/checkmultisig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/chronicle-on/lock-longer/checkmultisig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-on-sigpushonly/lock-nop/checksig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/chronicle-on-sigpushonly/lock-nop/checksig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-on-sigpushonly/lock-nop/checkmultisig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/chronicle-on-sigpushonly/lock-nop/checkmultisig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-on-sigpushonly/lock-longer/checksig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/chronicle-on-sigpushonly/lock-longer/checksig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/chronicle-on-sigpushonly/lock-longer/checkmultisig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/chronicle-on-sigpushonly/lock-longer/checkmultisig/signs-region-plus-lock", "verdict": "accept", "error": ""}

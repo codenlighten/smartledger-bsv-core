@@ -93,6 +93,8 @@ export interface InterpreterState {
   flags?: number | undefined
   returned?: boolean | undefined
   nonTopLevelReturnAfterGenesis?: boolean | undefined
+  /** The locking script, but only while the unlocking script is evaluated. */
+  checksigData?: Script | null | undefined
   script?: Script | undefined
   tx?: Transaction | undefined
   nin?: number | undefined
@@ -135,6 +137,7 @@ export interface Interpreter {
   returned: boolean
   /** An OP_RETURN inside a conditional after Genesis: suppress, but keep parsing. */
   nonTopLevelReturnAfterGenesis: boolean
+  checksigData: Script | null
 
   script?: Script | undefined
   tx?: Transaction | undefined

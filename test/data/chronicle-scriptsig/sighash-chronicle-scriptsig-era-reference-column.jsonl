@@ -1,0 +1,16 @@
+{"id": "sighash-chronicle-scriptsig/block-era-only/lock-nop/checksig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/block-era-only/lock-nop/checksig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/block-era-only/lock-nop/checkmultisig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/block-era-only/lock-nop/checkmultisig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/block-era-only/lock-longer/checksig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/block-era-only/lock-longer/checksig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/block-era-only/lock-longer/checkmultisig/signs-scriptsig-region", "verdict": "reject", "error": "Script evaluated without error but finished with a false/empty top stack element"}
+{"id": "sighash-chronicle-scriptsig/block-era-only/lock-longer/checkmultisig/signs-region-plus-lock", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/output-era-only/lock-nop/checksig/signs-scriptsig-region", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/output-era-only/lock-nop/checksig/signs-region-plus-lock", "verdict": "reject", "error": "Signature must be zero for failed CHECK(MULTI)SIG operation"}
+{"id": "sighash-chronicle-scriptsig/output-era-only/lock-nop/checkmultisig/signs-scriptsig-region", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/output-era-only/lock-nop/checkmultisig/signs-region-plus-lock", "verdict": "reject", "error": "Signature must be zero for failed CHECK(MULTI)SIG operation"}
+{"id": "sighash-chronicle-scriptsig/output-era-only/lock-longer/checksig/signs-scriptsig-region", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/output-era-only/lock-longer/checksig/signs-region-plus-lock", "verdict": "reject", "error": "Signature must be zero for failed CHECK(MULTI)SIG operation"}
+{"id": "sighash-chronicle-scriptsig/output-era-only/lock-longer/checkmultisig/signs-scriptsig-region", "verdict": "accept", "error": ""}
+{"id": "sighash-chronicle-scriptsig/output-era-only/lock-longer/checkmultisig/signs-region-plus-lock", "verdict": "reject", "error": "Signature must be zero for failed CHECK(MULTI)SIG operation"}

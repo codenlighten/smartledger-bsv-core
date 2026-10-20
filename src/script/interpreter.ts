@@ -96,6 +96,8 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
 
   this.set({
     script: scriptSig,
+    // the unlocking script is the one phase where a signature check can see the lock
+    checksigData: scriptPubkey,
     tx,
     nin,
     flags,
@@ -144,6 +146,7 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
   this.initialize()
   this.set({
     script: scriptPubkey,
+    checksigData: null,
     stack,
     tx,
     nin,
@@ -199,6 +202,7 @@ Interpreter.prototype.verify = function (this: Interpreter, scriptSig: Script, s
     this.initialize()
     this.set({
       script: redeemScript,
+      checksigData: null,
       stack: stackCopy,
       tx,
       nin,
@@ -270,6 +274,12 @@ Interpreter.prototype.initialize = function (this: Interpreter, obj?: Interprete
   // checked through to the end.
   this.returned = false
   this.nonTopLevelReturnAfterGenesis = false
+  // The locking script, but ONLY while the unlocking script is being evaluated. The node
+  // calls this `checksigData` and passes `&scriptPubKey` for the scriptSig evaluation and
+  // `nullptr` for the scriptPubKey and P2SH-redeem evaluations (interpreter.cpp 2338, 2358,
+  // 2402). Post-Chronicle a signature check inside the unlocking script signs its own
+  // code-separator-onward region PLUS this.
+  this.checksigData = null
 }
 
 Interpreter.prototype.set = function (this: Interpreter, obj: InterpreterState) {
@@ -291,6 +301,9 @@ Interpreter.prototype.set = function (this: Interpreter, obj: InterpreterState) 
     typeof obj.nonTopLevelReturnAfterGenesis !== 'undefined'
       ? obj.nonTopLevelReturnAfterGenesis
       : this.nonTopLevelReturnAfterGenesis
+  // `|| this.checksigData` would be wrong: clearing it for the scriptPubKey phase means
+  // assigning null, and null is exactly what the node passes there.
+  this.checksigData = typeof obj.checksigData !== 'undefined' ? obj.checksigData : this.checksigData
 }
 
 Interpreter.true = Buffer.from([1])
@@ -792,6 +805,26 @@ Interpreter.prototype.checkSignatureEncoding = function (this: Interpreter, buf:
   }
 
   return true
+}
+
+/**
+ * Post-Chronicle, a signature check inside the UNLOCKING script signs everything from the
+ * most recent code separator to the end of that script PLUS the locking script
+ * (`interpreter.cpp` 1475-1480 and 1571-1576).
+ *
+ * The gate is `IsChronicle(flags)`, which `script_flags.h` 117-120 defines as the
+ * SCRIPT_CHRONICLE bit (1 << 20) ALONE — NOT the output-era bit SCRIPT_UTXO_AFTER_CHRONICLE
+ * (1 << 21), which has its own accessor and is not consulted here. The two bits answer
+ * different Chronicle questions: the RELAXATIONS gate on the output era, which is what took
+ * 571 of 24,568 disagreements to zero in bsv 9.30.0 / core 1.3.0. Reusing that helper here
+ * looks right and is wrong, and passes the first 24-row conformance set while still
+ * disagreeing on 16 of 40.
+ */
+function appendChecksigData (interp: Interpreter, subscript: Script): Script {
+  if (!interp.checksigData) return subscript
+  if ((interp.flags & Interpreter.SCRIPT_CHRONICLE) === 0) return subscript
+  interp.checksigData.chunks.forEach((c) => { subscript.chunks.push(c) })
+  return subscript
 }
 
 /**
@@ -2630,6 +2663,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         subscript = new Script().set({
           chunks: this.script!.chunks.slice(this.pbegincodehash)
         })
+        appendChecksigData(this, subscript)
 
         // Drop the signature, since there's no way for a signature to sign
         // itself — but only where the node does: not for a FORKID signature
@@ -2729,6 +2763,7 @@ Interpreter.prototype.step = function (this: Interpreter) {
         subscript = new Script().set({
           chunks: this.script!.chunks.slice(this.pbegincodehash)
         })
+        appendChecksigData(this, subscript)
 
         // Drop the signatures, since there's no way for a signature to sign itself
         for (let k = 0; k < nSigsCount; k++) {

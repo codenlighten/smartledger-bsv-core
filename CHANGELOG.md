@@ -7,6 +7,56 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html) — with one 
 if BSV mainnet consensus changes, this package follows the network in a minor rather than
 waiting for a major. See **Stability** in the README.
 
+## [1.11.0] - 2026-10-20
+
+### Fixed — post-Chronicle, a signature check inside the unlocking script did not sign the locking script
+
+Ported from `@smartledger/bsv` 9.44.0, where it was found. A `OP_CHECKSIG` or
+`OP_CHECKMULTISIG` that executes in the **unlocking** script signs, after Chronicle,
+everything from the most recent code separator to the end of that script **plus the locking
+script**. This port appended nothing, in any era.
+
+`bitcoin-sv` v1.2.3, `src/script/interpreter.cpp` 1475-1480 and the same block at 1571-1576:
+
+```cpp
+// checksigData contains scriptPubKey if we are executing within a scriptSig
+if(checksigData && IsChronicle(flags))
+    scriptCode += *checksigData;
+```
+
+`VerifyScript` supplies it at 2338, passing `&scriptPubKey` for the scriptSig evaluation while
+2358 (the locking script) and 2402 (a P2SH redeem script) pass `nullptr`.
+
+**Measured against a compiled reference.** Of 40 reference-judged rows this port scored
+**16 agree / 24 differ** before the fix and **40 / 0** after — the identical split to `bsv`
+before 9.44.0, which is what established that the two implementations shared one defect rather
+than two. The divergence ran in both directions: accepting spends the network rejects and
+rejecting spends it accepts.
+
+**The gate is `SCRIPT_CHRONICLE` (bit 20) alone.** `script_flags.h` 117-120 defines
+`IsChronicle(flags)` as that bit; the output-era bit `SCRIPT_UTXO_AFTER_CHRONICLE` (bit 21) has
+its own accessor and is **not consulted here**. That cuts against this port's own earlier
+finding: the Chronicle *relaxations* gate on the output era alone, which is what took 571 of
+24,568 disagreements to zero in 1.3.0. Two Chronicle questions, two different bits, opposite
+answers — so reusing the relaxation helper here looks right, passes every row of the first
+24-row conformance set, and still disagrees on 16 of 40.
+
+**Who was exposed.** Only code that puts a signature check in an unlocking script. Ordinary
+P2PKH and P2SH spending is unaffected, since a locking-script `CHECKSIG` is passed `nullptr`;
+and post-Chronicle the shape also needs a transaction version above 1 to clear SIGPUSHONLY.
+Chronicle activated at height 943,816, so this is live rather than prospective.
+
+**Why 1.11.0 is a minor.** No working call breaks: a caller relying on the old acceptance was
+relying on a verdict the network already refuses. The helper is module-private, so the API
+surface is unchanged — `check:api` passes without a snapshot update.
+
+`test/script/chronicle_scriptsig_checksig.js` pins all 40 rows and carries the bit-separation
+control, which it runs by swapping bits 20 and 21 in the input flags: observationally identical
+to swapping which bit the gate reads, and it needs no access to internals.
+
+Vectors: oracle vectors in the BSV opcode lab repo, with reference verdicts from a compiled
+bitcoin-sv v1.2.3 oracle and an independent Rust node.
+
 ## [1.10.0] - 2026-10-18
 
 ### Deprecated — a named key-material parser handed nothing GENERATES a key the caller never supplied

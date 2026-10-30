@@ -50,6 +50,7 @@ import Transaction = require('../transaction')
 import Input = require('../transaction/input')
 import Output = require('../transaction/output')
 import BufferReader = require('../encoding/bufferreader')
+import ownOption = require('../util/own-option')
 import type { OrdLockParams, PayOutputSpec, UnlockParams, ListingTxParams, PurchaseTxParams, ParseOrdLockOptions, FundingCoin, OutpointLike, LockLike, AddressLike, PayeeLike, OwnerLike, PayOutputLike } from './types'
 import type { ScriptChunk } from '../script/script.types'
 import type { PrivateKey } from '../privatekey.types'
@@ -380,7 +381,7 @@ function purchase (params?: UnlockParams) {
   }
 
   // Fail-fast: the pinned block must recreate the listing's required payment(s) exactly.
-  if (params.validate !== false && parsed) {
+  if (ownOption(params, 'validate') !== false && parsed) {
     const pinned = Buffer.concat(outs.slice(payoutIndex, payoutIndex + payoutCount).map(serializeOutput))
     if (!pinned.equals(parsed.payBlob)) {
       throw new Error('purchase: outputs [' + payoutIndex + '..' + (payoutIndex + payoutCount - 1) +

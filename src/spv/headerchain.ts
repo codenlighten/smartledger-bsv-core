@@ -17,6 +17,7 @@
  */
 import BN = require('../crypto/bn')
 import merkleproof = require('./merkleproof')
+import ownOption = require('../util/own-option')
 import type { HeaderLike, HeaderChainOpts, HeaderChainResult } from './types'
 import type { BlockHeader as BlockHeaderType } from '../block/types'
 
@@ -44,8 +45,8 @@ function verifyHeaderChain (headers: HeaderLike[], opts?: HeaderChainOpts): Head
     throw new Error('headers must be a non-empty array')
   }
   const hs = headers.map(toHeader)
-  const requirePow = o.requirePow !== false
-  const limit = requirePow ? merkleproof.targetLimit(o.powLimit) : null
+  const requirePow = ownOption(o, 'requirePow') !== false
+  const limit = requirePow ? merkleproof.targetLimit(ownOption<HeaderChainOpts['powLimit']>(o, 'powLimit')) : null
   let work = 0
 
   for (let i = 0; i < hs.length; i++) {
@@ -82,8 +83,9 @@ function verifyHeaderChain (headers: HeaderLike[], opts?: HeaderChainOpts): Head
   const anchorHash = (hs[0] as BlockHeaderType).id
   const tipHash = (hs[hs.length - 1] as BlockHeaderType).id
 
-  if (o.trustedHash != null) {
-    const t = String(o.trustedHash).toLowerCase()
+  const trustedHash = ownOption<string>(o, 'trustedHash')
+  if (trustedHash != null) {
+    const t = String(trustedHash).toLowerCase()
     if (t !== tipHash.toLowerCase() && t !== anchorHash.toLowerCase()) {
       return {
         valid: false,

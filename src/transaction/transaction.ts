@@ -42,6 +42,7 @@ const Address = (): AddressConstructor => require('../address')
 const PrivateKey = (): PrivateKeyConstructor => require('../privatekey')
 const Interpreter = (): InterpreterConstructor => require('../script/interpreter')
 import BN = require('../crypto/bn')
+import ownOption = require('../util/own-option')
 import type { PrivateKeyConstructor } from '../privatekey.types'
 import type { InterpreterConstructor } from '../script/interpreter.types'
 import type { AddressConstructor } from '../address.types'
@@ -172,7 +173,7 @@ Transaction.prototype._getHash = function (this: Transaction) {
  * @return {string}
  */
 Transaction.prototype.serialize = function (this: Transaction, unsafe?: boolean | SerializeOptions) {
-  if (unsafe === true || (unsafe && unsafe.disableAll)) {
+  if (unsafe === true || (unsafe && ownOption(unsafe, 'disableAll'))) {
     return this.uncheckedSerialize()
   } else {
     // `unsafe` is boolean|options; `true` was handled above, so what reaches
@@ -231,7 +232,7 @@ Transaction.prototype.getSerializationError = function (this: Transaction, opts?
   const unspent = this._getUnspentValue()
   let unspentError
   if (unspent < 0) {
-    if (!opts.disableMoreOutputThanInput) {
+    if (!ownOption(opts, 'disableMoreOutputThanInput')) {
       unspentError = new (err('Transaction.InvalidOutputAmountSum'))()
     }
   } else {
@@ -250,7 +251,7 @@ Transaction.prototype._hasFeeError = function (this: Transaction, opts: Serializ
     )
   }
 
-  if (!opts.disableLargeFees) {
+  if (!ownOption(opts, 'disableLargeFees')) {
     const maximumFee = Math.floor(Transaction.FEE_SECURITY_MARGIN * this._estimateFee())
     if (unspent > maximumFee) {
       if (this._missingChange()) {
@@ -270,7 +271,7 @@ Transaction.prototype._missingChange = function (this: Transaction) {
 }
 
 Transaction.prototype._hasDustOutputs = function (this: Transaction, opts: SerializeOptions) {
-  if (opts.disableDustOutputs) {
+  if (ownOption(opts, 'disableDustOutputs')) {
     return
   }
   let index, output
@@ -300,7 +301,7 @@ Transaction.prototype._hasDustOutputs = function (this: Transaction, opts: Seria
 }
 
 Transaction.prototype._isMissingSignatures = function (this: Transaction, opts: SerializeOptions) {
-  if (opts.disableIsFullySigned) {
+  if (ownOption(opts, 'disableIsFullySigned')) {
     return
   }
   if (!this.isFullySigned()) {

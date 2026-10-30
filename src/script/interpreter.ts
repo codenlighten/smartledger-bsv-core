@@ -9,6 +9,7 @@ import BN = require('../crypto/bn')
 import Hash = require('../crypto/hash')
 import Signature = require('../crypto/signature')
 import cloneDeep = require('clone-deep')
+import ownOption = require('../util/own-option')
 import type { Interpreter, InterpreterConstructor, InterpreterState, InterpreterFlags, StepInfo, ScriptLimits } from './interpreter.types'
 import type Transaction = require('../transaction')
 import type { Script as ScriptType, ScriptChunk } from './script.types'
@@ -481,7 +482,7 @@ Interpreter.mainnetFlags = function (opts?: { afterChronicle?: boolean }): numbe
     // most sharply the 4-byte script-number bound.
     Interpreter.SCRIPT_GENESIS |
     Interpreter.SCRIPT_UTXO_AFTER_GENESIS
-  if (opts.afterChronicle !== false) {
+  if (ownOption(opts, 'afterChronicle') !== false) {
     flags |= Interpreter.SCRIPT_ENABLE_CHRONICLE | Interpreter.SCRIPT_UTXO_AFTER_CHRONICLE
   }
   return flags
@@ -527,7 +528,7 @@ Interpreter.currentConsensusFlags = function (): number {
  */
 Interpreter.useMainnetConsensus = function (opts?: { afterChronicle?: boolean, max?: number }): number {
   opts = opts ?? {}
-  Interpreter.useGenesisLimits(opts.max)
+  Interpreter.useGenesisLimits(ownOption<number>(opts, 'max'))
   return Interpreter.mainnetFlags(opts)
 }
 

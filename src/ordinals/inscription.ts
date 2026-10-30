@@ -20,6 +20,7 @@ import Script = require('../script')
 import Opcode = require('../opcode')
 import Address = require('../address')
 import Output = require('../transaction/output')
+import ownOption = require('../util/own-option')
 import type { InscriptionParams, InscriptionOutputParams } from './types'
 import type { ScriptChunk } from '../script/script.types'
 
@@ -73,7 +74,7 @@ function resolveLock (params: InscriptionParams) {
     // skipped at execution — so whatever the spender pushes is the final stack and the
     // ordinal is anyone-can-spend. Only a caller appending the envelope to a lock it
     // supplies itself (as ordlock.js does) legitimately wants this.
-    if (!lock.chunks.length && !params.allowEmptyLock) {
+    if (!lock.chunks.length && !ownOption(params, 'allowEmptyLock')) {
       throw new Error('lock is empty: the inscription would carry no locking script at ' +
         'all and the ordinal would be spendable by anyone. Pass a real lock, or ' +
         '{ allowEmptyLock: true } if you are appending this envelope to your own script')

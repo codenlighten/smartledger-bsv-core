@@ -18,6 +18,7 @@
 import BlockHeader = require('../block/blockheader')
 import BN = require('../crypto/bn')
 import Hash = require('../crypto/hash')
+import ownOption = require('../util/own-option')
 import type { MerkleProof, TxInclusionParams, TxInclusionResult } from './types'
 import type { BlockHeader as BlockHeaderType } from '../block/types'
 
@@ -253,25 +254,27 @@ function verifyTxInclusion (params: TxInclusionParams): TxInclusionResult {
   const computed = merkleRootFromBranch(params.txid, params.index, params.nodes)
   const rootMatches = computed.toLowerCase() === headerRoot.toLowerCase()
 
-  const requirePow = params.requirePow !== false
+  const requirePow = ownOption(params, 'requirePow') !== false
   const target = targetFromBits(hdr.bits)
   const powValid = target !== null && new BN(hdr.id, 'hex').cmp(target) <= 0
   const work = target === null ? new BN(0) : workFromTarget(target)
   // Both are policy the caller supplies, so neither is read — nor rejected as malformed —
   // when the work checks are off.
   const targetAllowed = target !== null &&
-    (!requirePow || target.cmp(targetLimit(params.powLimit)) <= 0)
+    (!requirePow || target.cmp(targetLimit(ownOption<number | string | BN | null>(params, 'powLimit'))) <= 0)
   let floor: BN | null = null
   if (requirePow) {
     // One floor, named for its unit. Accepting both would leave the caller guessing which one
     // bit, and the two are 4.3e9 apart.
-    const hasWork = params.minWork !== undefined && params.minWork !== null
-    const hasDifficulty = params.minDifficulty !== undefined && params.minDifficulty !== null
+    const minWork = ownOption<number | string | BN | null>(params, 'minWork')
+    const minDifficulty = ownOption<number | string | null>(params, 'minDifficulty')
+    const hasWork = minWork !== undefined && minWork !== null
+    const hasDifficulty = minDifficulty !== undefined && minDifficulty !== null
     if (hasWork && hasDifficulty) {
       throw new Error('pass minWork (hashes) or minDifficulty (difficulty), not both')
     }
-    if (hasWork) floor = minWorkBN(params.minWork as number | string | BN)
-    else if (hasDifficulty) floor = workFromDifficulty(params.minDifficulty as number | string)
+    if (hasWork) floor = minWorkBN(minWork as number | string | BN)
+    else if (hasDifficulty) floor = workFromDifficulty(minDifficulty as number | string)
   }
   const workSufficient = floor === null || work.cmp(floor) >= 0
 

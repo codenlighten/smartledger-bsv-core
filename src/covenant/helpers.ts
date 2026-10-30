@@ -19,6 +19,7 @@ import sighash = require('../transaction/sighash')
 import BN = require('../crypto/bn')
 import Hash = require('../crypto/hash')
 import Signature = require('../crypto/signature')
+import ownOption = require('../util/own-option')
 import type { PrivateKey, PayeeLike, VerifyOptions, FundAndSpendOptions, Address } from './types'
 
 // SIGHASH_ALL | SIGHASH_FORKID — the BSV default these covenants are built for.
@@ -78,7 +79,7 @@ function verify (unlockingScript: Script, lockingScript: Script, opts?: VerifyOp
     lockingScript,
     opts.tx || new Transaction(),
     opts.inputIndex || 0,
-    opts.flags || flags(),
+    ownOption<number>(opts, 'flags') || flags(),
     new BN(opts.satoshis || 0)
   )
   return { ok, err: interp.errstr || '' }

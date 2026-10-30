@@ -11,6 +11,7 @@ import _ = require('../util/_')
 import errors = require('../errors')
 import JSUtil = require('../util/js')
 import deprecate = require('../util/deprecate')
+import ownOption = require('../util/own-option')
 import { isUndecodablePush } from './push-decode'
 import type { Script, ScriptConstructor, ScriptChunk, ScriptAddressInfo, ScriptAddable, AddressLike, PublicKeyLike, NetworkLike, MultisigOpts } from './script.types'
 import type { PublicKey } from '../publickey.types'
@@ -990,7 +991,7 @@ Script.buildMultisigOut = function (publicKeys: PublicKeyLike[], threshold: numb
   // value instead of the parameter's looser input shape.
   const keys: PublicKey[] = _.map(publicKeys, (k: PublicKeyLike) => new (publicKeyClass())(k))
   let sorted = keys
-  if (!opts.noSorting) {
+  if (!ownOption(opts, 'noSorting')) {
     // NOT cosmetic: the sort decides the script, and therefore the address.
     sorted = keys.map((k) => k.toString()).sort().map((k) => new (publicKeyClass())(k))
   }

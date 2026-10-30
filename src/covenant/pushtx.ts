@@ -23,6 +23,7 @@ import Signature = require('../crypto/signature')
 import BN = require('../crypto/bn')
 import Hash = require('../crypto/hash')
 import H = require('./helpers')
+import ownOption = require('../util/own-option')
 import type { PushTxOptions, GrindOptions } from './types'
 import type { Transaction, Output } from '../transaction/types'
 
@@ -415,7 +416,7 @@ function sFromPreimageCompact (preimage: Buffer) {
 function grind (spend: Transaction, inputIndex: number, lockingScript: Script, satoshis: number, opts?: number | GrindOptions) {
   if (typeof opts === 'number') opts = { maxTries: opts } // back-compat: legacy maxTries arg
   opts = opts || {}
-  const maxTries = opts.maxTries || 5000
+  const maxTries = ownOption<number>(opts, 'maxTries') || 5000
   const start = opts.start || 0
   const field = opts.field || 'nLockTime'
   const sighashType = opts.sighashType || SIGHASH

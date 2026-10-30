@@ -145,17 +145,17 @@ jobs:
           cache: npm
       - run: npm ci
       - name: standard, against the inherited baseline
-        # The repo carries 62 findings from the port, nearly all `var` in tests. They are
+        # The repo carries 51 findings from the port, nearly all `var` in tests. They are
         # grandfathered rather than fixed in one sweep, but the count may only go down.
         run: |
           COUNT=$(npx standard 2>&1 | grep -cE ':[0-9]+:[0-9]+:' || true)
-          echo "standard findings: $COUNT (baseline 62)"
-          if [ "$COUNT" -gt 62 ]; then
-            echo "::error::$COUNT findings, above the baseline of 62. Fix the new ones."
+          echo "standard findings: $COUNT (baseline 51)"
+          if [ "$COUNT" -gt 51 ]; then
+            echo "::error::$COUNT findings, above the baseline of 51. Fix the new ones."
             npx standard || true
             exit 1
           fi
-          if [ "$COUNT" -lt 62 ]; then
+          if [ "$COUNT" -lt 51 ]; then
             echo "::notice::Down to $COUNT findings — lower the baseline in this workflow."
           fi
 

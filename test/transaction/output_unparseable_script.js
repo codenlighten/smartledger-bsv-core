@@ -32,29 +32,29 @@
 // can still be handed a null script directly, and because a guard removed on the grounds that
 // nothing reaches it is how the next parse failure becomes a crash.
 
-var bsv = require('../..')
-var errors = bsv.errors
+const bsv = require('../..')
+const errors = bsv.errors
 require('chai').should()
-var expect = require('chai').expect
+const expect = require('chai').expect
 
 // OP_RETURN + a truncated length field, in the three shapes the length field can take.
-var ACCEPTED_BY_NODE = ['6a4c', '6a4d01', '6a4e0100']
+const ACCEPTED_BY_NODE = ['6a4c', '6a4d01', '6a4e0100']
 
 function txWithOutputScript (lockHex, satoshisLE) {
-  var lock = Buffer.from(lockHex, 'hex')
-  var len = lock.length.toString(16)
+  const lock = Buffer.from(lockHex, 'hex')
+  let len = lock.length.toString(16)
   if (len.length % 2) len = '0' + len
   return '0100000001' + '00'.repeat(32) + 'ffffffff' + '0100' + 'ffffffff' +
     '01' + satoshisLE + len + lockHex + '00000000'
 }
 
-var BELOW_DUST = '0100000000000000' // 1 satoshi
-var ABOVE_DUST = '00e1f50500000000'
+const BELOW_DUST = '0100000000000000' // 1 satoshi
+const ABOVE_DUST = '00e1f50500000000'
 
 describe('an output script the node accepts but we cannot parse', function () {
   it('parses the script now, keeping the raw bytes unchanged', function () {
     ACCEPTED_BY_NODE.forEach(function (lock) {
-      var tx = new bsv.Transaction(txWithOutputScript(lock, BELOW_DUST))
+      const tx = new bsv.Transaction(txWithOutputScript(lock, BELOW_DUST))
       expect(tx.outputs[0].script).to.not.equal(null, lock)
       tx.outputs[0].script.toHex().should.equal(lock, lock)
       tx.outputs[0]._scriptBuffer.toString('hex').should.equal(lock)
@@ -63,13 +63,13 @@ describe('an output script the node accepts but we cannot parse', function () {
 
   it('round-trips the transaction byte-exact, so the bytes are never lost', function () {
     ACCEPTED_BY_NODE.forEach(function (lock) {
-      var raw = txWithOutputScript(lock, BELOW_DUST)
+      const raw = txWithOutputScript(lock, BELOW_DUST)
       new bsv.Transaction(raw).toString().should.equal(raw, lock)
     })
   })
 
   it('reports the raw script in toObject(), and a Script in inspect()', function () {
-    var tx = new bsv.Transaction(txWithOutputScript('6a4c', BELOW_DUST))
+    const tx = new bsv.Transaction(txWithOutputScript('6a4c', BELOW_DUST))
     tx.outputs[0].toObject().script.should.equal('6a4c')
     tx.outputs[0].inspect().should.match(/OP_RETURN 0x4c/)
   })
@@ -77,15 +77,15 @@ describe('an output script the node accepts but we cannot parse', function () {
   describe('the dust check answers instead of throwing a raw TypeError', function () {
     it('gives a typed DustOutputs below the dust threshold', function () {
       ACCEPTED_BY_NODE.forEach(function (lock) {
-        var tx = new bsv.Transaction(txWithOutputScript(lock, BELOW_DUST))
-        var err = tx._hasDustOutputs({})
+        const tx = new bsv.Transaction(txWithOutputScript(lock, BELOW_DUST))
+        const err = tx._hasDustOutputs({})
         expect(err).to.be.an.instanceOf(errors.Transaction.DustOutputs, lock)
       })
     })
 
     it('gives no error above the dust threshold', function () {
       ACCEPTED_BY_NODE.forEach(function (lock) {
-        var tx = new bsv.Transaction(txWithOutputScript(lock, ABOVE_DUST))
+        const tx = new bsv.Transaction(txWithOutputScript(lock, ABOVE_DUST))
         expect(tx._hasDustOutputs({})).to.equal(undefined, lock)
       })
     })
@@ -93,10 +93,10 @@ describe('an output script the node accepts but we cannot parse', function () {
     it('leaves the verdict for a WELL-FORMED data output exactly as it was', function () {
       // The exemption still applies to a script we can parse, which is the whole point of
       // the rule. `6a51` is OP_RETURN OP_1 — a data output by our Solver analogue.
-      var tx = new bsv.Transaction(txWithOutputScript('6a51', BELOW_DUST))
+      const tx = new bsv.Transaction(txWithOutputScript('6a51', BELOW_DUST))
       expect(tx._hasDustOutputs({})).to.equal(undefined)
       // And a plain non-data sub-dust output is still dust.
-      var bare = new bsv.Transaction(txWithOutputScript('51', BELOW_DUST))
+      const bare = new bsv.Transaction(txWithOutputScript('51', BELOW_DUST))
       expect(bare._hasDustOutputs({})).to.be.an.instanceOf(errors.Transaction.DustOutputs)
     })
   })
@@ -105,8 +105,8 @@ describe('an output script the node accepts but we cannot parse', function () {
     it('returns the true serialized size', function () {
       // 8 bytes of satoshis + 1 varint + the script itself.
       ACCEPTED_BY_NODE.forEach(function (lock) {
-        var tx = new bsv.Transaction(txWithOutputScript(lock, BELOW_DUST))
-        var expected = 8 + 1 + (lock.length / 2)
+        const tx = new bsv.Transaction(txWithOutputScript(lock, BELOW_DUST))
+        const expected = 8 + 1 + (lock.length / 2)
         tx.outputs[0].getSize().should.equal(expected, lock)
         // and it agrees with what the output actually serializes to
         tx.outputs[0].toBufferWriter().toBuffer().length.should.equal(expected, lock)
@@ -115,7 +115,7 @@ describe('an output script the node accepts but we cannot parse', function () {
 
     it('lets fee estimation run on a transaction read from the chain', function () {
       ACCEPTED_BY_NODE.forEach(function (lock) {
-        var tx = new bsv.Transaction(txWithOutputScript(lock, BELOW_DUST))
+        const tx = new bsv.Transaction(txWithOutputScript(lock, BELOW_DUST))
         tx._estimateSize().should.be.a('number', lock)
       })
     })
@@ -128,10 +128,10 @@ describe('BIP69 output sorting stays total when a script did not parse', functio
   // `.script.` dereference in lib/ rather than grepping for the shape I had already fixed —
   // the first pass over this bug missed it.
   it('sorts a transaction carrying an unparseable output script', function () {
-    var raw = '0100000001' + '00'.repeat(32) + '0100000000' + 'ffffffff' +
+    const raw = '0100000001' + '00'.repeat(32) + '0100000000' + 'ffffffff' +
       '02' + 'e803000000000000' + '02' + '6a4c' +
       'e803000000000000' + '02' + '6a51' + '00000000'
-    var tx = new bsv.Transaction(raw)
+    const tx = new bsv.Transaction(raw)
     tx.sort()
     tx.outputs.length.should.equal(2)
     tx.outputs.map(function (o) { return o._scriptBuffer.toString('hex') })
@@ -139,10 +139,10 @@ describe('BIP69 output sorting stays total when a script did not parse', functio
   })
 
   it('leaves the ordering of two WELL-FORMED outputs exactly as it was', function () {
-    var raw = '0100000001' + '00'.repeat(32) + '0100000000' + 'ffffffff' +
+    const raw = '0100000001' + '00'.repeat(32) + '0100000000' + 'ffffffff' +
       '02' + 'e803000000000000' + '02' + '6a52' +
       'e803000000000000' + '02' + '6a51' + '00000000'
-    var tx = new bsv.Transaction(raw)
+    const tx = new bsv.Transaction(raw)
     tx.sort()
     tx.outputs.map(function (o) { return o._scriptBuffer.toString('hex') })
       .should.deep.equal(['6a51', '6a52'], 'lexicographic by script, unchanged')
@@ -155,19 +155,19 @@ describe('an input script can be null too, and that is the coinbase', function (
   // coinbase input every block has. Pinned because it is long-standing behaviour that the
   // library's own paths DO handle, and a future null guard must not "fix" it into something
   // else.
-  var COINBASE = '01000000' + '01' + '00'.repeat(32) + 'ffffffff' +
+  const COINBASE = '01000000' + '01' + '00'.repeat(32) + 'ffffffff' +
     '08' + '0401020304aabbcc' + 'ffffffff' +
     '01' + '00f2052a01000000' + '19' + '76a914' + '11'.repeat(20) + '88ac' + '00000000'
 
   it('returns null for the coinbase input while keeping its raw bytes', function () {
-    var tx = new bsv.Transaction(COINBASE)
+    const tx = new bsv.Transaction(COINBASE)
     tx.inputs[0].isNull().should.equal(true)
     expect(tx.inputs[0].script).to.equal(null)
     tx.inputs[0]._scriptBuffer.toString('hex').should.equal('0401020304aabbcc')
   })
 
   it('round-trips, sorts, sizes and inspects a coinbase transaction', function () {
-    var tx = new bsv.Transaction(COINBASE)
+    const tx = new bsv.Transaction(COINBASE)
     tx.toString().should.equal(COINBASE)
     tx.sort()
     tx.toString().should.equal(COINBASE)
@@ -190,7 +190,7 @@ describe('getSize measures the Script OBJECT, which serialization does not', fun
   // The documented setter path, setScript(), is honoured correctly and is what callers
   // should use.
   it('reports the mutated size while the transaction drops the mutation', function () {
-    var o = new bsv.Transaction.Output({ script: bsv.Script.fromHex('6a0548656c6c6f'), satoshis: 1000 })
+    const o = new bsv.Transaction.Output({ script: bsv.Script.fromHex('6a0548656c6c6f'), satoshis: 1000 })
     o.getSize().should.equal(16)
     o.toBufferWriter().toBuffer().length.should.equal(16)
 
@@ -203,7 +203,7 @@ describe('getSize measures the Script OBJECT, which serialization does not', fun
   })
 
   it('honours setScript(), which is the supported way to change it', function () {
-    var o = new bsv.Transaction.Output({ script: bsv.Script.fromHex('6a0548656c6c6f'), satoshis: 1000 })
+    const o = new bsv.Transaction.Output({ script: bsv.Script.fromHex('6a0548656c6c6f'), satoshis: 1000 })
     o.setScript(bsv.Script.fromHex('6a0548656c6c6f04deadbeef'))
     o.getSize().should.equal(21)
     o.toBufferWriter().toBuffer().length.should.equal(21)

@@ -23,11 +23,11 @@
 // Note `Output#inspect` and `Input#toObject` were ALREADY guarded with `if (this.script)`.
 // The convention existed; the crashes were inconsistency with it.
 
-var fs = require('fs')
-var path = require('path')
+const fs = require('fs')
+const path = require('path')
 require('chai').should()
 
-var CLASSIFIED = {
+const CLASSIFIED = {
   // --- receiver is a nullable Output#script, and the null case is handled ---
   'src/transaction/output.ts :: inspect': 'guarded by `if (this.script)`, falls back to _scriptBuffer hex',
   'src/transaction/output.ts :: toBuffer': 'getSize(): `this.script === null ? _scriptBuffer.length : ...`',
@@ -51,7 +51,7 @@ var CLASSIFIED = {
 
 function sourceFiles (dir, out) {
   fs.readdirSync(dir, { withFileTypes: true }).forEach(function (e) {
-    var p = path.join(dir, e.name)
+    const p = path.join(dir, e.name)
     if (e.isDirectory()) sourceFiles(p, out)
     else if (/\.ts$/.test(e.name) && !/\.d\.ts$/.test(e.name)) out.push(p)
   })
@@ -59,19 +59,19 @@ function sourceFiles (dir, out) {
 }
 
 function stripComments (line) {
-  var i = line.indexOf('//')
+  const i = line.indexOf('//')
   return i === -1 ? line : line.slice(0, i)
 }
 
 function enumerate () {
-  var root = path.join(__dirname, '..', '..')
-  var found = {}
+  const root = path.join(__dirname, '..', '..')
+  const found = {}
   sourceFiles(path.join(root, 'src'), []).forEach(function (file) {
-    var rel = path.relative(root, file).split(path.sep).join('/')
+    const rel = path.relative(root, file).split(path.sep).join('/')
     fs.readFileSync(file, 'utf8').split('\n').forEach(function (raw) {
-      var line = stripComments(raw)
-      var re = /\.script\s*\.\s*([A-Za-z_$][\w$]*)|\.script\s*\[/g
-      var m
+      const line = stripComments(raw)
+      const re = /\.script\s*\.\s*([A-Za-z_$][\w$]*)|\.script\s*\[/g
+      let m
       while ((m = re.exec(line))) found[rel + ' :: ' + (m[1] || '[index]')] = true
     })
   })
@@ -80,7 +80,7 @@ function enumerate () {
 
 describe('every .script dereference in src/ is classified', function () {
   it('has no unclassified dereference', function () {
-    var unclassified = enumerate().filter(function (k) {
+    const unclassified = enumerate().filter(function (k) {
       return !Object.prototype.hasOwnProperty.call(CLASSIFIED, k)
     })
     unclassified.should.deep.equal([],
@@ -92,8 +92,8 @@ describe('every .script dereference in src/ is classified', function () {
   })
 
   it('lists nothing that has since been removed', function () {
-    var live = enumerate()
-    var stale = Object.keys(CLASSIFIED).filter(function (k) { return live.indexOf(k) === -1 })
+    const live = enumerate()
+    const stale = Object.keys(CLASSIFIED).filter(function (k) { return live.indexOf(k) === -1 })
     stale.should.deep.equal([], 'these entries no longer exist in src/ and should be deleted')
   })
 

@@ -19,16 +19,16 @@
  * This reads `src/`, not `dist/`: the registration is a property of the source, and a stale build
  * must not be able to answer the question.
  */
-var should = require('chai').should()
-var fs = require('fs')
-var path = require('path')
+const should = require('chai').should()
+const fs = require('fs')
+const path = require('path')
 
-var ROOT = path.join(__dirname, '..', '..')
-var PLAN = path.join(ROOT, 'docs', 'RELEASE-2.0.0.md')
+const ROOT = path.join(__dirname, '..', '..')
+const PLAN = path.join(ROOT, 'docs', 'RELEASE-2.0.0.md')
 
 function tsFiles (dir, acc) {
   fs.readdirSync(dir, { withFileTypes: true }).forEach(function (e) {
-    var p = path.join(dir, e.name)
+    const p = path.join(dir, e.name)
     if (e.isDirectory()) tsFiles(p, acc)
     else if (e.name.slice(-3) === '.ts' && e.name.slice(-9) !== '.types.ts') acc.push(p)
   })
@@ -38,15 +38,15 @@ function tsFiles (dir, acc) {
 // Every registered 2.0.0 deprecation in src/, excluding the deprecate module itself — its
 // occurrences document the mechanism rather than promising anything.
 function registered () {
-  var found = []
+  const found = []
   tsFiles(path.join(ROOT, 'src'), []).forEach(function (f) {
     if (f.indexOf(path.join('util', 'deprecate.ts')) !== -1) return
-    var lines = fs.readFileSync(f, 'utf8').split('\n')
+    const lines = fs.readFileSync(f, 'utf8').split('\n')
     lines.forEach(function (ln, i) {
       if (!/removeIn:\s*'2\.0\.0'/.test(ln)) return
-      var blk = lines.slice(Math.max(0, i - 22), Math.min(lines.length, i + 22)).join('\n')
-      var since = blk.match(/since:\s*'([^']+)'/)
-      var id = blk.match(/plan:\s*'([^']+)'/)
+      const blk = lines.slice(Math.max(0, i - 22), Math.min(lines.length, i + 22)).join('\n')
+      const since = blk.match(/since:\s*'([^']+)'/)
+      const id = blk.match(/plan:\s*'([^']+)'/)
       found.push({
         file: path.relative(ROOT, f).split(path.sep).join('/'),
         since: since ? since[1] : null,
@@ -63,15 +63,15 @@ function planRows (plan) {
   return plan.split('\n').filter(function (l) {
     return /^\|\s*`[a-z0-9-]+`\s*\|\s*\d+\.\d/.test(l)
   }).map(function (l) {
-    var c = l.split('|').map(function (x) { return x.trim() })
+    const c = l.split('|').map(function (x) { return x.trim() })
     return { id: c[1].replace(/`/g, ''), since: c[2], file: (c[5] || '').replace(/`/g, '') }
   })
 }
 
 describe('the 2.0.0 plan', function () {
-  var plan = fs.readFileSync(PLAN, 'utf8')
-  var items = registered()
-  var rows = planRows(plan)
+  const plan = fs.readFileSync(PLAN, 'utf8')
+  const items = registered()
+  const rows = planRows(plan)
 
   it('finds the registered commitments at all (the instrument must not be empty)', function () {
     // An enumeration that silently finds nothing would make every assertion below vacuous.
@@ -87,7 +87,7 @@ describe('the 2.0.0 plan', function () {
   })
 
   it('every registered 2.0.0 deprecation declares a `since` and a unique plan id', function () {
-    var seen = {}
+    const seen = {}
     items.forEach(function (it_) {
       should.exist(it_.since, it_.file + ':' + it_.line + ' registers 2.0.0 without a since')
       should.exist(it_.id,
@@ -99,28 +99,28 @@ describe('the 2.0.0 plan', function () {
   })
 
   it('every registered 2.0.0 deprecation appears in the plan, matched by id', function () {
-    var have = {}
+    const have = {}
     rows.forEach(function (r) { have[r.id] = r })
-    var absent = items.filter(function (it_) { return !have[it_.id] })
+    const absent = items.filter(function (it_) { return !have[it_.id] })
     absent.should.have.length(0,
       'these register removeIn 2.0.0 but no plan row carries their id: ' +
       absent.map(function (a) { return a.file + ':' + a.line + ' (' + a.id + ')' }).join(', '))
   })
 
   it('every plan row is backed by a live registration — a row cannot be left behind', function () {
-    var have = {}
+    const have = {}
     items.forEach(function (it_) { have[it_.id] = it_ })
-    var unbacked = rows.filter(function (r) { return !have[r.id] })
+    const unbacked = rows.filter(function (r) { return !have[r.id] })
     unbacked.should.have.length(0,
       'these plan rows promise a 2.0.0 change that nothing in src/ registers: ' +
       unbacked.map(function (r) { return r.id }).join(', '))
   })
 
   it('agrees with the plan on each matched commitment\'s version and location', function () {
-    var byId = {}
+    const byId = {}
     items.forEach(function (it_) { byId[it_.id] = it_ })
     rows.forEach(function (r) {
-      var reg = byId[r.id]
+      const reg = byId[r.id]
       if (!reg) return // the reverse test above owns that failure
       r.since.should.equal(reg.since,
         r.id + ': the plan says since ' + r.since + ', the code registers ' + reg.since)
@@ -130,7 +130,7 @@ describe('the 2.0.0 plan', function () {
   })
 
   it('every `since` names a version that actually shipped', function () {
-    var changelog = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8')
+    const changelog = fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8')
     items.forEach(function (it_) {
       changelog.should.match(
         new RegExp('^## \\[?' + it_.since.replace(/\./g, '\\.') + '\\]?', 'm'),
@@ -145,7 +145,7 @@ describe('the 2.0.0 plan', function () {
   })
 
   it('is linked from the README so it is discoverable', function () {
-    var readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
+    const readme = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8')
     readme.should.match(/RELEASE-2\.0\.0\.md/)
   })
 

@@ -1,8 +1,8 @@
 'use strict'
 
 require('chai').should()
-var bsv = require('../..')
-var deprecate = require('../../dist/util/deprecate')
+const bsv = require('../..')
+const deprecate = require('../../dist/util/deprecate')
 
 /**
  * A NAMED PARSER handed nothing generated a key the caller never supplied; a sibling deployment
@@ -13,8 +13,8 @@ var deprecate = require('../../dist/util/deprecate')
  * Ported with the sibling's plan ids (see docs/RELEASE-2.0.0.md), with `removeIn` 2.0.0 here.
  */
 describe('key-material parsers handed nothing — warn in 1.10.0, refuse in 2.0.0', function () {
-  var NOTHING = [undefined, null, '', 0, false, [], bsv.Mnemonic.Words.ENGLISH, Buffer.alloc(16)]
-  var warned
+  const NOTHING = [undefined, null, '', 0, false, [], bsv.Mnemonic.Words.ENGLISH, Buffer.alloc(16)]
+  let warned
 
   beforeEach(function () {
     deprecate.reset()
@@ -31,7 +31,7 @@ describe('key-material parsers handed nothing — warn in 1.10.0, refuse in 2.0.
     NOTHING.forEach(function (v) {
       deprecate.reset()
       warned = []
-      var m = bsv.Mnemonic.fromString(v)
+      const m = bsv.Mnemonic.fromString(v)
       m.toString().split(' ').length.should.equal(12)
       warned.length.should.equal(1, 'no notice for ' + Object.prototype.toString.call(v))
       warned[0].should.match(/removed in 2\.0\.0/)
@@ -40,7 +40,7 @@ describe('key-material parsers handed nothing — warn in 1.10.0, refuse in 2.0.
   })
 
   it('is silent for a valid phrase and still round-trips it, with and without a wordlist', function () {
-    var phrase = bsv.Mnemonic.fromRandom().toString()
+    const phrase = bsv.Mnemonic.fromRandom().toString()
     bsv.Mnemonic.fromString(phrase).toString().should.equal(phrase)
     bsv.Mnemonic.fromString(phrase, bsv.Mnemonic.Words.ENGLISH).toString().should.equal(phrase)
     warned.length.should.equal(0)
@@ -54,7 +54,7 @@ describe('key-material parsers handed nothing — warn in 1.10.0, refuse in 2.0.
   })
 
   it('the two derivable-by-anyone cases are still exactly that, so the notice is not cosmetic', function () {
-    var a = bsv.Mnemonic.fromString([]).toString()
+    const a = bsv.Mnemonic.fromString([]).toString()
     bsv.Mnemonic.fromString([]).toString().should.equal(a)
     a.trim().should.equal('')
     bsv.Mnemonic.fromString(Buffer.alloc(16)).toString()
@@ -70,7 +70,7 @@ describe('key-material parsers handed nothing — warn in 1.10.0, refuse in 2.0.
     ;(function () { bsv.HDPrivateKey.fromString(undefined) }).should.throw(/No valid string/)
     warned.length.should.equal(0, 'undefined was already refused; it must not also warn')
 
-    var xprv = new bsv.HDPrivateKey().toString()
+    const xprv = new bsv.HDPrivateKey().toString()
     bsv.HDPrivateKey.fromString(xprv).toString().should.equal(xprv)
     warned.length.should.equal(0)
   })

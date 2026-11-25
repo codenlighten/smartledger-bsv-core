@@ -50,7 +50,7 @@ Four gates, all green, and one of them is the reason to use this package.
 |---|---|
 | **SV Node script vectors** | **1483 / 1483** — no false accepts, no false rejects, no wrong reasons |
 | SV Node sighash vectors | 1000 / 1000, both digest columns |
-| Test suite | 4,336 passing |
+| Test suite | 4,919 passing (Mocha, from the CI run at the commit this README describes) |
 | Conformance corpus | 455 cases match |
 
 The first is the one that matters, and it is worth being exact about what it is.

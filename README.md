@@ -56,11 +56,12 @@ Four gates, all green, and one of them is the reason to use this package.
 The first is the one that matters, and it is worth being exact about what it is.
 `test/data/bitcoin-sv/script_tests.json` is the reference node's **own** test file, copied
 verbatim from `bitcoin-sv` v1.2.2 and replayed unmodified. Every row matches on acceptance or
-rejection and, where the row specifies one, on the expected error label. Those labels are the
-node's own `ScriptError` names as its own test asserts them — they are fixtures from a release
-tag, not a comparison against a live node. A false accept, meaning a script the node rejects
-that this package calls valid, fails the build; that is enforced in CI on every pull request
-rather than measured by hand.
+rejection and, where the row specifies one, on the error reason: 491 of the 600 rejections
+report the node's exact `ScriptError` label and 109 a documented narrower name that maps to it
+(`ERROR_CODE_ALIASES` in `tools/sv-vector-harness.js`) — they are fixtures from a release tag,
+not a comparison against a live node. A false accept, meaning a script the node rejects that
+this package calls valid, fails the build; that is enforced in CI on every pull request rather
+than measured by hand.
 
 This is a stronger claim than passing our own tests, and it was not free. Measured at the branch
 point with the harness as it now stands, the corpus started at **1424 / 1483 with 30 false

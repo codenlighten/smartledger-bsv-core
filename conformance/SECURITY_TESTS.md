@@ -1,5 +1,12 @@
 # Security regression test inventory
 
+> **Read this first.** This inventory was written in `codenlighten/smartledger-bsv` before
+> bsv-core was carved out of it. The commit ids below are commits in that repository, not
+> this one. Rows marked **not in this repo** name tests that stayed in smartledger-bsv (see
+> `CARVE.md`, "Not carried, and where it went"); they are not part of this package's test
+> run. The unmarked rows are files present here, and they run in this repo's `npm test`
+> (mocha, `test/**/*.js`).
+
 These test files encode security fixes shipped in v6.2.2 through v7.5.5. They
 are the highest-value tests in the repository: each one exists because a real
 defect reached a release.
@@ -20,7 +27,7 @@ provenance for each entry.
 | `test/crypto/signature.js` | Signature malleability bypass, non-canonical DER | `5c71aa8` |
 | `test/crypto/security.js` | Combined crypto hardening suite | `5c71aa8` |
 | `test/script/script.js` | Script-level malleability surface | `5c71aa8` |
-| `test/util/id.js` | Predictable token/id generation | `5c71aa8` |
+| `test/util/id.js` (**not in this repo**) | Predictable token/id generation | `5c71aa8` |
 | `test/privatekey.js` | Malformed `bn` deriving a *different* key; key material leak | `f187821`, `dff5e1d` |
 | `test/mnemonic/mnemonic.js` | `fromRandom` ignoring the entropy argument (weak phrases) | `558a584` |
 | `test/encoding/base58check.js` | Silent-argument footgun | `9b5673e` |
@@ -35,10 +42,10 @@ provenance for each entry.
 
 | Test file | Guards against | Commit |
 |---|---|---|
-| `test/gdaf/anchor_no_key_leak.js` | **Private key published on chain**; key material detected by value not field name | `dff5e1d`, `41af9a5` |
-| `test/ltp/ids.js` | Predictable token ids | `5c71aa8` |
-| `test/smart_contract/preimage.js` | Dishonest errors on malformed preimage input | `ac88b1d` |
-| `test/smart_contract/*.js` (covenants, dsl_debugger, ordinal_transfer, sighash_marketplace, token_generalized) | Script size cap regressions | `9096149` |
+| `test/gdaf/anchor_no_key_leak.js` (**not in this repo**) | **Private key published on chain**; key material detected by value not field name | `dff5e1d`, `41af9a5` |
+| `test/ltp/ids.js` (**not in this repo**) | Predictable token ids | `5c71aa8` |
+| `test/smart_contract/preimage.js` (**not in this repo**) | Dishonest errors on malformed preimage input | `ac88b1d` |
+| `test/smart_contract/*.js` (**not in this repo**; covenants, dsl_debugger, ordinal_transfer, sighash_marketplace, token_generalized) | Script size cap regressions | `9096149` |
 
 ## Build / API-honesty tests
 
@@ -47,9 +54,9 @@ package from *lying about itself*, which is how several of the above shipped.
 
 | Test file | Guards against | Commit |
 |---|---|---|
-| `test/types/dts_drift.js` | Type declarations disagreeing with the code | `2c3900f` |
-| `test/types/surface_honesty.js` | Exported surface not matching documentation | `2c3900f` |
-| `test/build/esm_wrapper.js` | ESM wrapper drifting from CJS entry | `5c71aa8` |
+| `test/types/dts_drift.js` (**not in this repo**) | Type declarations disagreeing with the code | `2c3900f` |
+| `test/types/surface_honesty.js` (**not in this repo**) | Exported surface not matching documentation | `2c3900f` |
+| `test/build/esm_wrapper.js` (**not in this repo**) | ESM wrapper drifting from CJS entry | `5c71aa8` |
 
 ## Coverage relationship to the conformance corpus
 
